@@ -3,10 +3,28 @@
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/mods/First-Aid-New" name="First-Aid-New">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/First-Aid-New" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/mods/TACZ-1.21.1" name="tacz">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/TACZ-1.21.1" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/mods/First-Aid-New" />
+            <option value="$PROJECT_DIR$/mods/TACZ-1.21.1" />
           </set>
         </option>
         <option name="resolveExternalAnnotations" value="true" />

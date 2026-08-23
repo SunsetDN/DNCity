@@ -1,3 +1,6 @@
 [submodule "mods/TACZ-1.21.1"]
 	path = mods/TACZ-1.21.1
 	url = https://github.com/SunsetDN/TACZ-1.21.1
+[submodule "mods/First-Aid-New"]
+	path = mods/First-Aid-New
+	url = https://github.com/SunsetDN/FIrst-Aid-New

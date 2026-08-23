@@ -1,0 +1,256 @@
+import org.gradle.language.jvm.tasks.ProcessResources
+import org.slf4j.event.Level
+
+plugins {
+    `java-library`
+    `maven-publish`
+    idea
+    id("net.neoforged.moddev") version "2.0.144"
+    id("org.jetbrains.kotlin.jvm") version "2.0.0"
+}
+
+val minecraft_version: String by project
+val minecraft_version_range: String by project
+val neo_version: String by project
+val neo_version_range: String by project
+val loader_version_range: String by project
+val parchment_mappings_version: String by project
+val parchment_minecraft_version: String by project
+val mod_id: String by project
+val mod_name: String by project
+val mod_license: String by project
+val mod_version: String by project
+val mod_group_id: String by project
+val mod_authors: String by project
+val mod_description: String by project
+val mods_tacz_version: String by project
+val mods_firstaid_version: String by project
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+    mavenLocal()
+    maven {
+        name = "Kotlin for Forge"
+        url = uri("https://thedarkcolour.github.io/KotlinForForge/")
+        content { includeGroup("thedarkcolour") }
+    }
+
+    // Required to resolve TACZ's (mods/TACZ-1.21.1) own dependencies, since
+    // Gradle resolves the whole project graph using the consuming project's
+    // (this one's) repositories rather than the included build's.
+    maven {
+        url = uri("https://jitpack.io")
+        content {
+            includeGroup("com.github.rtyley")
+            includeGroup("com.github.FiguraMC.luaj")
+            includeGroup("com.github.mcmodderanchor")
+        }
+    }
+    maven { url = uri("https://maven.shedaniel.me") }
+    maven { url = uri("https://maven.kosmx.dev") }
+    maven { url = uri("https://maven.blamejared.com") }
+    maven {
+        url = uri("https://maven.architectury.dev")
+        content { includeGroup("dev.architectury") }
+    }
+    maven {
+        url = uri("https://maven.latvian.dev/releases")
+        content {
+            includeGroup("dev.latvian.mods")
+            includeGroup("dev.latvian.apps")
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = uri("https://api.modrinth.com/maven")
+            }
+        }
+        filter { includeGroup("maven.modrinth") }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "CurseForge"
+                url = uri("https://cursemaven.com")
+            }
+        }
+        filter { includeGroup("curse.maven") }
+    }
+    flatDir { dirs("mods/TACZ-1.21.1/libs") }
+}
+
+base {
+    archivesName.set(mod_id)
+}
+
+java.toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+kotlin.jvmToolchain(21)
+
+neoForge {
+    // Specify the version of NeoForge to use.
+    version = neo_version
+
+    parchment {
+        mappingsVersion = parchment_mappings_version
+        minecraftVersion = parchment_minecraft_version
+    }
+
+    // This line is optional. Access Transformers are automatically detected
+    // accessTransformers.add("src/main/resources/META-INF/accesstransformer.cfg")
+
+    // Default run configurations.
+    // These can be tweaked, removed, or duplicated as needed.
+    runs {
+        create("client") {
+            client()
+
+            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
+        }
+
+        create("server") {
+            server()
+            programArgument("--nogui")
+            systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
+        }
+
+        // This run config launches GameTestServer and runs all registered gametests, then exits.
+        // By default, the server will crash when no gametests are provided.
+        // The gametest system is also enabled by default for other run configs under the /test command.
+        create("gameTestServer") {
+            type = "gameTestServer"
+            systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
+        }
+
+        create("data") {
+            data()
+
+            // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
+            // gameDirectory = project.file("run-data")
+
+            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
+            programArguments.addAll(
+                "--mod", mod_id,
+                "--all",
+                "--output", file("src/generated/resources/").absolutePath,
+                "--existing", file("src/main/resources/").absolutePath
+            )
+        }
+
+        // applies to all the run configs above
+        configureEach {
+            // Recommended logging data for a userdev environment
+            // The markers can be added/remove as needed separated by commas.
+            // "SCAN": For mods scan.
+            // "REGISTRIES": For firing of registry events.
+            // "REGISTRYDUMP": For getting the contents of all registries.
+            systemProperty("forge.logging.markers", "REGISTRIES")
+
+            // Recommended logging level for the console
+            // You can set various levels here.
+            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
+            logLevel = Level.DEBUG
+        }
+    }
+
+    mods {
+        // define mod <-> source bindings
+        // these are used to tell the game which sources are for which mod
+        // mostly optional in a single mod project
+        // but multi mod projects should define one per mod
+        create(mod_id) {
+            sourceSet(sourceSets["main"])
+        }
+    }
+}
+
+// Include resources generated by data generators.
+sourceSets["main"].resources.srcDir("src/generated/resources")
+
+dependencies {
+    implementation("thedarkcolour:kotlinforforge-neoforge:5.3.0")
+
+    // TACZ, included as a composite build submodule (mods/TACZ-1.21.1) so it
+    // shares this project's NeoForge version and Minecraft artifact instead
+    // of generating its own.
+    implementation("com.tacz:tacz-neoforge-1.21.1:${mods_tacz_version}")
+
+    // First Aid, included as a composite build submodule
+    // (mods/First-Aid-New/neoforge1.21.1) for the same reason as TACZ.
+    implementation("ichttt.mods.firstaid:firstaid:${mods_firstaid_version}")
+
+    // Example mod dependency with JEI
+    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
+    // compileOnly("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
+    // compileOnly("mezz.jei:jei-${mc_version}-forge-api:${jei_version}")
+    // runtimeOnly("mezz.jei:jei-${mc_version}-forge:${jei_version}")
+
+    // Example mod dependency using a mod jar from ./libs with a flat dir repository
+    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
+    // The group id is ignored when searching -- in this case, it is "blank"
+    // implementation("blank:coolmod-${mc_version}:${coolmod_version}")
+
+    // Example mod dependency using a file as dependency
+    // implementation(files("libs/coolmod-${mc_version}-${coolmod_version}.jar"))
+
+    // Example project dependency using a sister or child project:
+    // implementation(project(":myproject"))
+
+    // For more info:
+    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
+    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+}
+
+// This block of code expands all declared replace properties in the specified resource targets.
+// A missing property will result in an error. Properties are expanded using ${} Groovy notation.
+val generateModMetadata = tasks.register<ProcessResources>("generateModMetadata") {
+    val replaceProperties = mapOf(
+        "minecraft_version" to minecraft_version,
+        "minecraft_version_range" to minecraft_version_range,
+        "neo_version" to neo_version,
+        "neo_version_range" to neo_version_range,
+        "loader_version_range" to loader_version_range,
+        "mod_id" to mod_id,
+        "mod_name" to mod_name,
+        "mod_license" to mod_license,
+        "mod_version" to mod_version,
+        "mod_authors" to mod_authors,
+        "mod_description" to mod_description
+    )
+    inputs.properties(replaceProperties)
+    expand(replaceProperties)
+    from("src/main/templates")
+    into("build/generated/sources/modMetadata")
+}
+
+// Include the output of "generateModMetadata" as an input directory for the build
+// this works with both building through Gradle and the IDE.
+sourceSets["main"].resources.srcDir(generateModMetadata)
+// To avoid having to run "generateModMetadata" manually, make it run on every project reload
+neoForge.ideSyncTask(generateModMetadata)
+
+// Example configuration to allow publishing using the maven-publish plugin
+publishing {
+    publications {
+        register<MavenPublication>("mavenJava") {
+            from(components["java"])
+        }
+    }
+    repositories {
+        maven {
+            url = uri("file://${project.projectDir}/repo")
+        }
+    }
+}
+
+// IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
+idea {
+    module {
+        isDownloadSources = true
+        isDownloadJavadoc = true
+    }
+}
