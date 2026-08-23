@@ -6,7 +6,7 @@ plugins {
     `maven-publish`
     idea
     id("net.neoforged.moddev") version "2.0.144"
-    id("org.jetbrains.kotlin.jvm") version "2.0.0"
+    id("org.jetbrains.kotlin.jvm") version "2.3.20"
 }
 
 val minecraft_version: String by project
@@ -29,8 +29,17 @@ val mods_firstaid_version: String by project
 version = mod_version
 group = mod_group_id
 
+// Minecraft's own dependency set (via net.neoforged:minecraft-dependencies) pins
+// commons-io to 2.15.1 with a strict constraint. engine/fmod requests 2.18.0, which
+// conflicts with that constraint; force everything onto the version Minecraft ships,
+// since commons-io is source/binary compatible across these minor releases.
+configurations.all {
+    resolutionStrategy.force("commons-io:commons-io:2.15.1")
+}
+
 repositories {
     mavenLocal()
+    mavenCentral()
     maven {
         name = "Kotlin for Forge"
         url = uri("https://thedarkcolour.github.io/KotlinForForge/")
@@ -87,8 +96,15 @@ base {
     archivesName.set(mod_id)
 }
 
-java.toolchain.languageVersion.set(JavaLanguageVersion.of(21))
-kotlin.jvmToolchain(21)
+// Unified on Java 25 across the whole repo (root, TACZ, First Aid, engine/fmod). This isn't
+// just about compiling: the neoForge "runs" (runClient/runServer) launch the game using this
+// same toolchain's JVM, and TACZ loads engine/fmod's classes (compiled for Java 25) at
+// runtime -- an older JVM can't load those at all (UnsupportedClassVersionError).
+java.toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+tasks.withType<JavaCompile> {
+    options.release.set(25)
+}
+kotlin.jvmToolchain(25)
 
 neoForge {
     // Specify the version of NeoForge to use.

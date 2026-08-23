@@ -28,7 +28,6 @@ object Dncity {
     val LOGGER: Logger = LogManager.getLogger(ID)
 
     init {
-        LOGGER.log(Level.INFO, "Hello world!")
 
         // Register the KDeferredRegister to the mod-specific event bus
         ModBlocks.REGISTRY.register(MOD_BUS)

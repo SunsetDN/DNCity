@@ -11,6 +11,11 @@
                   <project path="$PROJECT_DIR$/mods/First-Aid-New" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/engine/fmod" name="fmod">
+                <projects>
+                  <project path="$PROJECT_DIR$/engine/fmod" />
+                </projects>
+              </build>
               <build path="$PROJECT_DIR$/mods/TACZ-1.21.1" name="tacz">
                 <projects>
                   <project path="$PROJECT_DIR$/mods/TACZ-1.21.1" />
@@ -23,6 +28,7 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/engine/fmod" />
             <option value="$PROJECT_DIR$/mods/First-Aid-New" />
             <option value="$PROJECT_DIR$/mods/TACZ-1.21.1" />
           </set>
