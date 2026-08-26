@@ -28,6 +28,19 @@
                   <project path="$PROJECT_DIR$/engine/fmod" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/mods/ModernUI-MC" name="ModernUI-MC">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/ModernUI-MC" />
+                  <project path="$PROJECT_DIR$/mods/ModernUI-MC/common" />
+                  <project path="$PROJECT_DIR$/mods/ModernUI-MC/neoforge" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/mods/SuperbWarfare" name="SuperbWarfare">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/SuperbWarfare" />
+                  <project path="$PROJECT_DIR$/mods/SuperbWarfare/ksp" />
+                </projects>
+              </build>
               <build path="$PROJECT_DIR$/mods/TACZ-1.21.1" name="tacz">
                 <projects>
                   <project path="$PROJECT_DIR$/mods/TACZ-1.21.1" />
@@ -45,6 +58,11 @@
             <option value="$PROJECT_DIR$/mods/Automobility" />
             <option value="$PROJECT_DIR$/mods/Automobility/neoforge" />
             <option value="$PROJECT_DIR$/mods/First-Aid-New" />
+            <option value="$PROJECT_DIR$/mods/ModernUI-MC" />
+            <option value="$PROJECT_DIR$/mods/ModernUI-MC/common" />
+            <option value="$PROJECT_DIR$/mods/ModernUI-MC/neoforge" />
+            <option value="$PROJECT_DIR$/mods/SuperbWarfare" />
+            <option value="$PROJECT_DIR$/mods/SuperbWarfare/ksp" />
             <option value="$PROJECT_DIR$/mods/TACZ-1.21.1" />
           </set>
         </option>

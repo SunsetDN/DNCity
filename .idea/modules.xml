@@ -6,6 +6,11 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/DNCity.main.iml" filepath="$PROJECT_DIR$/.idea/modules/DNCity.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/DNCity.test.iml" filepath="$PROJECT_DIR$/.idea/modules/DNCity.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/First-Aid-New/First-Aid-New.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/First-Aid-New/First-Aid-New.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/common/ModernUI-MC.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/common/ModernUI-MC.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/TACZ-1.21.1/TACZ-1_21_1.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/TACZ-1.21.1/TACZ-1_21_1.main.iml" />
     </modules>
   </component>
