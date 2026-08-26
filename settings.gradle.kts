@@ -21,3 +21,12 @@ includeBuild("mods/First-Aid-New") {
         substitute(module("ichttt.mods.firstaid:firstaid")).using(project(":"))
     }
 }
+
+// engine/audio (miniaudio JNI bridge -- see CLAUDE.md) is a standalone Gradle project, wired in
+// here the same way as the TACZ/First Aid submodules above so its NativeAudio class and native
+// library resource land on the main mod's classpath.
+includeBuild("engine/audio") {
+    dependencySubstitution {
+        substitute(module("engine:audio")).using(project(":"))
+    }
+}

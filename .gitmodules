@@ -4,3 +4,6 @@
 [submodule "mods/First-Aid-New"]
 	path = mods/First-Aid-New
 	url = https://github.com/SunsetDN/FIrst-Aid-New
+[submodule "engine/audio/vendor/codec2"]
+	path = engine/audio/vendor/codec2
+	url = https://github.com/drowe67/codec2

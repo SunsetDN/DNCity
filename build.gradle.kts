@@ -170,6 +170,17 @@ neoForge {
             // You can set various levels here.
             // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
             logLevel = Level.DEBUG
+
+            // Plain (non-mod) jarJar'd library dependencies -- see the `dependencies` block's
+            // comment on engine:audio for why this is needed on top of `implementation`/`jarJar`.
+            // Each RunModel's `additionalRuntimeClasspathConfiguration` is a real per-run
+            // Configuration (named e.g. "clientAdditionalRuntimeClasspath"), not a DSL function,
+            // so dependencies are added to it by name via the project's DependencyHandler.
+            // (engine:audio is plain Java specifically so it has no transitive kotlin-stdlib to
+            // fight over here -- an earlier Kotlin version of it hit a "reads more than one
+            // module named kotlin.stdlib" JPMS error from ending up in a different module layer
+            // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
         }
     }
 
@@ -198,6 +209,22 @@ dependencies {
     // First Aid, included as a composite build submodule
     // (mods/First-Aid-New/neoforge1.21.1) for the same reason as TACZ.
     implementation("ichttt.mods.firstaid:firstaid:${mods_firstaid_version}")
+
+    // engine/audio (miniaudio JNI capture/playback bridge), wired in via includeBuild in
+    // settings.gradle.kts -- see io.github.jwyoon1220.dncity.audio.NativeAudio. jarJar embeds it
+    // (same pattern TACZ uses for engine/fmod) so it's not just a dev-run classpath artifact --
+    // it ships inside the mod jar and reaches players. jarJar's embedding only actually takes
+    // effect for an already-packaged mod jar (FML's jar-in-jar extraction runs against a real
+    // jar file) -- on MC 1.21.1's ModDevGradle, runClient/runClient2/runServer instead launch
+    // straight from this project's compiled classes directory, which has no jar to extract from,
+    // so a plain library dependency (not a mod, so FML's own mod-file loader won't pick it up
+    // either) silently never reaches the dev-run classpath without *also* being added to each
+    // run's `additionalRuntimeClasspath` below (see the `runs { configureEach { ... } }` block).
+    // (Confirmed by a NoClassDefFoundError on NativeAudio when that was missing; see
+    // https://docs.neoforged.net/toolchain/docs/dependencies/nonmclibs/ -- fixed in 1.21.9+,
+    // where jarJar deps are added to run classpaths automatically.)
+    implementation("engine:audio:1.0")
+    jarJar("engine:audio:1.0")
 
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
