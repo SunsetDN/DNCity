@@ -149,6 +149,38 @@ public class FModLoad {
             loadOptional(plugin, libDir);
         }
 
+        // This module's own JNI glue (jni_fmod.cpp, built by CMakeLists.txt into
+        // engine/fmod/build/generated/nativeResources), which FMODSystem.java's native methods
+        // resolve against. Loaded last and required (not optional, unlike the codec plugins
+        // above): it links against fmod.dll/fmodstudio.dll at the OS loader level, so both must
+        // already be resident in the process first -- the same reasoning as the codec plugins,
+        // just non-optional since FMODSystem is unusable without it.
+        //
+        // Extracted via File.createTempFile straight into the OS temp root, deliberately NOT
+        // into libDir alongside fmod.dll/fmodstudio.dll (unlike everything above): on this dev
+        // machine, extracting an unsigned, freshly-built DLL into a *subdirectory* of the temp
+        // root got silently blocked by the machine's Application Control policy
+        // (AppLocker/WDAC -- same class of restriction documented in CLAUDE.md for engine/audio's
+        // toolchain), while a temp-root-level file did not; matches the exact extraction pattern
+        // engine/audio's NativeLibrary.java already uses successfully for its own unsigned DLL.
+        // Placing it outside libDir doesn't break the fmod.dll/fmodstudio.dll dependency lookup
+        // above -- those are resolved via "already loaded in this process by name", not by
+        // directory, the same mechanism the codec plugin comment above describes.
+        String mappedFmodJni = System.mapLibraryName("dncity_fmod");
+        try (InputStream fmodJniIn = FModLoad.class.getResourceAsStream(resourcePath() + mappedFmodJni)) {
+            if (fmodJniIn == null) {
+                throw new IOException(
+                    "dncity_fmod native library resource not found: " + resourcePath() + mappedFmodJni);
+            }
+            String suffix = mappedFmodJni.substring(mappedFmodJni.lastIndexOf('.'));
+            File fmodJniFile = File.createTempFile("dncity_fmod", suffix);
+            fmodJniFile.deleteOnExit();
+            try (OutputStream out = new FileOutputStream(fmodJniFile)) {
+                IOUtils.copy(fmodJniIn, out);
+            }
+            System.load(fmodJniFile.getAbsolutePath());
+        }
+
         loaded = true;
     }
 

@@ -96,15 +96,20 @@ base {
     archivesName.set(mod_id)
 }
 
-// Unified on Java 25 across the whole repo (root, TACZ, First Aid, engine/fmod). This isn't
-// just about compiling: the neoForge "runs" (runClient/runServer) launch the game using this
-// same toolchain's JVM, and TACZ loads engine/fmod's classes (compiled for Java 25) at
-// runtime -- an older JVM can't load those at all (UnsupportedClassVersionError).
-java.toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+// Unified on Java 21 across the whole repo (root, TACZ, First Aid, engine/audio, engine/fmod) --
+// what Mojang ships to end users for Minecraft 1.21.1, so it's what players actually have.
+// This was Java 25 until 2026-08-26: engine/fmod's old jextract/java.lang.foreign bindings
+// needed JDK 24+ (SymbolLookup.findOrThrow, added in JDK 24; java.lang.foreign itself only
+// stabilized out of preview in JDK 22), and TACZ loads engine/fmod's classes directly at
+// runtime, so the requirement cascaded to the whole repo (UnsupportedClassVersionError
+// otherwise). engine/fmod now uses hand-written JNI instead (see its build.gradle.kts/
+// CMakeLists.txt), which has no such floor -- don't reintroduce a jextract/FFM-based binding
+// without solving this the same way, or this comment (and the Java 21 pin) will need reverting.
+java.toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 tasks.withType<JavaCompile> {
-    options.release.set(25)
+    options.release.set(21)
 }
-kotlin.jvmToolchain(25)
+kotlin.jvmToolchain(21)
 
 neoForge {
     // Specify the version of NeoForge to use.
