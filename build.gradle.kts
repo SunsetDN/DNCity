@@ -28,11 +28,10 @@ val mods_firstaid_version: String by project
 val mods_automobility_version: String by project
 val mods_superbwarfare_version: String by project
 
-// Pinned to the exact same versions TACZ (mods/TACZ-1.21.1/gradle/libs.versions.toml) already
-// depends on for its own compat code, so these dev-run additions resolve from the local Gradle
-// cache TACZ's own build already populated -- not a second, independent version choice.
-val mods_sodium_version = "mc1.21.1-0.6.13-neoforge"
-val mods_iris_version = "1.8.12+1.21.1-neoforge"
+// Sodium and Iris used to be pinned here and pulled from Modrinth for TACZ's own compat code
+// (mods/TACZ-1.21.1/gradle/libs.versions.toml) -- both are now built from source instead (see
+// mods/sodium, mods/Iris, both SunsetDN forks) and substituted straight into TACZ's dependency via
+// settings.gradle.kts's dependencySubstitution, so there's no version to pin here anymore.
 
 version = mod_version
 group = mod_group_id
@@ -103,6 +102,19 @@ repositories {
             includeGroup("dev.latvian.mods")
             includeGroup("dev.latvian.apps")
         }
+    }
+    // Required to resolve Sodium's (mods/sodium) and Iris's (mods/Iris) own dependencies, for the
+    // same reason as the jitpack/shedaniel/blamejared repos above -- su5ed.dev hosts the
+    // forgified-fabric-api modules both jarJar-embed, and caffeinemc.net hosts the published
+    // Sodium artifact Iris compiles against (compileOnly, not substituted -- see
+    // settings.gradle.kts's comment on this includeBuild).
+    maven {
+        url = uri("https://maven.su5ed.dev/releases")
+        content { includeGroup("org.sinytra.forgified-fabric-api") }
+    }
+    maven {
+        url = uri("https://maven.caffeinemc.net/releases")
+        content { includeGroup("net.caffeinemc") }
     }
     exclusiveContent {
         forRepository {
@@ -394,27 +406,16 @@ idea {
     }
 }
 
-// Resolves the actual Sodium/Iris jar files (same versions TACZ already depends on for its own
-// compat code, see mods_sodium_version/mods_iris_version above -- already in the local Gradle
-// cache from that, so this doesn't trigger a new download) so collectDistributionJars below can
-// copy them alongside everything else. A detached configuration, not the main dependencies block,
-// since neither is an actual compile/runtime dependency of this project -- just something to hand
-// players alongside it.
-val sodiumIrisDistribution = configurations.detachedConfiguration(
-    dependencies.create("maven.modrinth:sodium:${mods_sodium_version}"),
-    dependencies.create("maven.modrinth:iris:${mods_iris_version}"),
-)
-
 // Distributing this mod means handing out DNCity's own jar, the TACZ/First Aid submodule jars
 // (see CLAUDE.md's "Composite builds / submodules" -- they're separate mods, not merged into this
 // one), and Sodium/Iris (TACZ is built against them, and this pack is meant to be played with
-// them) together, which by default land in three different build/libs directories (each
-// submodule is its own included build) plus the Gradle dependency cache for Sodium/Iris. Copy all
-// of them into this project's own build/libs so a plain "./gradlew build" leaves one folder with
-// everything needed to distribute.
+// them, both now built from source -- see mods/sodium, mods/Iris) together, which by default land
+// in several different build/libs directories (each submodule is its own included build). Copy
+// all of them into this project's own build/libs so a plain "./gradlew build" leaves one folder
+// with everything needed to distribute.
 val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     group = "distribution"
-    description = "Copies this project's jar, the TACZ/First Aid submodule jars, and Sodium/Iris into the root build/libs."
+    description = "Copies this project's jar and the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris submodule jars into the root build/libs."
 
     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
@@ -425,8 +426,16 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     // remapJar (not the plain jar) produces the self-contained "-universal.jar" this repo wants
     // to distribute -- see settings.gradle.kts's comment on this submodule's includeBuild.
     dependsOn(gradle.includedBuild("ModernUI-MC").task(":ModernUI-NeoForge:remapJar"))
-
-    from(sodiumIrisDistribution)
+    // Sodium's "neoforge" subproject builds its jarJar-bundled, distributable jar under the plain
+    // "jar" task (see mods/sodium/neoforge/build.gradle.kts's tasks.jar block) -- unlike
+    // Automobility's "neoforge" subproject, there's no separate remap step since Sodium doesn't
+    // use Fabric Loom for the neoforge subproject itself (only "common", for MC/mappings
+    // resolution -- see settings.gradle.kts's comment on this submodule's includeBuild).
+    dependsOn(gradle.includedBuild("sodium").task(":neoforge:jar"))
+    // Iris's "neoforge" subproject's plain "jar" task is its full distributable jar -- unlike
+    // Sodium, it compiles "common"'s sources directly into its own main source set rather than
+    // jarJar-embedding a separate mod jar (see settings.gradle.kts's comment on this includeBuild).
+    dependsOn(gradle.includedBuild("Iris").task(":neoforge:jar"))
 
     // Excludes sources/javadoc jars in case either submodule's build ever starts producing them
     // (neither does today) -- only the runtime mod jar belongs in a distribution folder.
@@ -443,6 +452,20 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
         exclude("*-sources.jar", "*-javadoc.jar")
     }
     from(file("mods/SuperbWarfare/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // Sodium's neoforge subproject's own "build" dir (its rootProject, not this repo's) --
+    // its jar task's destinationDirectory is set explicitly to "<sodium root>/build/mods"
+    // (mods/sodium/neoforge/build.gradle.kts), not the default "<subproject>/build/libs".
+    from(file("mods/sodium/build/mods")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // Iris's own "build" dir (its rootProject, i.e. mods/Iris/build, not the neoforge subproject's)
+    // -- its jar task's destinationDirectory is set explicitly to "<Iris root>/build/libs"
+    // (mods/Iris/neoforge/build.gradle.kts).
+    from(file("mods/Iris/build/libs")) {
         include("*.jar")
         exclude("*-sources.jar", "*-javadoc.jar")
     }

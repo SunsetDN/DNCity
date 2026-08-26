@@ -76,3 +76,32 @@ includeBuild("mods/SuperbWarfare") {
 // "universal" jar copied by collectDistributionJars in the root build.gradle.kts, the same way
 // Sodium/Iris are, rather than substituted into a dependency.
 includeBuild("mods/ModernUI-MC")
+
+// Sodium (mods/sodium, SunsetDN fork, 1.21.1/stable branch) -- this fork drops "fabric" from
+// upstream (see mods/sodium/settings.gradle.kts), keeping "common" (loader-agnostic shared code,
+// still built via Fabric Loom purely for Minecraft/mappings resolution) and "neoforge". Its jar is
+// collected by collectDistributionJars in the root build.gradle.kts instead of the previous
+// prebuilt Modrinth artifact, AND substituted for TACZ's own "maven.modrinth:sodium" compat
+// dependency (see mods/TACZ-1.21.1/build.gradle.kts) so it builds against this local fork too --
+// safe to point at :neoforge's default (library) jar here since TACZ's compat code doesn't
+// reference any Sodium classes directly (only Iris's, see below), so the exact artifact shape
+// doesn't matter for compilation.
+includeBuild("mods/sodium") {
+    dependencySubstitution {
+        substitute(module("maven.modrinth:sodium")).using(project(":neoforge"))
+    }
+}
+
+// Iris (mods/Iris, SunsetDN fork, 1.21.1 branch) -- same "fabric" drop as Sodium above (see
+// mods/Iris/settings.gradle.kts). Unlike Sodium, Iris's "neoforge" subproject compiles "common"'s
+// sources directly into its own main source set (see its build.gradle.kts's notNeoTask-filtered
+// JavaCompile/ProcessResources wiring) rather than splitting service/mod jars, so its default jar
+// already contains the real net.irisshaders.iris.* classes TACZ's compat code
+// (mods/TACZ-1.21.1/src/main/java/com/tacz/guns/compat/iris) needs at compile time -- substituting
+// straight to :neoforge's default configuration is enough, unlike a hypothetical Sodium class-level
+// substitution which would need its "mod" configuration specifically.
+includeBuild("mods/Iris") {
+    dependencySubstitution {
+        substitute(module("maven.modrinth:iris")).using(project(":neoforge"))
+    }
+}

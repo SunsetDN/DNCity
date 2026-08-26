@@ -19,3 +19,11 @@
 	path = mods/ModernUI-MC
 	url = https://github.com/SunsetDN/ModernUI-MC
 	branch = 1.21.1
+[submodule "mods/sodium"]
+	path = mods/sodium
+	url = https://github.com/SunsetDN/sodium
+	branch = 1.21.1/stable
+[submodule "mods/Iris"]
+	path = mods/Iris
+	url = https://github.com/SunsetDN/Iris.git
+	branch = 1.21.1
