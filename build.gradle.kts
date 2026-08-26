@@ -26,6 +26,7 @@ val mod_description: String by project
 val mods_tacz_version: String by project
 val mods_firstaid_version: String by project
 val mods_automobility_version: String by project
+val mods_superbwarfare_version: String by project
 
 // Pinned to the exact same versions TACZ (mods/TACZ-1.21.1/gradle/libs.versions.toml) already
 // depends on for its own compat code, so these dev-run additions resolve from the local Gradle
@@ -62,11 +63,29 @@ repositories {
             includeGroup("com.github.rtyley")
             includeGroup("com.github.FiguraMC.luaj")
             includeGroup("com.github.mcmodderanchor")
+            includeGroup("com.github.MCModderAnchor")
         }
     }
     maven { url = uri("https://maven.shedaniel.me") }
     maven { url = uri("https://maven.kosmx.dev") }
     maven { url = uri("https://maven.blamejared.com") }
+    // Required to resolve SuperbWarfare's (mods/SuperbWarfare) own dependencies, for the same
+    // reason as the jitpack/shedaniel/blamejared repos above.
+    maven {
+        name = "GeckoLib"
+        url = uri("https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/")
+        content {
+            includeGroupByRegex("software\\.bernie.*")
+            includeGroup("com.eliotlash.mclib")
+        }
+    }
+    maven {
+        url = uri("https://maven.theillusivec4.top/")
+        content { includeGroup("top.theillusivec4.curios") }
+    }
+    maven { url = uri("https://maven.createmod.net") }
+    maven { url = uri("https://raw.githubusercontent.com/Fuzss/modresources/main/maven/") }
+    maven { url = uri("https://maven.ryanhcode.dev/releases") }
     // opus-jni-rust (com.plasmoverse:opus-jni-rust) -- existing Rust/jni-rs Opus JNI binding
     // (github.com/plasmoapp/opus-jni-rust, from the Plasmo Voice team) used for the close-range
     // voice chat tier's Opus codec, in place of hand-writing new JNI bindings.
@@ -104,6 +123,7 @@ repositories {
         filter { includeGroup("curse.maven") }
     }
     flatDir { dirs("mods/TACZ-1.21.1/libs") }
+    flatDir { dirs("mods/SuperbWarfare/libs") }
 }
 
 base {
@@ -264,6 +284,11 @@ dependencies {
     // subproject only -- see settings.gradle.kts) for the same reason as TACZ/First Aid.
     implementation("io.github.foundationgames:automobility:${mods_automobility_version}")
 
+    // SuperbWarfare, included as a composite build submodule (mods/SuperbWarfare, tracking
+    // upstream's NeoForge/1.21.1 "1.21" branch directly -- see settings.gradle.kts) for the same
+    // reason as TACZ/First Aid/Automobility.
+    implementation("com.atsuishio.superbwarfare:superbwarfare:${mods_superbwarfare_version}")
+
     // engine/audio (miniaudio JNI capture/playback bridge), wired in via includeBuild in
     // settings.gradle.kts -- see io.github.jwyoon1220.dncity.audio.NativeAudio. jarJar embeds it
     // (same pattern TACZ uses for engine/fmod) so it's not just a dev-run classpath artifact --
@@ -394,6 +419,7 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
     dependsOn(gradle.includedBuild("Automobility").task(":neoforge:jar"))
+    dependsOn(gradle.includedBuild("SuperbWarfare").task(":jar"))
 
     from(sodiumIrisDistribution)
 
@@ -408,6 +434,10 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
         exclude("*-sources.jar", "*-javadoc.jar")
     }
     from(file("mods/Automobility/neoforge/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    from(file("mods/SuperbWarfare/build/libs")) {
         include("*.jar")
         exclude("*-sources.jar", "*-javadoc.jar")
     }

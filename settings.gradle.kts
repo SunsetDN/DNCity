@@ -52,3 +52,14 @@ includeBuild("mods/Automobility") {
         substitute(module("io.github.foundationgames:automobility")).using(project(":neoforge"))
     }
 }
+
+// SuperbWarfare (mods/SuperbWarfare) -- tracks upstream (Mercurows/SuperbWarfare) directly on its
+// "1.21" branch rather than the SunsetDN fork used for the other submodules above: the SunsetDN
+// fork only has an old Forge/Minecraft 1.20.1 branch, while upstream's own "1.21" branch is
+// already a pure NeoForge/Minecraft 1.21.1 build (single project, no Forge/Fabric split), so no
+// porting was needed.
+includeBuild("mods/SuperbWarfare") {
+    dependencySubstitution {
+        substitute(module("com.atsuishio.superbwarfare:superbwarfare")).using(project(":"))
+    }
+}

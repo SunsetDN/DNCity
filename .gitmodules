@@ -11,3 +11,7 @@
 	path = mods/Automobility
 	url = https://github.com/SunsetDN/Automobility
 	branch = 1.21-rewrite
+[submodule "mods/SuperbWarfare"]
+	path = mods/SuperbWarfare
+	url = https://github.com/Mercurows/SuperbWarfare
+	branch = 1.21
