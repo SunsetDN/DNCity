@@ -15,3 +15,7 @@
 	path = mods/SuperbWarfare
 	url = https://github.com/Mercurows/SuperbWarfare
 	branch = 1.21
+[submodule "mods/ModernUI-MC"]
+	path = mods/ModernUI-MC
+	url = https://github.com/SunsetDN/ModernUI-MC
+	branch = 1.21.1

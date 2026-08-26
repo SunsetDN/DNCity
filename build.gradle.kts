@@ -420,6 +420,11 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
     dependsOn(gradle.includedBuild("Automobility").task(":neoforge:jar"))
     dependsOn(gradle.includedBuild("SuperbWarfare").task(":jar"))
+    // ModernUI-MC's neoforge subproject is registered under the name "ModernUI-NeoForge" (see
+    // mods/ModernUI-MC/settings.gradle), which is also its task-path segment, not "neoforge".
+    // remapJar (not the plain jar) produces the self-contained "-universal.jar" this repo wants
+    // to distribute -- see settings.gradle.kts's comment on this submodule's includeBuild.
+    dependsOn(gradle.includedBuild("ModernUI-MC").task(":ModernUI-NeoForge:remapJar"))
 
     from(sodiumIrisDistribution)
 
@@ -440,6 +445,11 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     from(file("mods/SuperbWarfare/build/libs")) {
         include("*.jar")
         exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // Only the "universal" (self-contained, shaded) jar -- the same directory also has plain,
+    // "-shadow", and "-sources" variants that aren't meant to be distributed standalone.
+    from(file("mods/ModernUI-MC/neoforge/build/libs")) {
+        include("*-universal.jar")
     }
     into(layout.buildDirectory.dir("libs"))
 }

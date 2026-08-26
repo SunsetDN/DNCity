@@ -63,3 +63,16 @@ includeBuild("mods/SuperbWarfare") {
         substitute(module("com.atsuishio.superbwarfare:superbwarfare")).using(project(":"))
     }
 }
+
+// ModernUI-MC (mods/ModernUI-MC) -- unlike the submodules above, this one is included WITHOUT a
+// dependencySubstitution: its neoforge subproject builds with Architectury Loom (a completely
+// separate toolchain from this repo's net.neoforged.moddev-based ones, with its own independent
+// Minecraft artifact resolution), and publishes several jar variants from one project (plain,
+// shadow, sources, and the self-contained "universal" one -- see
+// mods/ModernUI-MC/neoforge/build.gradle's remapJar/shadowJar tasks). A substitution would
+// silently resolve to whichever jar happens to be the project's default artifact, not
+// necessarily the "universal" one this repo actually wants to distribute -- so it's just
+// included as a composite build (for its own build/run tasks and IDE integration) and its
+// "universal" jar copied by collectDistributionJars in the root build.gradle.kts, the same way
+// Sodium/Iris are, rather than substituted into a dependency.
+includeBuild("mods/ModernUI-MC")
