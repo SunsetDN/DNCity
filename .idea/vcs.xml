@@ -2,5 +2,8 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/engine/audio/vendor/codec2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mods/First-Aid-New" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mods/TACZ-1.21.1" vcs="Git" />
   </component>
 </project>

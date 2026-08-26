@@ -1,11 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
         <compositeConfiguration>
           <compositeBuild compositeDefinitionSource="SCRIPT">
             <builds>
+              <build path="$PROJECT_DIR$/engine/audio" name="audio">
+                <projects>
+                  <project path="$PROJECT_DIR$/engine/audio" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/mods/Automobility" name="Automobility">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/Automobility" />
+                  <project path="$PROJECT_DIR$/mods/Automobility/neoforge" />
+                </projects>
+              </build>
               <build path="$PROJECT_DIR$/mods/First-Aid-New" name="First-Aid-New">
                 <projects>
                   <project path="$PROJECT_DIR$/mods/First-Aid-New" />
@@ -28,7 +40,10 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/engine/audio" />
             <option value="$PROJECT_DIR$/engine/fmod" />
+            <option value="$PROJECT_DIR$/mods/Automobility" />
+            <option value="$PROJECT_DIR$/mods/Automobility/neoforge" />
             <option value="$PROJECT_DIR$/mods/First-Aid-New" />
             <option value="$PROJECT_DIR$/mods/TACZ-1.21.1" />
           </set>
