@@ -25,6 +25,7 @@ val mod_authors: String by project
 val mod_description: String by project
 val mods_tacz_version: String by project
 val mods_firstaid_version: String by project
+val mods_automobility_version: String by project
 
 // Pinned to the exact same versions TACZ (mods/TACZ-1.21.1/gradle/libs.versions.toml) already
 // depends on for its own compat code, so these dev-run additions resolve from the local Gradle
@@ -247,6 +248,10 @@ dependencies {
     // (mods/First-Aid-New/neoforge1.21.1) for the same reason as TACZ.
     implementation("ichttt.mods.firstaid:firstaid:${mods_firstaid_version}")
 
+    // Automobility, included as a composite build submodule (mods/Automobility, neoforge
+    // subproject only -- see settings.gradle.kts) for the same reason as TACZ/First Aid.
+    implementation("io.github.foundationgames:automobility:${mods_automobility_version}")
+
     // engine/audio (miniaudio JNI capture/playback bridge), wired in via includeBuild in
     // settings.gradle.kts -- see io.github.jwyoon1220.dncity.audio.NativeAudio. jarJar embeds it
     // (same pattern TACZ uses for engine/fmod) so it's not just a dev-run classpath artifact --
@@ -376,6 +381,7 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
 
     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
+    dependsOn(gradle.includedBuild("Automobility").task(":neoforge:jar"))
 
     from(sodiumIrisDistribution)
 
@@ -386,6 +392,10 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
         exclude("*-sources.jar", "*-javadoc.jar")
     }
     from(file("mods/First-Aid-New/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    from(file("mods/Automobility/neoforge/build/libs")) {
         include("*.jar")
         exclude("*-sources.jar", "*-javadoc.jar")
     }

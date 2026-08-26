@@ -7,3 +7,7 @@
 [submodule "engine/audio/vendor/codec2"]
 	path = engine/audio/vendor/codec2
 	url = https://github.com/drowe67/codec2
+[submodule "mods/Automobility"]
+	path = mods/Automobility
+	url = https://github.com/SunsetDN/Automobility
+	branch = 1.21-rewrite

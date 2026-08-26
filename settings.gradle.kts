@@ -43,3 +43,12 @@ includeBuild("engine/fmod") {
         substitute(module("engine:fmod")).using(project(":"))
     }
 }
+
+// Automobility (mods/Automobility) -- this fork strips it down to a single neoforge subproject
+// (see mods/Automobility/settings.gradle.kts) since upstream's common/fabric setup pulled in
+// fabric-loom, which needs a newer Gradle than this repo runs.
+includeBuild("mods/Automobility") {
+    dependencySubstitution {
+        substitute(module("io.github.foundationgames:automobility")).using(project(":neoforge"))
+    }
+}

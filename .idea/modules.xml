@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Automobility/neoforge/Automobility.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Automobility/neoforge/Automobility.neoforge.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/DNCity.main.iml" filepath="$PROJECT_DIR$/.idea/modules/DNCity.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/DNCity.test.iml" filepath="$PROJECT_DIR$/.idea/modules/DNCity.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/First-Aid-New/First-Aid-New.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/First-Aid-New/First-Aid-New.main.iml" />
