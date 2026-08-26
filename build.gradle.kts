@@ -218,7 +218,19 @@ neoForge {
             // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
-            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:fmod:1.0")
+            // engine:fmod is deliberately NOT added here, unlike engine:audio/opus-jni-rust above.
+            // TACZ's own mod file is a real packaged jar even in dev runs (unlike this project's,
+            // which runs from raw compiled classes), so TACZ's own `jarJar("engine:fmod:1.0")`
+            // (mods/TACZ-1.21.1/build.gradle.kts) already lands its own copy on the dev module
+            // path via FML's JarInJarDependencyLocator, named "engine.fmod" (Forge JarJar's
+            // group.artifact naming). Adding a second copy here resolves to a differently-named
+            // raw "fmod-1.0.jar" (engine/fmod's own archivesName), and since both export the same
+            // com.iwei20.fmod package under different automatic module names, the JVM module
+            // system rejects the whole layer with a ResolutionException ("Modules fmod and
+            // engine.fmod export package com.iwei20.fmod to module ...") before any mod code
+            // runs. TACZ is a required composite-build dependency (see settings.gradle.kts), so
+            // its copy is always present here; this project's own jarJar'd copy (see the
+            // `dependencies` block below) still ships independently in a real distributed build.
         }
     }
 
@@ -344,7 +356,7 @@ publishing {
     }
     repositories {
         maven {
-            url = uri("file://${project.projectDir}/repo")
+            url = uri(layout.projectDirectory.dir("repo"))
         }
     }
 }
