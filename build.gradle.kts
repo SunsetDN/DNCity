@@ -26,6 +26,12 @@ val mod_description: String by project
 val mods_tacz_version: String by project
 val mods_firstaid_version: String by project
 
+// Pinned to the exact same versions TACZ (mods/TACZ-1.21.1/gradle/libs.versions.toml) already
+// depends on for its own compat code, so these dev-run additions resolve from the local Gradle
+// cache TACZ's own build already populated -- not a second, independent version choice.
+val mods_sodium_version = "mc1.21.1-0.6.13-neoforge"
+val mods_iris_version = "1.8.12+1.21.1-neoforge"
+
 version = mod_version
 group = mod_group_id
 
@@ -211,6 +217,7 @@ neoForge {
             // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:fmod:1.0")
         }
     }
 
@@ -262,6 +269,16 @@ dependencies {
     // additionalRuntimeClasspath, see the `runs` block).
     implementation("com.plasmoverse:opus-jni-rust:1.0.4")
     jarJar("com.plasmoverse:opus-jni-rust:1.0.4")
+
+    // engine/fmod (hand-written JNI FMOD bindings, see CLAUDE.md) -- was already an indirect
+    // dependency via TACZ's own jarJar, but that's TACZ's private copy; depending on it directly
+    // here gives DNCity its own FMODCoreSystem instance (io.github.jwyoon1220.dncity.music.
+    // AudioPlayer) for direct OGG/FLAC/MP3/Opus file playback, independent of TACZ being
+    // installed at all. Same version as TACZ's own dependency (1.0), so FML's jar-in-jar
+    // deduplication (same group:artifact:version embedded by two mods resolves to one shared
+    // copy) applies rather than loading the native library twice.
+    implementation("engine:fmod:1.0")
+    jarJar("engine:fmod:1.0")
 
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
@@ -333,4 +350,48 @@ idea {
         isDownloadSources = true
         isDownloadJavadoc = true
     }
+}
+
+// Resolves the actual Sodium/Iris jar files (same versions TACZ already depends on for its own
+// compat code, see mods_sodium_version/mods_iris_version above -- already in the local Gradle
+// cache from that, so this doesn't trigger a new download) so collectDistributionJars below can
+// copy them alongside everything else. A detached configuration, not the main dependencies block,
+// since neither is an actual compile/runtime dependency of this project -- just something to hand
+// players alongside it.
+val sodiumIrisDistribution = configurations.detachedConfiguration(
+    dependencies.create("maven.modrinth:sodium:${mods_sodium_version}"),
+    dependencies.create("maven.modrinth:iris:${mods_iris_version}"),
+)
+
+// Distributing this mod means handing out DNCity's own jar, the TACZ/First Aid submodule jars
+// (see CLAUDE.md's "Composite builds / submodules" -- they're separate mods, not merged into this
+// one), and Sodium/Iris (TACZ is built against them, and this pack is meant to be played with
+// them) together, which by default land in three different build/libs directories (each
+// submodule is its own included build) plus the Gradle dependency cache for Sodium/Iris. Copy all
+// of them into this project's own build/libs so a plain "./gradlew build" leaves one folder with
+// everything needed to distribute.
+val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
+    group = "distribution"
+    description = "Copies this project's jar, the TACZ/First Aid submodule jars, and Sodium/Iris into the root build/libs."
+
+    dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
+    dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
+
+    from(sodiumIrisDistribution)
+
+    // Excludes sources/javadoc jars in case either submodule's build ever starts producing them
+    // (neither does today) -- only the runtime mod jar belongs in a distribution folder.
+    from(file("mods/TACZ-1.21.1/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    from(file("mods/First-Aid-New/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    into(layout.buildDirectory.dir("libs"))
+}
+
+tasks.named("assemble") {
+    dependsOn(collectDistributionJars)
 }

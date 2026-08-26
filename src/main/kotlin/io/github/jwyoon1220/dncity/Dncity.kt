@@ -9,6 +9,12 @@ import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
 import io.github.jwyoon1220.dncity.item.RadioItem
 import io.github.jwyoon1220.dncity.item.component.ModDataComponents
+import io.github.jwyoon1220.dncity.command.MusicCommand
+import io.github.jwyoon1220.dncity.music.AudioPlayer
+import io.github.jwyoon1220.dncity.music.MidiPlayer
+import io.github.jwyoon1220.dncity.music.MusicClientReceiver
+import io.github.jwyoon1220.dncity.music.MusicServerEvents
+import io.github.jwyoon1220.dncity.network.MusicNetworking
 import io.github.jwyoon1220.dncity.network.RadioNetworking
 import io.github.jwyoon1220.dncity.network.VoiceNetworking
 import net.minecraft.client.Minecraft
@@ -54,8 +60,11 @@ object Dncity {
         ModDataComponents.REGISTRY.register(MOD_BUS)
 
         NeoForge.EVENT_BUS.addListener(RadioCommand::onRegisterCommands)
+        NeoForge.EVENT_BUS.addListener(MusicCommand::onRegisterCommands)
+        NeoForge.EVENT_BUS.addListener(MusicServerEvents::onPlayerLoggedIn)
         MOD_BUS.addListener(RadioNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(VoiceNetworking::onRegisterPayloadHandlers)
+        MOD_BUS.addListener(MusicNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(ModKeyMappings::onRegisterKeyMappings)
 
         val obj = runForDist(clientTarget = {
@@ -96,10 +105,14 @@ object Dncity {
 
     private fun onVoiceLogout(event: ClientPlayerNetworkEvent.LoggingOut) {
         VoiceClientLoop.stop()
+        MidiPlayer.stop()
+        AudioPlayer.shutdown()
+        MusicClientReceiver.reset()
     }
 
     private fun onVoiceClientTick(event: ClientTickEvent.Post) {
         VoiceClientLoop.tick()
+        AudioPlayer.tick()
     }
 
     /**
