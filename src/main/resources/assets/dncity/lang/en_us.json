@@ -1,5 +1,11 @@
 {
   "itemGroup.dncity": "Example Mod Tab",
   "block.dncity.example_block": "Example Block",
-  "item.dncity.example_item": "Example Item"
+  "item.dncity.example_item": "Example Item",
+  "item.dncity.radio_hf": "단파/중파 무전기",
+  "item.dncity.radio_vhf": "VHF/UHF무전기",
+  "radio.dncity.band_hf_mf": "단파/중파",
+  "radio.dncity.band_vhf_uhf": "VHF/UHF",
+  "key.categories.dncity": "DNCity",
+  "key.dncity.radio_ptt": "Radio Push-to-Talk"
 }

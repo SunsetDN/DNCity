@@ -60,6 +60,13 @@ repositories {
     maven { url = uri("https://maven.shedaniel.me") }
     maven { url = uri("https://maven.kosmx.dev") }
     maven { url = uri("https://maven.blamejared.com") }
+    // opus-jni-rust (com.plasmoverse:opus-jni-rust) -- existing Rust/jni-rs Opus JNI binding
+    // (github.com/plasmoapp/opus-jni-rust, from the Plasmo Voice team) used for the close-range
+    // voice chat tier's Opus codec, in place of hand-writing new JNI bindings.
+    maven {
+        url = uri("https://repo.plasmoverse.com/releases")
+        content { includeGroup("com.plasmoverse") }
+    }
     maven {
         url = uri("https://maven.architectury.dev")
         content { includeGroup("dev.architectury") }
@@ -128,8 +135,25 @@ neoForge {
     runs {
         create("client") {
             client()
+            jvmArgument("-Xmx4G")
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
+            systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
+        }
+
+        // Second dev client with a different username/uuid and its own game directory (so it
+        // doesn't fight the "client" run over run/options.txt, logs, etc. if launched at the
+        // same time) -- for testing multiplayer-only features (radio, proximity chat) locally
+        // by connecting two clients to the same server/LAN world at once.
+        create("client2") {
+            client()
+            jvmArgument("-Xmx4G")
+            devLogin = false
+            gameDirectory = file("run-client2")
+            programArgument("--username")
+            programArgument("Client2")
+            programArgument("--uuid")
+            programArgument("00000000-0000-0000-0000-000000000002")
             systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
         }
 
@@ -186,6 +210,7 @@ neoForge {
             // module named kotlin.stdlib" JPMS error from ending up in a different module layer
             // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
         }
     }
 
@@ -230,6 +255,13 @@ dependencies {
     // where jarJar deps are added to run classpaths automatically.)
     implementation("engine:audio:1.0")
     jarJar("engine:audio:1.0")
+
+    // Opus codec (close-range voice chat tier -- see io.github.jwyoon1220.dncity.audio.OpusCodec)
+    // via opus-jni-rust, a prebuilt multi-platform (win/linux/mac, x86/x86_64/aarch64) JNI
+    // binding, jarJar'd for the same reason as engine:audio above (also needs
+    // additionalRuntimeClasspath, see the `runs` block).
+    implementation("com.plasmoverse:opus-jni-rust:1.0.4")
+    jarJar("com.plasmoverse:opus-jni-rust:1.0.4")
 
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
