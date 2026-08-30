@@ -4,7 +4,10 @@ import com.plasmoverse.opus.OpusEncoder
 import io.github.jwyoon1220.dncity.Dncity
 import io.github.jwyoon1220.dncity.audio.NativeAudio
 import io.github.jwyoon1220.dncity.client.ModKeyMappings
+import io.github.jwyoon1220.dncity.client.phone.PhoneCallManager
+import io.github.jwyoon1220.dncity.client.phone.PhoneCallTransmitter
 import io.github.jwyoon1220.dncity.network.VoiceAudioPayload
+import io.github.jwyoon1220.dncity.phone.PhoneCallState
 import net.neoforged.neoforge.network.PacketDistributor
 import org.apache.logging.log4j.Level
 
@@ -21,6 +24,9 @@ object VoiceClientLoop {
     private var encoder: OpusEncoder? = null
     private val captureFrame = ShortArray(OpusCodec.FRAME_SIZE)
     private var captureFill = 0
+    // Scratch space for NativeAudio.readCapture -- reused rather than allocated per pumpCapture()
+    // call, since that runs every client tick (20/s) while voice is active.
+    private val readBuffer = ShortArray(OpusCodec.FRAME_SIZE)
     private var pttWasDown = false
 
     val isRunning: Boolean get() = running
@@ -83,6 +89,7 @@ object VoiceClientLoop {
         encoder?.close()
         encoder = null
         RadioTransmitter.shutdown()
+        PhoneCallTransmitter.shutdown()
         ClientVoiceReceiver.releaseAll()
         ClientRadioReceiver.releaseAll()
         captureFill = 0
@@ -96,7 +103,6 @@ object VoiceClientLoop {
     }
 
     private fun pumpCapture() {
-        val readBuffer = ShortArray(OpusCodec.FRAME_SIZE)
         while (true) {
             val read = NativeAudio.readCapture(readBuffer)
             if (read <= 0) break
@@ -115,10 +121,15 @@ object VoiceClientLoop {
     }
 
     /**
-     * Radio is PTT-required and half-duplex with close-range (see the design plan's tier table):
-     * while [ModKeyMappings.RADIO_PTT] is held, captured frames go out on the radio channel
-     * (via [RadioTransmitter], which handles codec2's mode-dependent frame sizing) instead of
-     * close-range, regardless of the close-range auto-VAD below.
+     * Three destinations, in priority order, mutually exclusive per frame:
+     * 1. Radio is PTT-required and half-duplex with everything else (see the design plan's tier
+     *    table): while [ModKeyMappings.RADIO_PTT] is held, captured frames go out on the radio
+     *    channel (via [RadioTransmitter], which handles codec2's mode-dependent frame sizing).
+     * 2. An active phone call ([PhoneCallManager.state]) is full-duplex like close-range and
+     *    sends continuously while connected, the way a real phone would -- no VAD gating (unlike
+     *    close-range below), since a live call shouldn't clip the start of speech waiting for the
+     *    gate to open.
+     * 3. Close-range voice, gated by the native noise gate/VAD in place of PTT.
      */
     private fun flushCaptureFrame() {
         val pttDown = ModKeyMappings.RADIO_PTT.isDown
@@ -129,6 +140,8 @@ object VoiceClientLoop {
 
         if (!muted && pttDown) {
             RadioTransmitter.submit(captureFrame)
+        } else if (!muted && PhoneCallManager.state == PhoneCallState.ACTIVE) {
+            PhoneCallTransmitter.submit(captureFrame)
         } else if (!muted && NativeAudio.isVoiceActive()) {
             sendCloseRangeFrame()
         }

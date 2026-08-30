@@ -191,5 +191,55 @@
       <option name="name" value="maven4" />
       <option name="url" value="https://modmaven.dev/" />
     </remote-repository>
+    <remote-repository>
+      <option name="id" value="maven12" />
+      <option name="name" value="maven12" />
+      <option name="url" value="https://maven.su5ed.dev/releases" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="maven13" />
+      <option name="name" value="maven13" />
+      <option name="url" value="https://maven.caffeinemc.net/releases" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="Gradle Central Plugin Repository" />
+      <option name="name" value="Gradle Central Plugin Repository" />
+      <option name="url" value="https://plugins.gradle.org/m2" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="maven" />
+      <option name="name" value="maven" />
+      <option name="url" value="https://maven.pkg.github.com/ims212/Forge_Fabric_API" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="LoomLocalRemappedMods" />
+      <option name="name" value="LoomLocalRemappedMods" />
+      <option name="url" value="file:/$PROJECT_DIR$/mods/Iris/.gradle/loom-cache/remapped_mods/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="LoomLocalMinecraft" />
+      <option name="name" value="LoomLocalMinecraft" />
+      <option name="url" value="file:/$PROJECT_DIR$/mods/Iris/.gradle/loom-cache/minecraftMaven/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="LoomLocalRemappedMods" />
+      <option name="name" value="LoomLocalRemappedMods" />
+      <option name="url" value="file:/$PROJECT_DIR$/mods/sodium/.gradle/loom-cache/remapped_mods/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="LoomLocalMinecraft" />
+      <option name="name" value="LoomLocalMinecraft" />
+      <option name="url" value="file:/$PROJECT_DIR$/mods/sodium/.gradle/loom-cache/minecraftMaven/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="LoomLocalRemappedMods" />
+      <option name="name" value="LoomLocalRemappedMods" />
+      <option name="url" value="file:/$PROJECT_DIR$/mods/VoxelMap/.gradle/loom-cache/remapped_mods/" />
+    </remote-repository>
+    <remote-repository>
+      <option name="id" value="LoomLocalMinecraft" />
+      <option name="name" value="LoomLocalMinecraft" />
+      <option name="url" value="file:/$PROJECT_DIR$/mods/VoxelMap/.gradle/loom-cache/minecraftMaven/" />
+    </remote-repository>
   </component>
 </project>

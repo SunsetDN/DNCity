@@ -267,6 +267,136 @@ Two independent, format-specific client-side players, chosen by extension:
 `settings.gradle.kts` plus `implementation`/`jarJar` in `build.gradle.kts`), not only indirectly
 through TACZ's own jarJar as before — needed since `AudioPlayer` must work even without TACZ.
 
+## Architecture: window overlay (native window + JCEF)
+
+Package `io.github.jwyoon1220.dncity.client.window`, backed by a new native module,
+`engine/window`. Lets other features put an n×m rendering surface on top of the Minecraft window
+as a 2D screen-space overlay — either an embedded `javax.swing.JFrame` (for arbitrary Swing
+content, including a JCEF browser view) or a completely empty native window handle for external
+native rendering to draw into directly. No in-game feature consumes this yet; `/windowtest` and
+`/browser` are debug-only commands for exercising it manually.
+
+- **`engine/window`** — a Win32 JNI bridge (`src/main/cpp/jni_window.cpp`), same composite-build
+  shape as `engine/audio`/`engine/fmod` (own `settings.gradle.kts`, own `build.gradle.kts`
+  wired into the root via `includeBuild` + `dependencySubstitution` +
+  `implementation`/`jarJar`/`additionalRuntimeClasspathConfiguration`, exactly like `engine:audio`).
+  **Windows-only today** — like `engine/fmod`, Win32 windowing needs nothing beyond the default
+  MSVC toolchain (`user32.lib`; no C99 `_Complex`-style constraint like `engine/audio`'s codec2
+  work), so it copies `engine/fmod`'s simpler CMake/Gradle shape rather than `engine/audio`'s
+  clang+MinGW one. `NativeWindowLibrary.java` mirrors `engine/audio`'s `NativeLibrary.java`
+  exactly (`natives/<os>-<arch>/` resource layout, `File.createTempFile` straight into the OS
+  temp root — not a subdirectory, for the same AppLocker/WDAC-safe-extraction reason already
+  documented for `engine/fmod`'s `FModLoad`). `NativeWindow.java`'s native declarations
+  (`nCreateChild`/`nDestroy`/`nShow`/`nMove`/`nFindWindowByTitle`/`nReparent`/
+  `nGetForegroundWindow`/`nSetRoundRectRgn`) are thin and mechanical, same as `NativeAudio`.
+  `nSetRoundRectRgn` clips a window to a rounded-rectangle region via
+  `CreateRoundRectRgn`/`SetWindowRgn` (phone-UI-style corners, pixels outside the region show
+  whatever is behind the window) — `cornerRadius <= 0` restores the normal rectangle. Note
+  `SetWindowRgn` takes ownership of the `HRGN` on success (must not be deleted after), but not on
+  failure (deleted there to avoid a GDI object leak) — see the function's own comment.
+- **`client/window/WindowOverlay.kt`** — `nCreateChild` (a `WS_CHILD` window parented directly
+  to the Minecraft/GLFW window, resolved via LWJGL's `GLFWNativeWin32.glfwGetWin32Window` — no
+  native code needed for that lookup) underlies both public entry points:
+  - `createFrame(x, y, w, h, title, options) { frame -> ... }` builds a uniquely-titled,
+    undecorated `JFrame` off-screen, lets the caller populate it via the callback *before*
+    showing it (avoids a flash of empty white), locates its real HWND by that unique title
+    (`nFindWindowByTitle` — a `FindWindowW`-by-title trick, not JDK internal `--add-opens`
+    reflection), and reparents it into the child window (`nReparent`: strips top-level style
+    bits, `SetParent`, resizes to fill).
+  - `createNativeHandle(x, y, w, h, title, options)` creates the same kind of child window but
+    touches no AWT/Swing at all — `.nativeHandle` is the raw HWND for external native rendering.
+  - `setCornerRadius(radius)` applies `nSetRoundRectRgn` using the overlay's current
+    `width`/`height`; `move(...)` re-applies it automatically when `cornerRadius > 0`, since the
+    region is sized in window-local coordinates and a size change invalidates the old one.
+- **`client/window/WindowOverlayManager.kt`** — per-tick lifecycle manager (same
+  start/stop/tick shape as `voice/VoiceClientLoop`), wired into `Dncity.onClientSetup`'s
+  `ClientTickEvent.Post` hook alongside the voice/music tick calls. Since overlays are real
+  `WS_CHILD` windows, they already track the parent's position/z-order for free at the OS level
+  — the manager's only job is polling `Minecraft.getInstance().screen`'s type each tick and
+  applying each overlay's `OverlayOptions` (`hideOnPauseMenu`/`hideOnInventoryScreen`/
+  `hideOnAnyOtherScreen`, same `is PauseScreen`/`is InventoryScreen` pattern as
+  `client/ui/MaterialScreens.kt`'s `onScreenOpening`). `destroyAll()` runs on
+  `ClientPlayerNetworkEvent.LoggingOut` to avoid dangling HWNDs. Visibility rules are plain
+  in-memory constructor parameters, not a persisted config — this mod has no `ModConfigSpec`/
+  toml-backed config system at all (see `VoiceSettingsScreen`'s own documented precedent).
+- **`client/window/BrowserOverlay.kt`** — the web-page use case: `open(x, y, w, h, url, options)`
+  lazily builds one shared `org.cef.CefApp` (`me.friwi:jcefmaven`'s `CefAppBuilder().build()`,
+  which downloads/installs a full platform Chromium/JCEF runtime — **~150–300MB, one-time
+  network + disk cost on first use** — to `jcef-bundle/`), creates a `CefClient`/`CefBrowser`
+  per call, and mounts `browser.uiComponent` into a `createFrame`-hosted `JFrame`. Sets
+  `WindowOverlay.extraTeardown` so `destroy()` on the returned overlay also releases the JCEF
+  browser/client — any caller that tears the overlay down releases those resources, not just
+  `BrowserOverlay` itself. `me.friwi:jcefmaven`'s transitive deps (`commons-compress`/`gson`/
+  `commons-lang3`/`commons-codec`) conflict with Minecraft's own strict pins on those same
+  libraries — forced onto Minecraft's versions in the root `build.gradle.kts`'s
+  `configurations.all { resolutionStrategy.force(...) }` block (same fix already used there for
+  `commons-io`).
+- **`command/WindowCommand.kt`** — `/windowtest frame`, `/windowtest handle`, and
+  `/browser open <url>`, debug-only commands in the same Brigadier style as
+  `RadioCommand`/`MusicCommand`, registered from `Dncity.onClientSetup` (not the shared
+  `init {}` block those two use) because their bodies touch AWT/native APIs and JCEF that must
+  never run on a dedicated server. Every handler hops onto the render thread via
+  `Minecraft.getInstance().execute {}` before touching `WindowOverlay`/`BrowserOverlay` --
+  Brigadier commands run on the integrated server's own thread even in singleplayer, but a
+  native Win32 window is thread-affine (its messages are only pumped by whatever thread's
+  message loop created it), and Minecraft's own GLFW message pump runs on the render thread.
+
+Three easy-to-hit gotchas, all fixed:
+- **`java.awt.HeadlessException`** — `net.minecraft.client.main.Main` (the real client entry
+  point) unconditionally sets `System.setProperty("java.awt.headless", "true")` in a static
+  initializer at JVM boot (it renders via GLFW, not AWT), which predates any of this mod's code.
+  `WindowOverlay.ensureAwtAvailable()` flips it back to `"false"` -- this only works because
+  nothing earlier in this mod calls `GraphicsEnvironment.isHeadless()` (which caches its result
+  on first call); if some other code path ends up checking headless-ness first, this stops
+  working and needs a different fix (e.g. resetting `GraphicsEnvironment`'s cached field via
+  reflection, which needs `--add-opens java.desktop/java.awt` and wasn't needed here). **Must run
+  before the *first* AWT-touching call in the whole flow, not just before a `JFrame(...)`** --
+  confirmed by hand: JCEF's own `CefBrowserWr` constructor calls
+  `MouseInfo.getNumberOfButtons()` internally, which hits the same check, and that happens in
+  `BrowserOverlay.open()` *before* it ever calls `WindowOverlay.createFrame`. So
+  `BrowserOverlay.open()` calls `ensureAwtAvailable()` itself, before creating its `CefClient`/
+  `CefBrowser`, rather than relying on `createFrame`'s own call happening in time.
+- **Wrong thread** — see `WindowCommand.kt` above; applies to any future caller of
+  `WindowOverlay.createFrame`/`createNativeHandle`, not just the debug commands.
+- **Blocking the render thread on the JCEF download** — `CefAppBuilder().build()` is a blocking
+  network call on first use (~150-300MB Chromium runtime). `BrowserOverlay.open()` therefore does
+  *not* run on the render thread like `WindowCommand`'s other handlers -- it spawns its own
+  daemon thread for everything through `createBrowser`, and only hops onto the render thread
+  (`Minecraft.getInstance().execute {}`) for the final `WindowOverlay.createFrame` call, which is
+  the only part that actually needs it (creating the native window). Confirmed by hand: without
+  this split, the whole game freezes for the entire download/install duration.
+- **`client/render/OverlayCullingManager.kt`** + **`mixin/MixinEntityRenderDispatcher.java`** —
+  an entity-render-skip optimization: whichever overlay is currently visible (`WindowOverlay`'s
+  `applyVisible`/`move`/`destroy` push their bounds into this manager's single
+  `activeOverlayBounds` `Rect`) is a real, opaque native window sitting on top of Minecraft's own
+  rendering, so anything drawn underneath it is wasted work. `shouldCull(x, y, z)` projects a
+  world point through `RenderSystem.getProjectionMatrix()`/`getModelViewMatrix()` (camera-relative,
+  same convention `LevelRenderer` itself uses) to screen pixels and checks it against that
+  rectangle; `MixinEntityRenderDispatcher` injects at the `HEAD` of
+  `EntityRenderDispatcher.render(...)` and cancels it when true. Deliberately **entity-only, not
+  terrain/blocks**: Minecraft frustum-culls terrain per-chunk, not per-pixel, so a screen-space
+  rectangle can't skip chunk geometry submission the way it can skip one entity's `render()` call
+  — the real payoff is skipping whatever expensive *fragment* work (an Iris shader pack's
+  per-pixel lighting on that entity, say) would otherwise run for pixels about to be covered
+  anyway, not terrain draw calls. `shouldCull` is a single-point (entity origin) approximation of
+  "behind the overlay," not true per-entity bounding-box coverage. Also doesn't special-case
+  Iris's shadow-map render pass (a different camera/projection than the main view) — a shadow
+  pass entity shouldn't be culled by a rectangle meant for the player's screen, but nothing here
+  currently distinguishes the two passes; worth revisiting if shadows visibly break near an
+  overlay.
+
+**Known limitations**: Linux/X11 is not implemented (the JNI surface is isolated enough to add
+later, but every `jni_window.cpp` export is currently compiled only under `_WIN32`). There is no
+mouse/keyboard focus handoff between an overlay and Minecraft's own raw-mouse-look input capture
+— once an overlay (or its embedded `JFrame`) has real OS focus, Minecraft keeps reading the same
+input stream underneath it. `nGetForegroundWindow` exists for future use here, but note it can't
+actually distinguish an overlay's focus from Minecraft's own once the overlay has been reparented
+under Minecraft's top-level HWND (`GetForegroundWindow` only returns top-level windows) — a real
+fix needs `WM_SETFOCUS`/`WM_KILLFOCUS` forwarding from the child window, not foreground-window
+polling; left as documented future work rather than shipped half-working. The entity-culling
+Mixin above has the shadow-pass caveat noted there, and (like the rest of this section) is only
+exercised by the debug commands today, not a real consumer feature.
+
 ## Editing the mod metadata template
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in

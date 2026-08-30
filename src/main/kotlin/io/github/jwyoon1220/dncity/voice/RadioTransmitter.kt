@@ -5,17 +5,18 @@ import io.github.jwyoon1220.dncity.network.RadioAudioPayload
 import io.github.jwyoon1220.dncity.radio.RadioActions
 import io.github.jwyoon1220.dncity.radio.RadioBand
 import io.github.jwyoon1220.dncity.radio.RadioMode
+import io.github.jwyoon1220.dncity.radio.VoiceCodec
 import net.minecraft.client.Minecraft
 import net.neoforged.neoforge.network.PacketDistributor
 
 /**
  * Client-side TX pump for the radio-voice tier, driven by [VoiceClientLoop] while
  * [io.github.jwyoon1220.dncity.client.ModKeyMappings.RADIO_PTT] is held. Which codec is used
- * depends on the active slot's [RadioMode], not the band: [RadioMode.AM]/[RadioMode.FM] use
- * Opus (full-quality, matching close-range voice's [OpusCodec] exactly -- the "radio" character
- * for these two modes comes entirely from [RadioChannel]'s bandpass/static DSP on the receive
- * side, not from lossy transmission), while [RadioMode.USB] uses codec2 (the actual
- * low-bitrate digital-voice codec real SSB radios carry -- see [Codec2Codec]).
+ * depends on the active slot's [RadioMode.codec], not the band: OPUS modes (AM/SAM/CW/NBFM) use
+ * Opus (full-quality, matching close-range voice's [OpusCodec] exactly -- their "radio" character
+ * comes entirely from [RadioChannel]'s bandpass/static DSP on the receive side, not from lossy
+ * transmission), while CODEC2 modes (USB/LSB) use codec2 (the actual low-bitrate digital-voice
+ * codec real SSB radios carry, in this project's model -- see [Codec2Codec]).
  *
  * Opus frames line up exactly with [VoiceClientLoop]'s 960-sample capture chunking, same as the
  * close-range tier, so no buffering is needed there. codec2's frame size depends on which mode
@@ -36,22 +37,32 @@ object RadioTransmitter {
 
     /**
      * Feeds one [VoiceClientLoop] capture frame (960 48kHz samples) into the current
-     * transmission. Only actually sends anything once the local player is confirmed to be
-     * carrying a powered radio with an enabled active slot somewhere in the hotbar -- it doesn't
-     * need to be held in hand (see [RadioActions.transmittableHotbarRadio]) -- otherwise PTT is a
-     * silent no-op. This is just a client-side bandwidth short-circuit; [RadioRelay] re-derives
-     * the same state authoritatively on the server.
+     * transmission. If the player has joined a [io.github.jwyoon1220.dncity.block.RadioStationBlockEntity]
+     * (see [RadioStationClientState]), PTT audio routes there -- station modes are always
+     * [io.github.jwyoon1220.dncity.radio.RadioMode.AM]/[io.github.jwyoon1220.dncity.radio.RadioMode.FM],
+     * both OPUS, so no codec-selection logic is needed for that path. Otherwise, only actually
+     * sends anything once the local player is confirmed to be carrying a powered radio with an
+     * enabled active slot somewhere in the hotbar -- it doesn't need to be held in hand (see
+     * [RadioActions.transmittableHotbarRadio]) -- otherwise PTT is a silent no-op. This is just a
+     * client-side bandwidth short-circuit either way; [RadioRelay] re-derives the same state
+     * authoritatively on the server.
      */
     fun submit(frame48k: ShortArray) {
         val player = Minecraft.getInstance().player ?: return
+
+        if (RadioStationClientState.joined != null) {
+            submitOpus(frame48k)
+            return
+        }
+
         val (radio, stack) = RadioActions.transmittableHotbarRadio(player) ?: return
         val data = radio.dataOf(stack)
         val activeSlot = data.slots[data.activeSlot]
         val band = RadioBand.fromFrequencyKhz(activeSlot.frequencyKhz) ?: return
 
-        when (activeSlot.mode) {
-            RadioMode.AM, RadioMode.FM -> submitOpus(frame48k)
-            RadioMode.USB -> submitCodec2(frame48k, band)
+        when (activeSlot.mode.codec) {
+            VoiceCodec.OPUS -> submitOpus(frame48k)
+            VoiceCodec.CODEC2 -> submitCodec2(frame48k, band)
         }
     }
 

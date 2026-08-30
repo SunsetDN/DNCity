@@ -15,4 +15,8 @@ object ModBlocks {
     val EXAMPLE_BLOCK by REGISTRY.register("example_block") { ->
         Block(BlockBehaviour.Properties.of().lightLevel { 15 }.strength(3.0f))
     }
+
+    val RADIO_STATION by REGISTRY.register("radio_station") { ->
+        RadioStationBlock(BlockBehaviour.Properties.of().strength(3.0f).noOcclusion())
+    }
 }

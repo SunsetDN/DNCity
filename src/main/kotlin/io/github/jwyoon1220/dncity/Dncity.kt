@@ -1,45 +1,47 @@
 package io.github.jwyoon1220.dncity
 
-import io.github.jwyoon1220.dncity.voice.VoiceClientLoop
+import io.github.jwyoon1220.dncity.block.ModBlockEntities
 import io.github.jwyoon1220.dncity.block.ModBlocks
-import io.github.jwyoon1220.dncity.client.ModKeyMappings
-import io.github.jwyoon1220.dncity.client.RadioScreen
-import io.github.jwyoon1220.dncity.client.VoiceSettingsScreen
+import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
-import io.github.jwyoon1220.dncity.item.RadioItem
 import io.github.jwyoon1220.dncity.item.component.ModDataComponents
 import io.github.jwyoon1220.dncity.command.MusicCommand
-import io.github.jwyoon1220.dncity.music.AudioPlayer
-import io.github.jwyoon1220.dncity.music.MidiPlayer
-import io.github.jwyoon1220.dncity.music.MusicClientReceiver
 import io.github.jwyoon1220.dncity.music.MusicServerEvents
 import io.github.jwyoon1220.dncity.network.MusicNetworking
+import io.github.jwyoon1220.dncity.network.PhoneNetworking
 import io.github.jwyoon1220.dncity.network.RadioNetworking
+import io.github.jwyoon1220.dncity.network.RadioStationNetworking
 import io.github.jwyoon1220.dncity.network.VoiceNetworking
-import net.minecraft.client.Minecraft
+import io.github.jwyoon1220.dncity.phone.PhoneServerEvents
+import io.github.jwyoon1220.dncity.radio.RadioStationServerEvents
 import net.minecraft.world.item.CreativeModeTabs
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.fml.ModList
 import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.fml.common.Mod
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLDedicatedServerSetupEvent
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
-import net.neoforged.neoforge.client.event.ClientTickEvent
-import net.neoforged.neoforge.client.gui.IConfigScreenFactory
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
-import net.neoforged.neoforge.event.RegisterCommandsEvent
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import thedarkcolour.kotlinforforge.neoforge.forge.MOD_BUS
-import thedarkcolour.kotlinforforge.neoforge.forge.runForDist
 
 /**
  * Main mod class.
+ *
+ * Only dist-agnostic (common) registrations belong here -- KotlinForForge's automatic
+ * `@EventBusSubscriber` injection (`AutoKotlinEventBusSubscriber`) reflects over every declared
+ * method of this class via kotlin-reflect during mod construction, which forces the JVM to
+ * resolve each method's parameter/return types even for methods that are never called. A
+ * client-only method living here (e.g. one referencing `net.minecraft.client.KeyMapping`) used to
+ * crash the dedicated server under RuntimeDistCleaner for exactly this reason, even when the
+ * event it listened for would never have fired on the server. All client-only setup lives in
+ * [io.github.jwyoon1220.dncity.client.ClientModEvents] instead, whose own
+ * `@EventBusSubscriber(value = [Dist.CLIENT])` annotation is dist-filtered by FML's ASM-based
+ * class scan *before* the class is ever loaded, so a dedicated server never reflects over it at
+ * all.
  *
  * An example for blocks is in the `blocks` package of this mod.
  */
@@ -53,72 +55,32 @@ object Dncity {
     val LOGGER: Logger = LogManager.getLogger(ID)
 
     init {
-
         // Register the KDeferredRegister to the mod-specific event bus
         ModBlocks.REGISTRY.register(MOD_BUS)
+        ModBlockEntities.REGISTRY.register(MOD_BUS)
         ModItems.REGISTRY.register(MOD_BUS)
         ModDataComponents.REGISTRY.register(MOD_BUS)
 
         NeoForge.EVENT_BUS.addListener(RadioCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicCommand::onRegisterCommands)
+        NeoForge.EVENT_BUS.addListener(PhoneNumberCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicServerEvents::onPlayerLoggedIn)
+        NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedIn)
+        NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedOut)
+        NeoForge.EVENT_BUS.addListener(RadioStationServerEvents::onPlayerLoggedOut)
         MOD_BUS.addListener(RadioNetworking::onRegisterPayloadHandlers)
+        MOD_BUS.addListener(RadioStationNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(VoiceNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(MusicNetworking::onRegisterPayloadHandlers)
-        MOD_BUS.addListener(ModKeyMappings::onRegisterKeyMappings)
-
-        val obj = runForDist(clientTarget = {
-            MOD_BUS.addListener(::onClientSetup)
-            Minecraft.getInstance()
-        }, serverTarget = {
-            MOD_BUS.addListener(::onServerSetup)
-            "test"
-        })
+        MOD_BUS.addListener(PhoneNetworking::onRegisterPayloadHandlers)
     }
 
     /**
-     * This is used for initializing client specific
-     * things such as renderers and keymaps
-     * Fired on the mod specific event bus.
+     * Fired on the mod bus -- only ever fires on a dedicated server, so (unlike client-only
+     * setup) this is safe to keep here: its own event type carries no client-only references.
      */
-    private fun onClientSetup(event: FMLClientSetupEvent) {
-        LOGGER.log(Level.INFO, "Initializing client...")
-        RadioItem.screenOpener = { radio, stack, hand ->
-            Minecraft.getInstance().setScreen(RadioScreen(radio, stack, hand))
-        }
-
-        // Close-range voice: mic capture/playback only runs while actually in a world, not
-        // sitting at the main menu.
-        NeoForge.EVENT_BUS.addListener(::onVoiceLogin)
-        NeoForge.EVENT_BUS.addListener(::onVoiceLogout)
-        NeoForge.EVENT_BUS.addListener(::onVoiceClientTick)
-
-        // Makes VoiceSettingsScreen reachable from this mod's "Config" button in the Mods list.
-        ModList.get().getModContainerById(ID).ifPresent { container ->
-            container.registerExtensionPoint(IConfigScreenFactory::class.java, IConfigScreenFactory { _, screen ->
-                VoiceSettingsScreen(screen)
-            })
-        }
-    }
-
-    private fun onVoiceLogin(event: ClientPlayerNetworkEvent.LoggingIn) = VoiceClientLoop.start()
-
-    private fun onVoiceLogout(event: ClientPlayerNetworkEvent.LoggingOut) {
-        VoiceClientLoop.stop()
-        MidiPlayer.stop()
-        AudioPlayer.shutdown()
-        MusicClientReceiver.reset()
-    }
-
-    private fun onVoiceClientTick(event: ClientTickEvent.Post) {
-        VoiceClientLoop.tick()
-        AudioPlayer.tick()
-    }
-
-    /**
-     * Fired on the global Forge bus.
-     */
-    private fun onServerSetup(event: FMLDedicatedServerSetupEvent) {
+    @SubscribeEvent
+    fun onServerSetup(event: FMLDedicatedServerSetupEvent) {
         LOGGER.log(Level.INFO, "Server starting...")
     }
 

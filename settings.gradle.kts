@@ -44,6 +44,23 @@ includeBuild("engine/fmod") {
     }
 }
 
+// engine/window (Win32 child-window/AWT-reparenting JNI bridge -- see CLAUDE.md) follows the
+// same standalone-composite-build pattern as engine/audio/engine/fmod.
+includeBuild("engine/window") {
+    dependencySubstitution {
+        substitute(module("engine:window")).using(project(":"))
+    }
+}
+
+// engine/browserhost (standalone JCEF/AWT child-process host -- see its own build.gradle.kts doc
+// and CLAUDE.md's "Architecture: window overlay" section) is included WITHOUT a
+// dependencySubstitution, same reasoning as mods/ModernUI-MC below: it's never consumed as a
+// library dependency of the root project (it only ever runs as an independent `java -jar`
+// process with its own self-contained shadow jar) -- this include exists purely so the root
+// build's stageBrowserHostJar task (see root build.gradle.kts) can depend on its `shadowJar` task
+// output.
+includeBuild("engine/browserhost")
+
 // Automobility (mods/Automobility) -- this fork strips it down to a single neoforge subproject
 // (see mods/Automobility/settings.gradle.kts) since upstream's common/fabric setup pulled in
 // fabric-loom, which needs a newer Gradle than this repo runs.
@@ -77,31 +94,81 @@ includeBuild("mods/SuperbWarfare") {
 // Sodium/Iris are, rather than substituted into a dependency.
 includeBuild("mods/ModernUI-MC")
 
-// Sodium (mods/sodium, SunsetDN fork, 1.21.1/stable branch) -- this fork drops "fabric" from
-// upstream (see mods/sodium/settings.gradle.kts), keeping "common" (loader-agnostic shared code,
-// still built via Fabric Loom purely for Minecraft/mappings resolution) and "neoforge". Its jar is
-// collected by collectDistributionJars in the root build.gradle.kts instead of the previous
-// prebuilt Modrinth artifact, AND substituted for TACZ's own "maven.modrinth:sodium" compat
-// dependency (see mods/TACZ-1.21.1/build.gradle.kts) so it builds against this local fork too --
-// safe to point at :neoforge's default (library) jar here since TACZ's compat code doesn't
-// reference any Sodium classes directly (only Iris's, see below), so the exact artifact shape
-// doesn't matter for compilation.
+// Sodium and Iris (mods/sodium, mods/Iris -- SunsetDN forks) are pinned to OLD commits, not their
+// branch tips: mods/TACZ-1.21.1 and mods/SuperbWarfare both depend on the exact same
+// "maven.modrinth:sodium"/"maven.modrinth:iris" coordinates for their own compat mixins (pinned to
+// Sodium mc1.21.1-0.6.13-neoforge), so substituting that one coordinate pair covers both consumers
+// at once (SuperbWarfare's own extra "curse.maven:sodium-394468"/"curse.maven:irisshaders-455508"
+// pulls, mods/SuperbWarfare/build.gradle.kts, were removed instead of substituted -- redundant once
+// the shared coordinate above is covered, and substituting curse.maven coordinates here on top of
+// the maven.modrinth ones hit an unrelated Gradle composite-build resolution bug where Sodium's own
+// forgified-fabric-api dependency got resolved through Iris's "common" project's repositories
+// instead of Sodium's own).
+//
+// The branch tips of these forks target a much newer, incompatible Sodium internal API
+// (SunsetDN/Iris's own SODIUM_DEPENDENCY_NEO pins net.caffeinemc:sodium-neoforge-mod:0.8.12-beta.1,
+// post their "sodium 0.8" commit) -- confirmed by hand: runClient crashed on a
+// MixinPreProcessorException from Iris's own compat mixin needing a Sodium field the old pinned
+// Modrinth version doesn't have. Both submodules are checked out at the last commit before that
+// Sodium-0.8 rewrite (mods/sodium @ tag mc1.21.1-0.6.13, mods/Iris @ b4b2c22c1, whose own
+// SODIUM_DEPENDENCY_NEO resolves to Sodium 0.6.9 -- same generation as the pinned
+// mc1.21.1-0.6.13-neoforge everything else already expects) so their compat mixins target the same
+// API generation the rest of the pack (TACZ, SuperbWarfare, and third-party jars like "sable") was
+// actually built against.
+//
+// Both forks' "neoforge" subprojects' default jar already contains their real classes at this
+// generation (unlike the current tip's service/mod jar split -- confirmed by hand), so a plain
+// project substitution is enough to put exactly one real Sodium and one real Iris on the classpath
+// -- multiple jars all claiming the same mod ID (before SuperbWarfare's extra pulls were removed)
+// is what caused a runClient NoClassDefFoundError for a real Sodium class that existed in one of
+// the stacked jars but not whichever one NeoForge actually picked.
+// Substitutes the exact "group:artifact:version" coordinate, not just "group:artifact" --
+// Modrinth's maven scheme reuses the exact same "maven.modrinth:sodium"/"maven.modrinth:iris"
+// coordinate for every loader and Minecraft version of a project (version strings are really
+// opaque file IDs), so a bare group:artifact substitution also silently intercepted mods/Iris's OWN
+// internal Fabric-flavored SODIUM_DEPENDENCY_FABRIC reference inside its "common" project (used
+// only for Fabric Loom's own remap tooling, a different, more constrained resolution context) --
+// confirmed by hand: that misdirected it into resolving OUR NeoForge Sodium project's
+// forgified-fabric-api dependency through common's own, narrower repositories, which don't have it,
+// breaking runClient's dependency resolution outright. Pinning to the exact version leaves that
+// internal Fabric reference alone.
 includeBuild("mods/sodium") {
     dependencySubstitution {
-        substitute(module("maven.modrinth:sodium")).using(project(":neoforge"))
+        substitute(module("maven.modrinth:sodium:mc1.21.1-0.6.13-neoforge")).using(project(":neoforge"))
     }
 }
 
-// Iris (mods/Iris, SunsetDN fork, 1.21.1 branch) -- same "fabric" drop as Sodium above (see
-// mods/Iris/settings.gradle.kts). Unlike Sodium, Iris's "neoforge" subproject compiles "common"'s
-// sources directly into its own main source set (see its build.gradle.kts's notNeoTask-filtered
-// JavaCompile/ProcessResources wiring) rather than splitting service/mod jars, so its default jar
-// already contains the real net.irisshaders.iris.* classes TACZ's compat code
-// (mods/TACZ-1.21.1/src/main/java/com/tacz/guns/compat/iris) needs at compile time -- substituting
-// straight to :neoforge's default configuration is enough, unlike a hypothetical Sodium class-level
-// substitution which would need its "mod" configuration specifically.
 includeBuild("mods/Iris") {
     dependencySubstitution {
-        substitute(module("maven.modrinth:iris")).using(project(":neoforge"))
+        substitute(module("maven.modrinth:iris:1.8.12+1.21.1-neoforge")).using(project(":neoforge"))
     }
 }
+
+// VoxelMap (mods/VoxelMap, SunsetDN fork, "1.21.1" branch) -- minimap + fullscreen world map.
+// Included WITHOUT a dependencySubstitution, same reasoning as ModernUI-MC above: its "neoforge"
+// subproject's own `tasks.jar` already bundles ":common"'s compiled classes/resources directly
+// into one self-contained jar (see mods/VoxelMap/neoforge/build.gradle.kts), so there's no
+// separate "universal" jarJar step and no library coordinate of ours to substitute -- it's just
+// included as a composite build (for its own build/run tasks and IDE integration) and that plain
+// jar copied by collectDistributionJars in the root build.gradle.kts, the same way ModernUI-MC's
+// universal jar and Sodium/Iris's jars are.
+includeBuild("mods/VoxelMap")
+
+// Sound Physics Remastered (mods/sound-physics-remastered, SunsetDN fork, "1.21.1" branch) --
+// realistic sound occlusion/reverb/absorption through blocks. Included WITHOUT a
+// dependencySubstitution, same reasoning as ModernUI-MC/VoxelMap above: its "neoforge"
+// subproject is an Architectury multi-loader module (common/fabric/neoforge/forge, its own
+// settings.gradle) built with NeoGradle userdev plus a shaded jar
+// (mods/sound-physics-remastered/neoforge/build.gradle's `com.gradleup.shadow` + the shared
+// henkelmax/mod-gradle-scripts `mod.gradle` it applies), not this repo's own
+// net.neoforged.moddev toolchain -- a plain project substitution would grab whichever jar task
+// happens to be the project's default artifact rather than the specific shaded one this repo
+// wants, the exact class of bug already documented for Sodium/Iris above. Its `voicechat`
+// (Simple Voice Chat) and `cloth_config` mod dependencies are both declared `optional` in its
+// own neoforge.mods.toml, so it loads fine standalone without either present -- no conflict with
+// this repo having replaced Simple Voice Chat with its own voice/radio system (see CLAUDE.md's
+// "Architecture: the radio system"); its `implementation "de.maxhenkel.voicechat:voicechat-api"`
+// dependency only affects this submodule's OWN isolated build environment (needed to compile
+// against SVC's API for its optional integration), not this repo's runtime dependencies, since
+// it's pulled in via a plain file dependency below rather than a project dependency.
+includeBuild("mods/sound-physics-remastered")

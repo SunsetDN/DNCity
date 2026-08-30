@@ -5,6 +5,7 @@ import io.github.jwyoon1220.dncity.network.RadioSenderPosition
 import io.github.jwyoon1220.dncity.radio.RadioBand
 import io.github.jwyoon1220.dncity.radio.RadioMode
 import io.github.jwyoon1220.dncity.radio.RadioVoice
+import io.github.jwyoon1220.dncity.radio.VoiceCodec
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
 import net.minecraft.client.Minecraft
@@ -45,6 +46,9 @@ object ClientRadioReceiver {
         frequencyKhz: Double,
         modeName: String,
         senderPosition: RadioSenderPosition,
+        effectiveMaxRangeBlocks: Double,
+        obstructed: Boolean,
+        stormNoise: Boolean,
     ) {
         val localPlayer = Minecraft.getInstance().player ?: return
         if (senderEntityId == localPlayer.id) return
@@ -59,15 +63,15 @@ object ClientRadioReceiver {
         // RadioAudioRelayPayload's doc comment).
         val senderPos = Vec3(senderPosition.x, senderPosition.y, senderPosition.z)
         val distance = senderPos.distanceTo(localPlayer.position())
-        val gain = RadioVoice.gain(band, distance)
+        val gain = RadioVoice.gain(distance, effectiveMaxRangeBlocks)
         if (gain < SQUELCH_GAIN_THRESHOLD) return
 
-        val samples48k = when (radioMode) {
-            RadioMode.AM, RadioMode.FM -> {
+        val samples48k = when (radioMode.codec) {
+            VoiceCodec.OPUS -> {
                 val decoder = opusDecoders.getOrPut(senderEntityId) { OpusCodec.createDecoder() }
                 runCatching { decoder.decode(audioData) }.getOrNull() ?: return
             }
-            RadioMode.USB -> {
+            VoiceCodec.CODEC2 -> {
                 val codec2Mode = Codec2Codec.modeForBand(band)
                 val decoder = if (codec2DecoderModes[senderEntityId] == codec2Mode) {
                     codec2Decoders[senderEntityId]
@@ -94,7 +98,7 @@ object ClientRadioReceiver {
             }
         }
 
-        val staticLevel = RadioVoice.staticLevel(radioMode, gain)
+        val staticLevel = RadioVoice.staticLevel(radioMode, gain, obstructed, stormNoise)
         val shaped = channel.process(samples48k, gain, staticLevel)
 
         // codec2 MODE_1200's 40ms frame upsamples to 1920 samples -- longer than

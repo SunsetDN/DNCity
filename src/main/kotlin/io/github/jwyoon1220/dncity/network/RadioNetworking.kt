@@ -40,7 +40,10 @@ object RadioNetworking {
 
         registrar.playToClient(RadioAudioRelayPayload.TYPE, RadioAudioRelayPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
             context.enqueueWork {
-                ClientRadioReceiver.handleRelayedFrame(payload.senderEntityId, payload.audioData, payload.frequencyKhz, payload.mode, payload.senderPosition)
+                ClientRadioReceiver.handleRelayedFrame(
+                    payload.senderEntityId, payload.audioData, payload.frequencyKhz, payload.mode,
+                    payload.senderPosition, payload.effectiveMaxRangeBlocks, payload.obstructed, payload.stormNoise,
+                )
             }
         })
     }

@@ -1,0 +1,29 @@
+// Works around a NoSuchMethodError in IntelliJ's Gradle sync: the "idea-ext" plugin
+// (org.jetbrains.gradle.plugin.idea-ext), pulled in transitively by NeoForge's ModDevGradle and
+// Fabric/Architectury Loom to auto-generate IDE run configurations, is Groovy-compiled against an
+// older Groovy signature (DefaultGroovyMethods.collect(Collection, Closure)) that Gradle 9.4.1's
+// bundled Groovy runtime no longer provides that way. Per-run disableIdeRun()/ideConfigGenerated
+// flags were set across every submodule's runs{} block, but at least one included build still
+// ends up with a populated runConfigurations container by the time IntelliJ's tooling-model
+// builder calls ProjectSettings.toString() (which serializes every registered run config and
+// crashes on the first one) -- rather than chase which plugin/version still adds one, this
+// unconditionally empties the container for every project in the whole composite build right
+// after each project finishes configuring, before IntelliJ ever requests that model.
+allprojects {
+    afterEvaluate { project ->
+        def ideaExt = project.extensions.findByName('idea')
+        if (ideaExt == null) {
+            return
+        }
+        try {
+            def ideaProject = ideaExt.project
+            def settings = ideaProject?.hasProperty('settings') ? ideaProject.settings : null
+            def runConfigurations = settings?.hasProperty('runConfigurations') ? settings.runConfigurations : null
+            if (runConfigurations != null && runConfigurations.metaClass.respondsTo(runConfigurations, 'clear')) {
+                runConfigurations.clear()
+            }
+        } catch (Throwable ignored) {
+            // idea-ext not applied on this project, or its API shape differs -- nothing to clear.
+        }
+    }
+}

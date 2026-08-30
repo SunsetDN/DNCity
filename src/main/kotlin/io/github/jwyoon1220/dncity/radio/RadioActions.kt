@@ -30,11 +30,12 @@ object RadioActions {
             (stack.item as? RadioItem)?.let { it to stack }
         }
 
-    /** The first hotbar radio that's powered on with a valid, enabled active (transmit) slot. */
+    /** The first hotbar radio that's [RadioItem.canTransmit], powered on, and has a valid,
+     * enabled active (transmit) slot. */
     fun transmittableHotbarRadio(player: Player): Pair<RadioItem, ItemStack>? =
         hotbarRadios(player).firstOrNull { (radio, stack) ->
             val data = radio.dataOf(stack)
-            data.powered && data.slots.getOrNull(data.activeSlot)?.enabled == true
+            radio.canTransmit && data.powered && data.slots.getOrNull(data.activeSlot)?.enabled == true
         }
 
     fun tune(player: ServerPlayer, slot: Int, frequencyKhz: Double, mode: RadioMode): Boolean {
@@ -42,6 +43,7 @@ object RadioActions {
         if (slot !in 0 until radio.tier) return false
         val band = RadioBand.fromFrequencyKhz(frequencyKhz) ?: return false
         if (!radio.bandGroup.supports(band)) return false
+        if (!radio.bandGroup.supportsMode(mode)) return false
 
         val stack = player.mainHandItem
         val data = radio.dataOf(stack)

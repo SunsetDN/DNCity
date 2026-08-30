@@ -1,7 +1,11 @@
 package com.iwei20.fmod.studio;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Java wrapper over FMOD Studio's C API, backed by hand-written JNI (see
@@ -147,6 +151,48 @@ public class FMODSystem implements AutoCloseable {
         FMODException.errCheck(nLoadPlugin(outCoreSystem[0], filename, 0));
     }
 
+    // FMOD_DSP_TYPE_LOWPASS_SIMPLE and FMOD_DSP_LOWPASS_SIMPLE_CUTOFF -- stable values from FMOD's
+    // public fmod_dsp.h enums (unchanged across FMOD versions; this is the single-parameter,
+    // cheap one-pole lowpass FMOD ships as a built-in DSP type, not a custom/plugin effect).
+    private static final int FMOD_DSP_TYPE_LOWPASS_SIMPLE = 20;
+    private static final int FMOD_DSP_LOWPASS_SIMPLE_CUTOFF = 0;
+
+    /**
+     * A single Core API DSP effect instance, as returned by {@link #createLowpassDSP}. Attach it
+     * to an event instance's mix via {@link EventInstance#attachDSP}.
+     */
+    public static final class DSP {
+        private final long ptr;
+
+        private DSP(long ptr) {
+            this.ptr = ptr;
+        }
+
+        /** Calls DSP::release once this effect is no longer needed (e.g. after the event instance it was attached to has stopped).
+         * @throws FMODException if the call to DSP::release fails. */
+        public void release() {
+            FMODException.errCheck(nDspRelease(ptr));
+        }
+    }
+
+    /**
+     * Creates a lowpass filter DSP (on the core system underlying this Studio system) with the
+     * given cutoff frequency in Hz, for faking a muffled/suppressed timbre on events that have no
+     * dedicated suppressed take authored in the bank -- see
+     * {@code com.tacz.guns.client.sound.fmod.FmodWeaponSoundManager}'s suppressed-shot handling.
+     * Attach the result to a specific event instance's mix via {@link EventInstance#attachDSP}.
+     * @throws FMODException if the call to Studio::System::getCoreSystem or System::createDSPByType fails.
+     */
+    public DSP createLowpassDSP(float cutoffHz) {
+        long[] outCoreSystem = new long[1];
+        FMODException.errCheck(nGetCoreSystem(systemPtr, outCoreSystem));
+        long[] outDsp = new long[1];
+        FMODException.errCheck(nCreateDSPByType(outCoreSystem[0], FMOD_DSP_TYPE_LOWPASS_SIMPLE, outDsp));
+        DSP dsp = new DSP(outDsp[0]);
+        FMODException.errCheck(nDspSetParameterFloat(dsp.ptr, FMOD_DSP_LOWPASS_SIMPLE_CUTOFF, cutoffHz));
+        return dsp;
+    }
+
     /** A 3D vector, as used by {@link Attributes3D}. */
     public record Vector3(float x, float y, float z) {
         public static final Vector3 ZERO = new Vector3(0, 0, 0);
@@ -196,6 +242,21 @@ public class FMODSystem implements AutoCloseable {
          * @throws FMODException if the call to Studio::Bank::unload fails. */
         public void unload() {
             FMODException.errCheck(nBankUnload(ptr));
+        }
+
+        /** Calls Studio::Bank::getEventCount/getEventList to list every event description this
+         * bank contains -- e.g. for dumping every event path in a bank to figure out real event
+         * names/paths by hand (see WeaponFmodEvents' doc in TACZ/SBW for why that's ever needed:
+         * this bank's naming isn't consistent enough to guess). Returns an empty list on failure
+         * rather than throwing, since this is a diagnostic/tooling method, not part of the normal
+         * playback path. */
+        public List<EventDescription> getEventList() {
+            long[] pointers = nBankGetEventList(ptr);
+            List<EventDescription> result = new ArrayList<>(pointers.length);
+            for (long pointer : pointers) {
+                result.add(new EventDescription(pointer));
+            }
+            return result;
         }
     }
 
@@ -310,6 +371,30 @@ public class FMODSystem implements AutoCloseable {
             FMODException.errCheck(nEventInstanceSetParameterByName(ptr, name, value, 0));
         }
 
+        /** Calls Studio::EventInstance::setVolume -- a linear multiplier on top of the event's
+         * authored volume (1.0 = unchanged; values above 1.0 amplify beyond what was authored,
+         * clipping/distorting at the mixer if pushed far enough). Can be called before or after
+         * {@link #start}.
+         * @throws FMODException if the call to Studio::EventInstance::setVolume fails. */
+        public void setVolume(float volume) {
+            FMODException.errCheck(nEventInstanceSetVolume(ptr, volume));
+        }
+
+        /**
+         * Attaches {@code dsp} (see {@link FMODSystem#createLowpassDSP}) to this specific event
+         * instance's own Core API channel group -- other concurrently-playing instances of the
+         * same event, or any other event, are unaffected. Call before {@link #start} so the
+         * effect is active from the first sample.
+         * @throws FMODException if the call to Studio::EventInstance::getChannelGroup or ChannelGroup::addDSP fails.
+         */
+        public void attachDSP(DSP dsp) {
+            long[] outGroup = new long[1];
+            FMODException.errCheck(nEventInstanceGetChannelGroup(ptr, outGroup));
+            // Index 0 = FMOD_CHANNELCONTROL_DSP_HEAD, inserting at the head of the chain (closest
+            // to this channel group's output) -- the only sensible position for a single effect.
+            FMODException.errCheck(nChannelGroupAddDSP(outGroup[0], 0, dsp.ptr));
+        }
+
         /** Calls Studio::EventInstance::release. Marks the event instance for release once it
          * stops. Should be called once the caller no longer needs to interact with this
          * instance, typically right after {@link EventInstance#start}, for fire-and-forget
@@ -317,6 +402,37 @@ public class FMODSystem implements AutoCloseable {
          * @throws FMODException if the call to Studio::EventInstance::release fails. */
         public void release() {
             FMODException.errCheck(nEventInstanceRelease(ptr));
+        }
+
+        /**
+         * Dev-tool only, not used by the shipped mod: registers {@code listener} to be called
+         * (from whatever native thread FMOD's callback fires on -- may not be the caller's
+         * thread) with the raw sample name every time this instance's compiled multi/random
+         * instrument picks and starts a new underlying sound. This is the only way to discover
+         * which of a bank's samples an event actually draws from, since Studio's static
+         * introspection API doesn't expose the compiled instrument tree at all (see
+         * {@code fmod_min.h}'s comment on {@code FMOD_STUDIO_EVENT_CALLBACK}).
+         * @throws FMODException if the call to Studio::EventInstance::setCallback fails.
+         */
+        public void setSoundPlayedListener(Consumer<String> listener) {
+            SOUND_PLAYED_LISTENERS.put(ptr, listener);
+            FMODException.errCheck(nEventInstanceSetCallback(ptr));
+        }
+    }
+
+    // Dev-tool only (see EventInstance#setSoundPlayedListener) -- keyed by the same jlong handle
+    // JNI already smuggles EventInstance's native pointer through, so the C++ trampoline in
+    // jni_fmod.cpp can pass it straight back without needing its own handle table.
+    private static final Map<Long, Consumer<String>> SOUND_PLAYED_LISTENERS = new ConcurrentHashMap<>();
+
+    // Called from native code (jni_fmod.cpp's soundPlayedTrampoline) on FMOD's own callback
+    // thread, not the JVM thread that called EventInstance#start -- must stay allocation-light
+    // and must never throw (the native side clears any exception it sees, but that's a last
+    // resort, not something to rely on).
+    private static void onSoundPlayed(long instancePtr, String sampleName) {
+        Consumer<String> listener = SOUND_PLAYED_LISTENERS.get(instancePtr);
+        if (listener != null) {
+            listener.accept(sampleName);
         }
     }
 
@@ -350,6 +466,8 @@ public class FMODSystem implements AutoCloseable {
 
     private static native int nBankUnload(long bank);
 
+    private static native long[] nBankGetEventList(long bank);
+
     private static native int nEventDescriptionCreateInstance(long eventDescription, long[] outInstance);
 
     private static native int nEventDescriptionGetPath(long eventDescription, String[] outPath);
@@ -373,5 +491,21 @@ public class FMODSystem implements AutoCloseable {
 
     private static native int nEventInstanceSetParameterByName(long instance, String name, float value, int ignoreSeekSpeed);
 
+    private static native int nEventInstanceSetVolume(long instance, float volume);
+
+    private static native int nEventInstanceGetChannelGroup(long instance, long[] outGroup);
+
     private static native int nEventInstanceRelease(long instance);
+
+    private static native int nEventInstanceSetCallback(long instance);
+
+    private static native int nCreateDSPByType(long coreSystem, int type, long[] outDsp);
+
+    private static native int nChannelGroupAddDSP(long group, int index, long dsp);
+
+    private static native int nChannelGroupRemoveDSP(long group, long dsp);
+
+    private static native int nDspSetParameterFloat(long dsp, int index, float value);
+
+    private static native int nDspRelease(long dsp);
 }

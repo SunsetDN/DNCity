@@ -11,12 +11,55 @@
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #include <jni.h>
 
 #include "fmod_min.h"
 
 namespace {
+
+// Stashed once (first EventInstance#setCallback call) so the native FMOD callback thread -- which
+// is not a JVM thread and has no JNIEnv of its own -- can attach itself and call back into Java.
+// This is the first JNI upcall (native -> Java) in this codebase; engine/audio's miniaudio
+// callbacks (jni_audio.cpp) stay purely native and never need this.
+JavaVM* g_javaVm = nullptr;
+jclass g_fmodSystemClass = nullptr;
+jmethodID g_onSoundPlayedMethod = nullptr;
+
+// FMOD_STUDIO_EVENT_CALLBACK shape (see fmod_min.h) -- only SOUND_PLAYED is unmasked by
+// nEventInstanceSetCallback below, so `type` is always that here in practice.
+FMOD_RESULT soundPlayedTrampoline(FMOD_STUDIO_EVENT_CALLBACK_TYPE type, FMOD_STUDIO_EVENTINSTANCE* event, void* parameters) {
+    if (type != FMOD_STUDIO_EVENT_CALLBACK_SOUND_PLAYED || g_javaVm == nullptr || g_onSoundPlayedMethod == nullptr) {
+        return 0;
+    }
+
+    auto* sound = reinterpret_cast<FMOD_SOUND*>(parameters);
+    char name[256] = {0};
+    FMOD_Sound_GetName(sound, name, sizeof(name));
+
+    JNIEnv* env = nullptr;
+    bool attached = false;
+    if (g_javaVm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (g_javaVm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) {
+            return 0;
+        }
+        attached = true;
+    }
+
+    jstring nameStr = env->NewStringUTF(name);
+    env->CallStaticVoidMethod(
+        g_fmodSystemClass, g_onSoundPlayedMethod, reinterpret_cast<jlong>(event), nameStr);
+    env->DeleteLocalRef(nameStr);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+
+    if (attached) {
+        g_javaVm->DetachCurrentThread();
+    }
+    return 0;
+}
 
 // FMOD_VERSION as encoded by the FMOD SDK this project's vendored binaries are from -- taken
 // directly (as a decimal literal, to avoid a hex-transcription mistake) from the
@@ -140,6 +183,32 @@ JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nBankUnload(JNIEnv
     return FMOD_Studio_Bank_Unload(reinterpret_cast<FMOD_STUDIO_BANK*>(bank));
 }
 
+// Returns every event description pointer in the bank as a long[], empty on failure -- same
+// "return the array directly" shape as nEventDescriptionGetParameterNames below, rather than an
+// out-param + FMOD_RESULT, since callers (FMODSystem.Bank#getEventList) only ever want the list.
+JNIEXPORT jlongArray JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nBankGetEventList(JNIEnv* env, jclass, jlong bank) {
+    auto* bankPtr = reinterpret_cast<FMOD_STUDIO_BANK*>(bank);
+
+    int count = 0;
+    if (FMOD_Studio_Bank_GetEventCount(bankPtr, &count) != 0 || count <= 0) {
+        return env->NewLongArray(0);
+    }
+
+    std::vector<FMOD_STUDIO_EVENTDESCRIPTION*> descriptions(static_cast<size_t>(count));
+    int retrieved = 0;
+    if (FMOD_Studio_Bank_GetEventList(bankPtr, descriptions.data(), count, &retrieved) != 0) {
+        return env->NewLongArray(0);
+    }
+
+    jlongArray result = env->NewLongArray(retrieved);
+    std::vector<jlong> boxed(static_cast<size_t>(retrieved));
+    for (int i = 0; i < retrieved; i++) {
+        boxed[static_cast<size_t>(i)] = reinterpret_cast<jlong>(descriptions[static_cast<size_t>(i)]);
+    }
+    env->SetLongArrayRegion(result, 0, retrieved, boxed.data());
+    return result;
+}
+
 JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nEventDescriptionCreateInstance(
     JNIEnv* env, jclass, jlong eventDescription, jlongArray outInstance) {
     FMOD_STUDIO_EVENTINSTANCE* instance = nullptr;
@@ -237,8 +306,64 @@ JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nEventInstanceSetP
     return result;
 }
 
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nEventInstanceSetVolume(
+    JNIEnv*, jclass, jlong instance, jfloat volume) {
+    return FMOD_Studio_EventInstance_SetVolume(reinterpret_cast<FMOD_STUDIO_EVENTINSTANCE*>(instance), volume);
+}
+
 JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nEventInstanceRelease(JNIEnv*, jclass, jlong instance) {
     return FMOD_Studio_EventInstance_Release(reinterpret_cast<FMOD_STUDIO_EVENTINSTANCE*>(instance));
+}
+
+// Dev-tool only (see fmod_min.h's comment on FMOD_STUDIO_EVENT_CALLBACK) -- lazily caches the JVM
+// and the target static Java method (FMODSystem.onSoundPlayed(long, String)) on first call, then
+// registers soundPlayedTrampoline for SOUND_PLAYED only.
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nEventInstanceSetCallback(JNIEnv* env, jclass clazz, jlong instance) {
+    if (g_javaVm == nullptr) {
+        env->GetJavaVM(&g_javaVm);
+        g_fmodSystemClass = reinterpret_cast<jclass>(env->NewGlobalRef(clazz));
+        g_onSoundPlayedMethod = env->GetStaticMethodID(clazz, "onSoundPlayed", "(JLjava/lang/String;)V");
+    }
+    return FMOD_Studio_EventInstance_SetCallback(
+        reinterpret_cast<FMOD_STUDIO_EVENTINSTANCE*>(instance), soundPlayedTrampoline, FMOD_STUDIO_EVENT_CALLBACK_SOUND_PLAYED);
+}
+
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nEventInstanceGetChannelGroup(
+    JNIEnv* env, jclass, jlong instance, jlongArray outGroup) {
+    FMOD_CHANNELGROUP* group = nullptr;
+    FMOD_RESULT result =
+        FMOD_Studio_EventInstance_GetChannelGroup(reinterpret_cast<FMOD_STUDIO_EVENTINSTANCE*>(instance), &group);
+    putLong(env, outGroup, reinterpret_cast<jlong>(group));
+    return result;
+}
+
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nCreateDSPByType(
+    JNIEnv* env, jclass, jlong coreSystem, jint type, jlongArray outDsp) {
+    FMOD_DSP* dsp = nullptr;
+    FMOD_RESULT result = FMOD_System_CreateDSPByType(reinterpret_cast<FMOD_SYSTEM*>(coreSystem), type, &dsp);
+    putLong(env, outDsp, reinterpret_cast<jlong>(dsp));
+    return result;
+}
+
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nChannelGroupAddDSP(
+    JNIEnv*, jclass, jlong group, jint index, jlong dsp) {
+    return FMOD_ChannelGroup_AddDSP(
+        reinterpret_cast<FMOD_CHANNELGROUP*>(group), index, reinterpret_cast<FMOD_DSP*>(dsp));
+}
+
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nChannelGroupRemoveDSP(
+    JNIEnv*, jclass, jlong group, jlong dsp) {
+    return FMOD_ChannelGroup_RemoveDSP(
+        reinterpret_cast<FMOD_CHANNELGROUP*>(group), reinterpret_cast<FMOD_DSP*>(dsp));
+}
+
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nDspSetParameterFloat(
+    JNIEnv*, jclass, jlong dsp, jint index, jfloat value) {
+    return FMOD_DSP_SetParameterFloat(reinterpret_cast<FMOD_DSP*>(dsp), index, value);
+}
+
+JNIEXPORT jint JNICALL Java_com_iwei20_fmod_studio_FMODSystem_nDspRelease(JNIEnv*, jclass, jlong dsp) {
+    return FMOD_DSP_Release(reinterpret_cast<FMOD_DSP*>(dsp));
 }
 
 // ---- com.iwei20.fmod.studio.FMODCoreSystem (Core FMOD::System, direct sound-file playback) ----

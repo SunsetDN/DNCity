@@ -46,15 +46,17 @@ private class OnePoleHighPass(cutoffHz: Double, sampleRate: Int) {
 }
 
 /**
- * Per-speaker, per-[RadioMode] channel DSP for the radio-voice tier: narrows decoded Opus PCM to
- * [RadioMode.lowCutoffHz]/[RadioMode.highCutoffHz] (a real receiver's IF passband, previously
- * declared on [RadioMode] but never actually applied to audio) and mixes in a noise texture
- * shaped like that mode's real static rather than plain white noise -- AM gets occasional
- * atmospheric crackle, FM gets bright differentiated hiss, USB gets a slow heterodyne warble.
- * Both the recovered signal and the injected noise pass through the same bandpass, since a real
- * receiver's noise floor is shaped by its own IF filter too. One instance lives per (speaker,
- * mode) in [ClientRadioReceiver]; swap it out (not reuse) if the speaker retunes to a different
- * mode, since the filters and noise generators are built for one specific mode's characteristics.
+ * Per-speaker, per-[RadioMode] channel DSP for the radio-voice tier: narrows decoded PCM to
+ * [RadioMode.lowCutoffHz]/[RadioMode.highCutoffHz] (a real receiver's IF passband) and mixes in a
+ * noise texture shaped like that mode's real static rather than plain white noise -- AM/SAM get
+ * occasional atmospheric crackle (SAM's rarer/softer, reflecting its fade immunity -- see
+ * [RadioMode]'s doc comment), NBFM gets bright differentiated hiss, USB/LSB get a slow heterodyne
+ * warble, and CW gets only a thin, quiet noise floor (its narrow filter is *why* it's quiet --
+ * see [RadioMode.CW]'s doc). Both the recovered signal and the injected noise pass through the
+ * same bandpass, since a real receiver's noise floor is shaped by its own IF filter too. One
+ * instance lives per (speaker, mode) in [ClientRadioReceiver]; swap it out (not reuse) if the
+ * speaker retunes to a different mode, since the filters and noise generators are built for one
+ * specific mode's characteristics.
  */
 class RadioChannel(private val mode: RadioMode, sampleRate: Int = OpusCodec.SAMPLE_RATE) {
     private val lowPass = OnePoleLowPass(mode.highCutoffHz, sampleRate)
@@ -93,28 +95,41 @@ class RadioChannel(private val mode: RadioMode, sampleRate: Int = OpusCodec.SAMP
         if (staticLevel <= 0f) return 0.0
         val amplitude = Short.MAX_VALUE * staticLevel * NOISE_SCALE
         return when (mode) {
-            RadioMode.FM -> {
+            RadioMode.NBFM, RadioMode.FM -> {
                 val white = random.nextDouble(-1.0, 1.0)
                 val hiss = white - hissPrev
                 hissPrev = white
                 hiss * amplitude
             }
-            RadioMode.AM -> {
-                var n = random.nextDouble(-1.0, 1.0) * amplitude
-                if (crackleCooldownSamples > 0) {
-                    crackleCooldownSamples--
-                } else if (random.nextFloat() < staticLevel * CRACKLE_CHANCE_PER_SAMPLE) {
-                    n += (if (random.nextBoolean()) 1.0 else -1.0) * Short.MAX_VALUE * CRACKLE_BURST_AMPLITUDE
-                    crackleCooldownSamples = CRACKLE_COOLDOWN_SAMPLES
-                }
-                n
-            }
-            RadioMode.USB -> {
+            RadioMode.AM -> crackle(amplitude, staticLevel, CRACKLE_CHANCE_PER_SAMPLE, CRACKLE_BURST_AMPLITUDE)
+            // Synchronous detection resists the selective fading that drives AM's crackle --
+            // rarer, quieter bursts on the same noise floor.
+            RadioMode.SAM -> crackle(amplitude, staticLevel, CRACKLE_CHANCE_PER_SAMPLE * 0.35, CRACKLE_BURST_AMPLITUDE * 0.5)
+            RadioMode.USB, RadioMode.LSB -> {
                 warblePhase += WARBLE_STEP
                 val warbleEnvelope = 0.6 + 0.4 * sin(warblePhase)
                 random.nextDouble(-1.0, 1.0) * amplitude * warbleEnvelope
             }
+            // CW's real-world quiet comes from its filter being narrow, not from a special noise
+            // shape -- plain (low-amplitude, since staticLevel/amplitude are already small for
+            // this mode -- see RadioMode.CW's baseNoiseLevel) white noise is enough; the sharp
+            // low/high cutoffs in RadioMode.CW do the rest.
+            RadioMode.CW -> random.nextDouble(-1.0, 1.0) * amplitude
         }
+    }
+
+    /** AM-family crackle: sparse random impulses layered on the noise floor, standing in for
+     * atmospheric static (lightning, etc.) rather than continuous hiss. [cooldownSamples] keeps
+     * bursts spaced out instead of clumping. */
+    private fun crackle(amplitude: Double, staticLevel: Float, chancePerSample: Double, burstAmplitude: Double): Double {
+        var n = random.nextDouble(-1.0, 1.0) * amplitude
+        if (crackleCooldownSamples > 0) {
+            crackleCooldownSamples--
+        } else if (random.nextFloat() < staticLevel * chancePerSample) {
+            n += (if (random.nextBoolean()) 1.0 else -1.0) * Short.MAX_VALUE * burstAmplitude
+            crackleCooldownSamples = CRACKLE_COOLDOWN_SAMPLES
+        }
+        return n
     }
 
     companion object {

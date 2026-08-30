@@ -20,7 +20,10 @@ import com.plasmoverse.opus.OpusMode
 object OpusCodec {
 
     // No explicit OpusLibrary.load() here -- OpusEncoder.create/OpusDecoder.create both call it
-    // themselves (idempotently) before constructing an instance.
+    // themselves (idempotently) before constructing an instance. See build.gradle.kts's `runs`
+    // block for why `java.io.tmpdir` is redirected for dev runs (OpusLibrary.load()'s own
+    // extraction path gets silently blocked by this dev machine's AppLocker/WDAC policy
+    // otherwise).
     const val SAMPLE_RATE = 48_000
     const val FRAME_SIZE = 960
     private const val STEREO = false

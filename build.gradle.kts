@@ -40,8 +40,11 @@ group = mod_group_id
 // commons-io to 2.15.1 with a strict constraint. engine/fmod requests 2.18.0, which
 // conflicts with that constraint; force everything onto the version Minecraft ships,
 // since commons-io is source/binary compatible across these minor releases.
+//
 configurations.all {
-    resolutionStrategy.force("commons-io:commons-io:2.15.1")
+    resolutionStrategy.force(
+        "commons-io:commons-io:2.15.1",
+    )
 }
 
 repositories {
@@ -173,8 +176,25 @@ neoForge {
     // These can be tweaked, removed, or duplicated as needed.
     runs {
         create("client") {
+            // IDE run-config generation goes through the "idea-ext" Gradle plugin, whose
+            // Groovy-compiled classes (JavaRunConfiguration.toMap, RunConfigurations.groovy) call
+            // a DefaultGroovyMethods.collect(Collection, Closure) overload that Gradle 9.4.1's
+            // bundled Groovy runtime no longer provides that way -- a NoSuchMethodError during
+            // IntelliJ sync (ModDevGradle 2.0.144 only officially supports Gradle 8.8). Disabled
+            // here since these runs are launched via ./gradlew runClient/runServer/etc. anyway
+            // (see CLAUDE.md), not via IDE-generated run configurations.
+            disableIdeRun()
             client()
             jvmArgument("-Xmx4G")
+            // WindowOverlay.ensureAwtAvailable() resets GraphicsEnvironment's cached `headless`
+            // field via reflection (see its doc) so BrowserOverlay/JCEF can use AWT despite
+            // Main.java forcing java.awt.headless=true at boot -- needs java.awt's internals
+            // opened. NeoForge's ModLauncher actually loads this mod into a *named* module
+            // ("dncity", not the unnamed module -- confirmed from a stack trace reading
+            // "TRANSFORMER/dncity@1.0-SNAPSHOT..."), so ALL-UNNAMED alone doesn't cover it;
+            // both target modules are listed (comma-separated target-module list per --add-opens
+            // syntax) since which module ModLauncher uses isn't being relied on further.
+            jvmArgument("--add-opens=java.desktop/java.awt=ALL-UNNAMED,dncity")
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
@@ -185,8 +205,10 @@ neoForge {
         // same time) -- for testing multiplayer-only features (radio, proximity chat) locally
         // by connecting two clients to the same server/LAN world at once.
         create("client2") {
+            disableIdeRun()
             client()
             jvmArgument("-Xmx4G")
+            jvmArgument("--add-opens=java.desktop/java.awt=ALL-UNNAMED,dncity")
             devLogin = false
             gameDirectory = file("run-client2")
             programArgument("--username")
@@ -197,6 +219,7 @@ neoForge {
         }
 
         create("server") {
+            disableIdeRun()
             server()
             programArgument("--nogui")
             systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
@@ -206,11 +229,13 @@ neoForge {
         // By default, the server will crash when no gametests are provided.
         // The gametest system is also enabled by default for other run configs under the /test command.
         create("gameTestServer") {
+            disableIdeRun()
             type = "gameTestServer"
             systemProperty("neoforge.enabledGameTestNamespaces", mod_id)
         }
 
         create("data") {
+            disableIdeRun()
             data()
 
             // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
@@ -227,6 +252,24 @@ neoForge {
 
         // applies to all the run configs above
         configureEach {
+            // Redirects the whole run JVM's temp directory off of the default OS temp root
+            // (AppData\Local\Temp on Windows). Needed for opus-jni-rust: its own OpusLibrary.load()
+            // extracts its native DLL into a fresh subdirectory of java.io.tmpdir
+            // (Files.createTempDirectory) and loads it from there -- confirmed by hand that this
+            // dev machine's Application Control policy (AppLocker/WDAC) silently blocks that
+            // (UnsatisfiedLinkError on OpusEncoder.createNative even though extraction/System.load
+            // themselves report no error), the same class of problem already documented in
+            // CLAUDE.md for engine/fmod's FModLoad and engine/audio's NativeLibrary -- except here
+            // the fix can't be "extract to the temp root, not a subdirectory" since it's
+            // opus-jni-rust's own code doing the extracting, not ours. Must be a real `-D` JVM
+            // argument (not a post-launch System.setProperty) so it's in effect before the JVM's
+            // internal temp-file helpers cache `java.io.tmpdir` on first use. This directory must
+            // actually exist (see mkdirs() call below) -- Files.createTempDirectory's parent must
+            // already exist.
+            val devTmpDir = file("$rootDir/.gradle/devRunTmp")
+            devTmpDir.mkdirs()
+            jvmArgument("-Djava.io.tmpdir=${devTmpDir.absolutePath}")
+
             // Recommended logging data for a userdev environment
             // The markers can be added/remove as needed separated by commas.
             // "SCAN": For mods scan.
@@ -249,20 +292,13 @@ neoForge {
             // module named kotlin.stdlib" JPMS error from ending up in a different module layer
             // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:window:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
-            // engine:fmod is deliberately NOT added here, unlike engine:audio/opus-jni-rust above.
-            // TACZ's own mod file is a real packaged jar even in dev runs (unlike this project's,
-            // which runs from raw compiled classes), so TACZ's own `jarJar("engine:fmod:1.0")`
-            // (mods/TACZ-1.21.1/build.gradle.kts) already lands its own copy on the dev module
-            // path via FML's JarInJarDependencyLocator, named "engine.fmod" (Forge JarJar's
-            // group.artifact naming). Adding a second copy here resolves to a differently-named
-            // raw "fmod-1.0.jar" (engine/fmod's own archivesName), and since both export the same
-            // com.iwei20.fmod package under different automatic module names, the JVM module
-            // system rejects the whole layer with a ResolutionException ("Modules fmod and
-            // engine.fmod export package com.iwei20.fmod to module ...") before any mod code
-            // runs. TACZ is a required composite-build dependency (see settings.gradle.kts), so
-            // its copy is always present here; this project's own jarJar'd copy (see the
-            // `dependencies` block below) still ships independently in a real distributed build.
+            // Same reason as the three above -- confirmed by hand: without this, runClient throws
+            // NoClassDefFoundError on NanoVGGL3 even though it's on the compile classpath fine
+            // (compileKotlin/jarJar packaging don't need this; only the dev-run classpath does).
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.lwjgl:lwjgl-nanovg:3.3.3")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
         }
     }
 
@@ -280,7 +316,29 @@ neoForge {
 // Include resources generated by data generators.
 sourceSets["main"].resources.srcDir("src/generated/resources")
 
+// Externally-published (curse.maven) mods that mods/SuperbWarfare's own build.gradle.kts pulls in
+// as plain `implementation` dependencies (not jarJar'd into SuperbWarfare's own jar) -- Create
+// (used by SuperbWarfare's compat/ponder/ tutorial scenes) and Sable (used by
+// compat/sable/SableCompatHandler.kt). create-aeronautics was tried here too, but removed --
+// nothing in SuperbWarfare's own source uses it, and it jarJars its own simulated/offroad addons
+// which all require Sable 2.x, which itself requires a newer Sodium than the fork this repo
+// vendors (mods/sodium, 0.6.13) -- confirmed by hand via the exact NeoForge mod-loading-failure
+// chain this caused. Composite-build project dependencies (like SuperbWarfare here) propagate
+// `implementation`-scoped deps onto this project's own runtimeClasspath, so runClient already
+// sees Create/Sable fine -- but collectDistributionJars below only copies each submodule's OWN
+// built jar, never what that submodule depends on, so a packaged `./gradlew build` output was
+// missing these even though runClient worked. Re-declared here (same coordinates
+// SuperbWarfare/build.gradle.kts pulls -- keep them in sync by hand if SuperbWarfare's own
+// versions change) purely to give collectDistributionJars a resolvable configuration to copy
+// from; Gradle resolves/dedupes to the same jars either way.
+val bundledExternalMods: Configuration by configurations.creating
+
 dependencies {
+    // See mods/SuperbWarfare/build.gradle.kts's own `curse.maven:create-328085`/
+    // `curse.maven:sable-1312371` lines.
+    bundledExternalMods("curse.maven:create-328085:7963363")
+    bundledExternalMods("curse.maven:sable-1312371:8007005")
+
     implementation("thedarkcolour:kotlinforforge-neoforge:5.3.0")
 
     // TACZ, included as a composite build submodule (mods/TACZ-1.21.1) so it
@@ -334,26 +392,76 @@ dependencies {
     implementation("engine:fmod:1.0")
     jarJar("engine:fmod:1.0")
 
-    // Example mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
-    // compileOnly("mezz.jei:jei-${mc_version}-forge-api:${jei_version}")
-    // runtimeOnly("mezz.jei:jei-${mc_version}-forge:${jei_version}")
+    // engine/window (Win32 child-window/AWT-reparenting JNI bridge, see
+    // io.github.jwyoon1220.dncity.client.window and CLAUDE.md). Same jarJar +
+    // additionalRuntimeClasspath requirement as engine:audio above -- see that entry's comment
+    // (also plain Java, no external dependencies of its own).
+    implementation("engine:window:1.0")
+    jarJar("engine:window:1.0")
 
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation("blank:coolmod-${mc_version}:${coolmod_version}")
+    // ModernUI-MC (mods/ModernUI-MC), for the phone screen's Fragment/View host (see
+    // io.github.jwyoon1220.dncity.client.phone.PhoneFragment). Not a dependencySubstitution like TACZ/First
+    // Aid/Automobility/SuperbWarfare above -- its "neoforge" subproject builds with Architectury
+    // Loom, a different Minecraft mapping/toolchain than this project's net.neoforged.moddev
+    // (see settings.gradle.kts's comment on this includeBuild), so a plain project substitution
+    // would resolve to its *default* jar task's output, which is Loom-intermediary-mapped and not
+    // link-compatible with this project's Mojang-mapped bytecode -- the exact class of bug hit
+    // earlier with Sodium's service/mod jar split (see settings.gradle.kts). Only remapJar's
+    // "-universal.jar" (same one collectDistributionJars below already depends on) is usable, so
+    // it's added as a plain file dependency instead, built by the task dependency further down.
+    implementation(fileTree("mods/ModernUI-MC/neoforge/build/libs") {
+        include("*-universal.jar")
+    })
 
-    // Example mod dependency using a file as dependency
-    // implementation(files("libs/coolmod-${mc_version}-${coolmod_version}.jar"))
+    // VoxelMap (mods/VoxelMap), for the phone screen's Map app (see
+    // io.github.jwyoon1220.dncity.client.phone.nanovg's MAP page), which opens VoxelMap's own
+    // fullscreen world map screen (com.mamiyaotaru.voxelmap.persistent.GuiPersistentMap) directly.
+    // Same reasoning as ModernUI-MC above for using a plain file dependency instead of a
+    // dependencySubstitution: VoxelMap's "neoforge" subproject already bundles ":common"'s
+    // compiled classes straight into its own plain `jar` task output (see
+    // mods/VoxelMap/neoforge/build.gradle.kts's `tasks.jar` block and settings.gradle.kts's
+    // comment on this includeBuild), so there's no separate remap/jarJar step to depend on --
+    // just that one jar, built by the task dependency further down.
+    implementation(fileTree("mods/VoxelMap/build/libs") {
+        include("*.jar")
+    })
 
-    // Example project dependency using a sister or child project:
-    // implementation(project(":myproject"))
+    // Sound Physics Remastered (mods/sound-physics-remastered) -- not referenced by this repo's
+    // own code (unlike ModernUI-MC/VoxelMap above), just a standalone mod that needs to be on the
+    // dev runtime's classpath for runClient/runClient2/runServer to actually load it, and built
+    // for collectDistributionJars to pick up. Its "neoforge" subproject's shadowJar task (not the
+    // plain "jar") is the shaded, distributable jar -- its own shared build script
+    // (henkelmax/mod-gradle-scripts's mod.gradle) sets shadowJar's archiveClassifier to "" for
+    // neoforge specifically, so it ends up as the one plain-named jar in this directory (see
+    // settings.gradle.kts's comment on this submodule's includeBuild).
+    implementation(fileTree("mods/sound-physics-remastered/neoforge/build/libs") {
+        include("*.jar")
+    })
 
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    // NanoVG (phone screen's chrome/keypad rendering, see
+    // io.github.jwyoon1220.dncity.client.phone.nanovg) -- LWJGL's own prebuilt bindings, classic
+    // JNI like the rest of LWJGL 3.3.x (no java.lang.foreign/Panama, so no Java-24-floor risk --
+    // see CLAUDE.md's "Toolchain" section). Pinned to exactly 3.3.3 since Minecraft 1.21.1's own
+    // dependency management pins org.lwjgl:lwjgl itself to `strictly 3.3.3`; lwjgl-nanovg:3.3.3's
+    // own POM depends on org.lwjgl:lwjgl:3.3.3, which satisfies that constraint exactly, so no
+    // resolutionStrategy.force is needed here (unlike the commons-io force above). natives-windows
+    // only, matching this project's existing Windows-only precedent (see engine/window's
+    // build.gradle.kts). jarJar'd the same way com.plasmoverse:opus-jni-rust is above, so the
+    // natives actually ship inside the distributed mod jar, not just runClient.
+    implementation("org.lwjgl:lwjgl-nanovg:3.3.3")
+    runtimeOnly("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
+    jarJar("org.lwjgl:lwjgl-nanovg:3.3.3")
+    jarJar("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
+}
+
+// The ModernUI-MC universal jar (see the fileTree dependency above) has to actually be built
+// before anything compiles against it or runs with it on the classpath.
+listOf("compileJava", "compileKotlin", "runClient", "runClient2", "runServer", "runGameTestServer", "runData").forEach { taskName ->
+    tasks.named(taskName) {
+        dependsOn(gradle.includedBuild("ModernUI-MC").task(":ModernUI-NeoForge:remapJar"))
+        dependsOn(gradle.includedBuild("VoxelMap").task(":neoforge:jar"))
+        dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
+    }
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -384,6 +492,25 @@ sourceSets["main"].resources.srcDir(generateModMetadata)
 // To avoid having to run "generateModMetadata" manually, make it run on every project reload
 neoForge.ideSyncTask(generateModMetadata)
 
+// Stages engine/browserhost's shadow jar as a classpath resource (client/window/
+// BrowserHostProcess.kt extracts it to a real temp file and spawns it as a plain `java -jar`
+// subprocess at runtime -- see that module's own build.gradle.kts doc for why JCEF/AWT now live
+// in a separate child process rather than in-process). Generated into a build directory (not
+// checked-in src/main/resources) since it's a large rebuildable binary, same reasoning as
+// generateModMetadata's expanded template output above.
+val browserHostResourceDir = layout.buildDirectory.dir("generated/browserhostResources")
+val stageBrowserHostJar = tasks.register<Copy>("stageBrowserHostJar") {
+    group = "build"
+    description = "Copies engine/browserhost's shadow jar into a classpath resource for BrowserHostProcess to extract and spawn at runtime."
+    dependsOn(gradle.includedBuild("browserhost").task(":shadowJar"))
+    from(file("engine/browserhost/build/libs/browserhost-all.jar"))
+    into(browserHostResourceDir.map { it.dir("browserhost") })
+}
+sourceSets["main"].resources.srcDir(browserHostResourceDir)
+tasks.named("processResources") {
+    dependsOn(stageBrowserHostJar)
+}
+
 // Example configuration to allow publishing using the maven-publish plugin
 publishing {
     publications {
@@ -413,9 +540,15 @@ idea {
 // in several different build/libs directories (each submodule is its own included build). Copy
 // all of them into this project's own build/libs so a plain "./gradlew build" leaves one folder
 // with everything needed to distribute.
-val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
+// Sync (not Copy) deliberately -- a plain Copy task never removes files it previously wrote that
+// a later run no longer produces (e.g. a stale jar left behind after bumping a dependency's
+// version, like sable-1312371-8007005.jar/sable-2.0.5+mc1.21.1.jar coexisting after the Sable
+// bump above), which would ship two copies of the same mod ID and crash NeoForge's mod loader
+// with a duplicate-mod-id error. Sync deletes anything in the destination that isn't part of
+// this run's `from(...)` set.
+val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     group = "distribution"
-    description = "Copies this project's jar and the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris submodule jars into the root build/libs."
+    description = "Copies this project's jar, the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
 
     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
@@ -436,6 +569,13 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     // Sodium, it compiles "common"'s sources directly into its own main source set rather than
     // jarJar-embedding a separate mod jar (see settings.gradle.kts's comment on this includeBuild).
     dependsOn(gradle.includedBuild("Iris").task(":neoforge:jar"))
+    // VoxelMap's "neoforge" subproject's plain "jar" task is its full distributable jar (already
+    // bundles ":common" -- see settings.gradle.kts's comment on this includeBuild), same shape as
+    // Iris's above.
+    dependsOn(gradle.includedBuild("VoxelMap").task(":neoforge:jar"))
+    // Sound Physics Remastered's "neoforge" subproject's shadowJar is its distributable jar --
+    // see the fileTree dependency above's comment.
+    dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
 
     // Excludes sources/javadoc jars in case either submodule's build ever starts producing them
     // (neither does today) -- only the runtime mod jar belongs in a distribution folder.
@@ -474,7 +614,28 @@ val collectDistributionJars = tasks.register<Copy>("collectDistributionJars") {
     from(file("mods/ModernUI-MC/neoforge/build/libs")) {
         include("*-universal.jar")
     }
+    // VoxelMap's "neoforge" subproject's own "build" dir (its rootProject, i.e. mods/VoxelMap/build,
+    // not the neoforge subproject's) -- its jar task's destinationDirectory is set explicitly to
+    // "<VoxelMap root>/build/libs" (mods/VoxelMap/neoforge/build.gradle.kts), same as Iris.
+    from(file("mods/VoxelMap/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // Sound Physics Remastered's "neoforge" subproject's own build/libs -- shadowJar's
+    // archiveClassifier is "" for neoforge, so it's the one plain-named jar here (see the
+    // dependency block's comment above).
+    from(file("mods/sound-physics-remastered/neoforge/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // SuperbWarfare's own externally-published (Create/Create: Aeronautics/Sable) runtime
+    // dependencies -- see this file's `bundledExternalMods` configuration declaration above for why.
+    from(bundledExternalMods)
     into(layout.buildDirectory.dir("libs"))
+    // The destination is also where this project's own `jar` task writes dncity-*.jar -- Sync
+    // would otherwise delete it whenever this task happens to run after `jar` (task ordering
+    // between the two isn't otherwise constrained; both are just `assemble` dependencies).
+    preserve { include("dncity-*.jar") }
 }
 
 tasks.named("assemble") {

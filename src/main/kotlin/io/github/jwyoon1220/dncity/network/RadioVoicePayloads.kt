@@ -51,11 +51,18 @@ data class RadioSenderPosition(val x: Double, val y: Double, val z: Double) {
 
 /**
  * The same frame relayed by the server to one listener tuned to the transmitter's frequency and
- * within its band's range. [mode] tells the client which codec to decode with (Opus for AM/FM,
- * codec2 for USB -- see [io.github.jwyoon1220.dncity.voice.ClientRadioReceiver]) and, together
- * with [frequencyKhz]'s derived [io.github.jwyoon1220.dncity.radio.RadioBand], drives
- * static-noise coloring locally, same as [VoiceAudioRelayPayload] leaves gain-from-distance to
- * the client rather than sending a precomputed value.
+ * within its band's range. [mode] tells the client which codec to decode with (see
+ * [io.github.jwyoon1220.dncity.radio.RadioMode.codec]) and, together with [frequencyKhz]'s
+ * derived [io.github.jwyoon1220.dncity.radio.RadioBand], drives static-noise coloring locally,
+ * same as [VoiceAudioRelayPayload] leaves gain-from-distance to the client rather than sending a
+ * precomputed value -- except the *range* that gain is computed against is not a fixed band
+ * constant any more: [effectiveMaxRangeBlocks] is this specific transmission's server-computed
+ * range for this specific listener (terrain/elevation for line-of-sight bands, day/night ground-
+ * wave-vs-skywave for LW/MW/SW -- see [io.github.jwyoon1220.dncity.voice.RadioRelay] for the
+ * computation and [io.github.jwyoon1220.dncity.radio.RadioVoice] for how the client applies it),
+ * since only the server has the terrain/time-of-day data needed to derive it. [obstructed] and
+ * [stormNoise] are extra static-only flags for the same reason (see
+ * [io.github.jwyoon1220.dncity.radio.RadioVoice.staticLevel]).
  *
  * [senderPosition] is carried explicitly rather than left for the client to look up via
  * [senderEntityId] (`Level.getEntity`) -- that only resolves for entities Minecraft's normal
@@ -66,13 +73,45 @@ data class RadioSenderPosition(val x: Double, val y: Double, val z: Double) {
  * kept only to key per-speaker decoder/mixer state and to filter out the local player's own
  * transmission.
  */
+/** [effectiveMaxRangeBlocks] and the obstructed/storm flags bundled into their own small codec so
+ * [RadioAudioRelayPayload]'s outer composite codec stays within [StreamCodec.composite]'s 6-field
+ * arity limit (same reason [RadioSenderPosition] exists as its own type). */
+data class RadioRangeInfo(val effectiveMaxRangeBlocks: Double, private val flags: Int) {
+    val obstructed: Boolean get() = (flags and FLAG_OBSTRUCTED) != 0
+    val stormNoise: Boolean get() = (flags and FLAG_STORM_NOISE) != 0
+
+    companion object {
+        private const val FLAG_OBSTRUCTED = 1
+        private const val FLAG_STORM_NOISE = 2
+
+        fun of(effectiveMaxRangeBlocks: Double, obstructed: Boolean, stormNoise: Boolean) = RadioRangeInfo(
+            effectiveMaxRangeBlocks,
+            (if (obstructed) FLAG_OBSTRUCTED else 0) or (if (stormNoise) FLAG_STORM_NOISE else 0),
+        )
+
+        private fun flagsValueOf(info: RadioRangeInfo): Int =
+            (if (info.obstructed) FLAG_OBSTRUCTED else 0) or (if (info.stormNoise) FLAG_STORM_NOISE else 0)
+
+        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, RadioRangeInfo> = StreamCodec.composite(
+            ByteBufCodecs.DOUBLE, RadioRangeInfo::effectiveMaxRangeBlocks,
+            ByteBufCodecs.VAR_INT, ::flagsValueOf,
+            ::RadioRangeInfo,
+        )
+    }
+}
+
 class RadioAudioRelayPayload(
     val senderEntityId: Int,
     val audioData: ByteArray,
     val frequencyKhz: Double,
     val mode: String,
     val senderPosition: RadioSenderPosition,
+    val rangeInfo: RadioRangeInfo,
 ) : CustomPacketPayload {
+    val effectiveMaxRangeBlocks: Double get() = rangeInfo.effectiveMaxRangeBlocks
+    val obstructed: Boolean get() = rangeInfo.obstructed
+    val stormNoise: Boolean get() = rangeInfo.stormNoise
+
     override fun type() = TYPE
 
     companion object {
@@ -87,6 +126,7 @@ class RadioAudioRelayPayload(
             ByteBufCodecs.DOUBLE, RadioAudioRelayPayload::frequencyKhz,
             ByteBufCodecs.STRING_UTF8, RadioAudioRelayPayload::mode,
             RadioSenderPosition.STREAM_CODEC, RadioAudioRelayPayload::senderPosition,
+            RadioRangeInfo.STREAM_CODEC, RadioAudioRelayPayload::rangeInfo,
             ::RadioAudioRelayPayload,
         )
     }

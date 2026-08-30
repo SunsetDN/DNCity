@@ -6,5 +6,9 @@
 /engine/audio/build/
 /engine/fmod/.gradle/
 /engine/fmod/build/
+/engine/browserhost/.gradle/
+/engine/browserhost/build/
+/engine/window/.gradle/
+/engine/window/build/
 /run/
 /run-client2/

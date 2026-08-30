@@ -27,3 +27,11 @@
 	path = mods/Iris
 	url = https://github.com/SunsetDN/Iris.git
 	branch = 1.21.1
+[submodule "mods/VoxelMap"]
+	path = mods/VoxelMap
+	url = https://github.com/SunsetDN/VoxelMap.git
+	branch = 1.21.1
+[submodule "mods/sound-physics-remastered"]
+	path = mods/sound-physics-remastered
+	url = https://github.com/SunsetDN/sound-physics-remastered
+	branch = 1.21.1

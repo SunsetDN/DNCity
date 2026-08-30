@@ -6,12 +6,27 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/DNCity.main.iml" filepath="$PROJECT_DIR$/.idea/modules/DNCity.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/DNCity.test.iml" filepath="$PROJECT_DIR$/.idea/modules/DNCity.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/First-Aid-New/First-Aid-New.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/First-Aid-New/First-Aid-New.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.api.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.headers.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.headers.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.vendored.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Iris/common/Iris.common.vendored.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/Iris/neoforge/Iris.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/Iris/neoforge/Iris.neoforge.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/neoforge/ModernUI-MC.ModernUI-NeoForge.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/common/ModernUI-MC.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/ModernUI-MC/common/ModernUI-MC.common.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/SuperbWarfare/SuperbWarfare.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/TACZ-1.21.1/TACZ-1_21_1.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/TACZ-1.21.1/TACZ-1_21_1.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/VoxelMap/neoforge/VoxelMap.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/VoxelMap/neoforge/VoxelMap.neoforge.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.api.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/neoforge/sodium.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/neoforge/sodium.neoforge.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/neoforge/sodium.neoforge.service.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/neoforge/sodium.neoforge.service.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sound-physics-remastered/neoforge/sound-physics-remastered.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sound-physics-remastered/neoforge/sound-physics-remastered.neoforge.main.iml" />
     </modules>
   </component>
 </project>

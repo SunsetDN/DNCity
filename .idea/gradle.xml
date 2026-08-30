@@ -18,6 +18,11 @@
                   <project path="$PROJECT_DIR$/mods/Automobility/neoforge" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/engine/browserhost" name="browserhost">
+                <projects>
+                  <project path="$PROJECT_DIR$/engine/browserhost" />
+                </projects>
+              </build>
               <build path="$PROJECT_DIR$/mods/First-Aid-New" name="First-Aid-New">
                 <projects>
                   <project path="$PROJECT_DIR$/mods/First-Aid-New" />
@@ -28,11 +33,36 @@
                   <project path="$PROJECT_DIR$/engine/fmod" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/mods/Iris" name="Iris">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/Iris" />
+                  <project path="$PROJECT_DIR$/mods/Iris/common" />
+                  <project path="$PROJECT_DIR$/mods/Iris/neoforge" />
+                </projects>
+              </build>
               <build path="$PROJECT_DIR$/mods/ModernUI-MC" name="ModernUI-MC">
                 <projects>
                   <project path="$PROJECT_DIR$/mods/ModernUI-MC" />
                   <project path="$PROJECT_DIR$/mods/ModernUI-MC/common" />
                   <project path="$PROJECT_DIR$/mods/ModernUI-MC/neoforge" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/mods/sodium" name="sodium">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/sodium" />
+                  <project path="$PROJECT_DIR$/mods/sodium/common" />
+                  <project path="$PROJECT_DIR$/mods/sodium/neoforge" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/mods/sodium/buildSrc" name="buildSrc">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/sodium/buildSrc" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/mods/sound-physics-remastered" name="sound-physics-remastered">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/sound-physics-remastered" />
+                  <project path="$PROJECT_DIR$/mods/sound-physics-remastered/neoforge" />
                 </projects>
               </build>
               <build path="$PROJECT_DIR$/mods/SuperbWarfare" name="SuperbWarfare">
@@ -46,6 +76,18 @@
                   <project path="$PROJECT_DIR$/mods/TACZ-1.21.1" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/mods/VoxelMap" name="voxelmap">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/VoxelMap" />
+                  <project path="$PROJECT_DIR$/mods/VoxelMap/common" />
+                  <project path="$PROJECT_DIR$/mods/VoxelMap/neoforge" />
+                </projects>
+              </build>
+              <build path="$PROJECT_DIR$/engine/window" name="window">
+                <projects>
+                  <project path="$PROJECT_DIR$/engine/window" />
+                </projects>
+              </build>
             </builds>
           </compositeBuild>
         </compositeConfiguration>
@@ -54,16 +96,30 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/engine/audio" />
+            <option value="$PROJECT_DIR$/engine/browserhost" />
             <option value="$PROJECT_DIR$/engine/fmod" />
+            <option value="$PROJECT_DIR$/engine/window" />
             <option value="$PROJECT_DIR$/mods/Automobility" />
             <option value="$PROJECT_DIR$/mods/Automobility/neoforge" />
             <option value="$PROJECT_DIR$/mods/First-Aid-New" />
+            <option value="$PROJECT_DIR$/mods/Iris" />
+            <option value="$PROJECT_DIR$/mods/Iris/common" />
+            <option value="$PROJECT_DIR$/mods/Iris/neoforge" />
             <option value="$PROJECT_DIR$/mods/ModernUI-MC" />
             <option value="$PROJECT_DIR$/mods/ModernUI-MC/common" />
             <option value="$PROJECT_DIR$/mods/ModernUI-MC/neoforge" />
             <option value="$PROJECT_DIR$/mods/SuperbWarfare" />
             <option value="$PROJECT_DIR$/mods/SuperbWarfare/ksp" />
             <option value="$PROJECT_DIR$/mods/TACZ-1.21.1" />
+            <option value="$PROJECT_DIR$/mods/VoxelMap" />
+            <option value="$PROJECT_DIR$/mods/VoxelMap/common" />
+            <option value="$PROJECT_DIR$/mods/VoxelMap/neoforge" />
+            <option value="$PROJECT_DIR$/mods/sodium" />
+            <option value="$PROJECT_DIR$/mods/sodium/buildSrc" />
+            <option value="$PROJECT_DIR$/mods/sodium/common" />
+            <option value="$PROJECT_DIR$/mods/sodium/neoforge" />
+            <option value="$PROJECT_DIR$/mods/sound-physics-remastered" />
+            <option value="$PROJECT_DIR$/mods/sound-physics-remastered/neoforge" />
           </set>
         </option>
         <option name="resolveExternalAnnotations" value="true" />
