@@ -1,13 +1,12 @@
 package io.github.jwyoon1220.dncity.voice
 
 import com.plasmoverse.opus.OpusEncoder
-import io.github.jwyoon1220.dncity.network.RadioAudioPayload
+import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
 import io.github.jwyoon1220.dncity.radio.RadioActions
 import io.github.jwyoon1220.dncity.radio.RadioBand
 import io.github.jwyoon1220.dncity.radio.RadioMode
 import io.github.jwyoon1220.dncity.radio.VoiceCodec
 import net.minecraft.client.Minecraft
-import net.neoforged.neoforge.network.PacketDistributor
 
 /**
  * Client-side TX pump for the radio-voice tier, driven by [VoiceClientLoop] while
@@ -68,7 +67,7 @@ object RadioTransmitter {
 
     private fun submitOpus(frame48k: ShortArray) {
         val enc = opusEncoder ?: OpusCodec.createEncoder().also { opusEncoder = it }
-        PacketDistributor.sendToServer(RadioAudioPayload(enc.encode(frame48k)))
+        VoiceKcpClient.sendRadioAudio(enc.encode(frame48k))
     }
 
     private fun submitCodec2(frame48k: ShortArray, band: RadioBand) {
@@ -89,7 +88,7 @@ object RadioTransmitter {
             accumFill = remainder
 
             val samples8k = downsampler!!.downsample(chunk)
-            PacketDistributor.sendToServer(RadioAudioPayload(enc.encode(samples8k)))
+            VoiceKcpClient.sendRadioAudio(enc.encode(samples8k))
         }
     }
 

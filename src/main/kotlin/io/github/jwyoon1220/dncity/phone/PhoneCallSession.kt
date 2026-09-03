@@ -1,7 +1,7 @@
 package io.github.jwyoon1220.dncity.phone
 
-import io.github.jwyoon1220.dncity.network.PhoneCallAudioRelayPayload
 import io.github.jwyoon1220.dncity.network.PhoneCallStatePayload
+import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.neoforged.neoforge.network.PacketDistributor
@@ -87,7 +87,7 @@ object PhoneCallSession {
         val call = callsByPlayer[sender.uuid]?.takeIf { it.active } ?: return
         val peerId = if (call.caller == sender.uuid) call.callee else call.caller
         val peer = sender.serverLevel().server.playerList.getPlayer(peerId) ?: return
-        PacketDistributor.sendToPlayer(peer, PhoneCallAudioRelayPayload(opusData))
+        VoiceKcpServer.sendPhoneCallRelay(peer.uuid, opusData)
     }
 
     private fun sendState(player: ServerPlayer, state: PhoneCallState, peerName: String) {

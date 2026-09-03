@@ -9,11 +9,6 @@ import net.minecraft.resources.ResourceLocation
 private const val MAX_NUMBER_LENGTH = 32
 private const val MAX_NAME_LENGTH = 32
 
-// Comfortably above OpusCodec's 1024-byte mtuSize, same bound VoiceAudioPayload/RadioAudioPayload
-// use -- a hard cap so a malformed/hostile client can't make the server allocate an unbounded
-// buffer per packet.
-private const val MAX_OPUS_FRAME_BYTES = 2048
-
 /**
  * Server -> client: this player's own phone number ([io.github.jwyoon1220.dncity.phone.PhoneDirectory],
  * auto-derived from their UUID), sent once on login (`phone.PhoneServerEvents`) so the dialer UI
@@ -87,43 +82,9 @@ class PhoneCallHangupPayload : CustomPacketPayload {
     }
 }
 
-/**
- * One ~20ms Opus-encoded frame of an active phone call, sent from either participant to the
- * server (see [io.github.jwyoon1220.dncity.client.phone.PhoneCallTransmitter]).
- */
-class PhoneCallAudioPayload(val opusData: ByteArray) : CustomPacketPayload {
-    override fun type() = TYPE
-
-    companion object {
-        val TYPE: CustomPacketPayload.Type<PhoneCallAudioPayload> =
-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "phone_call_audio"))
-
-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, PhoneCallAudioPayload> = StreamCodec.composite(
-            ByteBufCodecs.byteArray(MAX_OPUS_FRAME_BYTES), PhoneCallAudioPayload::opusData,
-            ::PhoneCallAudioPayload,
-        )
-    }
-}
-
-/**
- * The same frame relayed by the server to the other participant in the call (see
- * [io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver]). No sender/position info needed,
- * unlike [VoiceAudioRelayPayload]/[RadioAudioRelayPayload] -- a call has exactly one possible
- * peer, so the client already knows who it's from.
- */
-class PhoneCallAudioRelayPayload(val opusData: ByteArray) : CustomPacketPayload {
-    override fun type() = TYPE
-
-    companion object {
-        val TYPE: CustomPacketPayload.Type<PhoneCallAudioRelayPayload> =
-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "phone_call_audio_relay"))
-
-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, PhoneCallAudioRelayPayload> = StreamCodec.composite(
-            ByteBufCodecs.byteArray(MAX_OPUS_FRAME_BYTES), PhoneCallAudioRelayPayload::opusData,
-            ::PhoneCallAudioRelayPayload,
-        )
-    }
-}
+// Phone call audio itself no longer rides this channel -- see
+// io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer/VoiceKcpClient (was PhoneCallAudioPayload/
+// PhoneCallAudioRelayPayload).
 
 /**
  * Server -> client: a call-state transition for this player -- drives both the phone UI's

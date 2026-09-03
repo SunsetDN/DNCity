@@ -2,9 +2,6 @@ package io.github.jwyoon1220.dncity.network
 
 import io.github.jwyoon1220.dncity.radio.RadioActions
 import io.github.jwyoon1220.dncity.radio.RadioMode
-import io.github.jwyoon1220.dncity.voice.ClientRadioReceiver
-import io.github.jwyoon1220.dncity.voice.RadioRelay
-import net.minecraft.server.level.ServerPlayer
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent
 import net.neoforged.neoforge.network.handling.IPayloadHandler
 
@@ -32,19 +29,7 @@ object RadioNetworking {
             }
         })
 
-        registrar.playToServer(RadioAudioPayload.TYPE, RadioAudioPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
-            context.enqueueWork {
-                RadioRelay.relay(context.player() as ServerPlayer, payload.audioData)
-            }
-        })
-
-        registrar.playToClient(RadioAudioRelayPayload.TYPE, RadioAudioRelayPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
-            context.enqueueWork {
-                ClientRadioReceiver.handleRelayedFrame(
-                    payload.senderEntityId, payload.audioData, payload.frequencyKhz, payload.mode,
-                    payload.senderPosition, payload.effectiveMaxRangeBlocks, payload.obstructed, payload.stormNoise,
-                )
-            }
-        })
+        // Radio audio itself no longer rides this channel -- see
+        // io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer/VoiceKcpClient.
     }
 }

@@ -6,9 +6,8 @@ import io.github.jwyoon1220.dncity.audio.NativeAudio
 import io.github.jwyoon1220.dncity.client.ModKeyMappings
 import io.github.jwyoon1220.dncity.client.phone.PhoneCallManager
 import io.github.jwyoon1220.dncity.client.phone.PhoneCallTransmitter
-import io.github.jwyoon1220.dncity.network.VoiceAudioPayload
+import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
 import io.github.jwyoon1220.dncity.phone.PhoneCallState
-import net.neoforged.neoforge.network.PacketDistributor
 import org.apache.logging.log4j.Level
 
 /**
@@ -92,6 +91,7 @@ object VoiceClientLoop {
         PhoneCallTransmitter.shutdown()
         ClientVoiceReceiver.releaseAll()
         ClientRadioReceiver.releaseAll()
+        VoiceKcpClient.disconnect()
         captureFill = 0
         running = false
     }
@@ -153,7 +153,7 @@ object VoiceClientLoop {
         // Auto-VAD in place of PTT: only spend bandwidth on frames the native noise gate
         // considers actual speech, not the constant background noise floor.
         val encoded = enc.encode(captureFrame)
-        PacketDistributor.sendToServer(VoiceAudioPayload(encoded))
+        VoiceKcpClient.sendVoiceAudio(encoded)
     }
 
     private fun pumpPlayback() {

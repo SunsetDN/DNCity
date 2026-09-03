@@ -1,0 +1,228 @@
+package io.github.jwyoon1220.dncity.network.kcp
+
+import io.github.jwyoon1220.dncity.Dncity
+import io.github.jwyoon1220.dncity.phone.PhoneCallSession
+import io.github.jwyoon1220.dncity.voice.RadioRelay
+import io.github.jwyoon1220.dncity.voice.VoiceRelay
+import io.netty.bootstrap.Bootstrap
+import io.netty.buffer.Unpooled
+import io.netty.channel.Channel
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.ChannelInitializer
+import io.netty.channel.SimpleChannelInboundHandler
+import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.socket.DatagramPacket
+import io.netty.channel.socket.nio.NioDatagramChannel
+import net.minecraft.server.MinecraftServer
+import java.net.InetSocketAddress
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ThreadLocalRandom
+import java.util.concurrent.TimeUnit
+
+/**
+ * The server side of this mod's self-built KCP-over-Netty UDP transport for close-range voice,
+ * radio (handheld and station broadcast alike), and phone-call audio -- replacing what used to be
+ * plain Minecraft [net.minecraft.network.protocol.common.custom.CustomPacketPayload] traffic (see
+ * `network.VoiceNetworking`/`RadioNetworking`/`PhoneNetworking`'s git history). Only the one-time
+ * per-player handshake (`network.VoiceKcpHandshakePayload`, conv id + shared secret + this port)
+ * still rides Minecraft's own channel -- everything after that is raw UDP.
+ *
+ * One [Kcp] session per logged-in player, keyed by a random 32-bit `conv` id the player's client
+ * proves ownership of via a signed [VoiceKcpProtocol.encodeHello] before any of its audio is
+ * trusted (a UDP datagram is otherwise unauthenticated and easy to spoof -- see [beginSession]).
+ * Each session's [Kcp.update] is driven by a task scheduled directly on the channel's own Netty
+ * event loop (see [start]) rather than Minecraft's server tick, so voice latency isn't bounded by
+ * the game's 50ms tick rate.
+ */
+object VoiceKcpServer {
+    const val DEFAULT_PORT = 25577
+    private const val TICK_INTERVAL_MS = 10L
+    private const val PENDING_SESSION_TIMEOUT_MS = 60_000L
+    private const val SESSION_IDLE_TIMEOUT_MS = 120_000L
+
+    private class PendingSession(val playerUuid: UUID, val secret: Long, val createdAtMs: Long)
+
+    private class ServerSession(val conv: Int, val playerUuid: UUID, val secret: Long) {
+        var remote: InetSocketAddress? = null
+        var authenticated = false
+        var lastActivityMs = System.currentTimeMillis()
+        lateinit var kcp: Kcp
+    }
+
+    private var group: NioEventLoopGroup? = null
+    private var channel: Channel? = null
+    private var boundPort = DEFAULT_PORT
+    private var mcServer: MinecraftServer? = null
+
+    private val pendingByConv = ConcurrentHashMap<Int, PendingSession>()
+    private val sessionsByConv = ConcurrentHashMap<Int, ServerSession>()
+    private val sessionsByPlayer = ConcurrentHashMap<UUID, ServerSession>()
+
+    fun attachServer(server: MinecraftServer) {
+        mcServer = server
+    }
+
+    fun boundPort(): Int = boundPort
+
+    fun start() {
+        if (group != null) return
+        boundPort = System.getProperty("dncity.voiceKcpPort")?.toIntOrNull() ?: DEFAULT_PORT
+        val eventLoopGroup = NioEventLoopGroup(1)
+        group = eventLoopGroup
+        try {
+            val bootstrap = Bootstrap()
+                .group(eventLoopGroup)
+                .channel(NioDatagramChannel::class.java)
+                .handler(object : ChannelInitializer<NioDatagramChannel>() {
+                    override fun initChannel(ch: NioDatagramChannel) {
+                        ch.pipeline().addLast(object : SimpleChannelInboundHandler<DatagramPacket>() {
+                            override fun channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
+                                val bytes = ByteArray(msg.content().readableBytes())
+                                msg.content().readBytes(bytes)
+                                onDatagram(bytes, msg.sender())
+                            }
+                        })
+                    }
+                })
+            channel = bootstrap.bind(boundPort).sync().channel()
+            eventLoopGroup.next().scheduleAtFixedRate({ tickAll() }, 0, TICK_INTERVAL_MS, TimeUnit.MILLISECONDS)
+            Dncity.LOGGER.info("VoiceKcpServer bound on UDP port {}", boundPort)
+        } catch (e: Exception) {
+            Dncity.LOGGER.error("VoiceKcpServer failed to bind UDP port {} -- voice/radio/phone audio disabled this session", boundPort, e)
+            eventLoopGroup.shutdownGracefully()
+            group = null
+            channel = null
+        }
+    }
+
+    fun stop() {
+        channel?.close()
+        group?.shutdownGracefully(0, 500, TimeUnit.MILLISECONDS)
+        channel = null
+        group = null
+        mcServer = null
+        pendingByConv.clear()
+        sessionsByConv.clear()
+        sessionsByPlayer.clear()
+    }
+
+    /** Allocates a fresh conv/secret pair for a just-logged-in player -- handed to their client
+     * via `network.VoiceKcpHandshakePayload` (still sent over Minecraft's own channel, since the
+     * client has no other way to learn which UDP session belongs to it). */
+    fun beginSession(playerUuid: UUID): Pair<Int, Long> {
+        val random = ThreadLocalRandom.current()
+        var conv: Int
+        do conv = random.nextInt() while (conv == 0 || pendingByConv.containsKey(conv) || sessionsByConv.containsKey(conv))
+        val secret = random.nextLong()
+        pendingByConv[conv] = PendingSession(playerUuid, secret, System.currentTimeMillis())
+        return conv to secret
+    }
+
+    fun endSession(playerUuid: UUID) {
+        sessionsByPlayer.remove(playerUuid)?.let { sessionsByConv.remove(it.conv) }
+        pendingByConv.entries.removeIf { it.value.playerUuid == playerUuid }
+    }
+
+    fun sendVoiceRelay(playerUuid: UUID, senderEntityId: Int, opusData: ByteArray) {
+        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeVoiceRelay(senderEntityId, opusData))
+    }
+
+    fun sendRadioRelay(
+        playerUuid: UUID,
+        senderEntityId: Int,
+        audioData: ByteArray,
+        frequencyKhz: Double,
+        modeName: String,
+        senderPosition: io.github.jwyoon1220.dncity.network.RadioSenderPosition,
+        rangeInfo: io.github.jwyoon1220.dncity.network.RadioRangeInfo,
+    ) {
+        authenticatedSession(playerUuid)?.kcp?.send(
+            VoiceKcpProtocol.encodeRadioRelay(senderEntityId, audioData, frequencyKhz, modeName, senderPosition, rangeInfo)
+        )
+    }
+
+    fun sendPhoneCallRelay(playerUuid: UUID, opusData: ByteArray) {
+        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY, opusData))
+    }
+
+    private fun authenticatedSession(playerUuid: UUID): ServerSession? =
+        sessionsByPlayer[playerUuid]?.takeIf { it.authenticated }
+
+    private fun onDatagram(bytes: ByteArray, sender: InetSocketAddress) {
+        if (bytes.size < 4) return
+        val conv = (bytes[0].toInt() and 0xFF) or ((bytes[1].toInt() and 0xFF) shl 8) or
+            ((bytes[2].toInt() and 0xFF) shl 16) or ((bytes[3].toInt() and 0xFF) shl 24)
+
+        var session = sessionsByConv[conv]
+        if (session == null) {
+            val pending = pendingByConv[conv] ?: return // unknown conv -- drop (no session was ever allocated for it)
+            val newSession = ServerSession(conv, pending.playerUuid, pending.secret)
+            newSession.kcp = Kcp(conv) { out -> channel?.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), newSession.remote ?: sender)) }
+            session = newSession
+            sessionsByConv[conv] = session
+        }
+        session.remote = sender
+        session.lastActivityMs = System.currentTimeMillis()
+        session.kcp.input(bytes)
+
+        while (true) {
+            val msg = session.kcp.recv() ?: break
+            handleMessage(session, msg)
+        }
+    }
+
+    private fun handleMessage(session: ServerSession, msg: ByteArray) {
+        if (msg.isEmpty()) return
+        if (msg[0] == VoiceKcpProtocol.TYPE_HELLO) {
+            val hello = VoiceKcpProtocol.decodeHello(msg)
+            if (hello.conv == session.conv && hello.secret == session.secret) {
+                pendingByConv.remove(session.conv)
+                sessionsByPlayer.put(session.playerUuid, session)?.takeIf { it !== session }?.let { old -> sessionsByConv.remove(old.conv) }
+                session.authenticated = true
+            } else {
+                sessionsByConv.remove(session.conv) // bad secret -- reject, don't trust this conv going forward
+            }
+            return
+        }
+
+        if (!session.authenticated) return
+        val server = mcServer ?: return
+        // Hop onto the server's own main thread -- these calls touch ServerLevel/player state
+        // that (like the IPayloadHandler.enqueueWork bodies this replaced) isn't meant to be
+        // touched from an arbitrary I/O thread, which is what's calling handleMessage here (the
+        // UDP channel's own Netty event loop, see start()).
+        server.execute {
+            val player = server.playerList.getPlayer(session.playerUuid) ?: return@execute
+            when (msg[0]) {
+                VoiceKcpProtocol.TYPE_VOICE_AUDIO -> {
+                    val audio = VoiceKcpProtocol.decodeAudio(msg)
+                    if (!audio.isStale) VoiceRelay.relay(player, audio.audio)
+                }
+                VoiceKcpProtocol.TYPE_RADIO_AUDIO -> {
+                    val audio = VoiceKcpProtocol.decodeAudio(msg)
+                    if (!audio.isStale) RadioRelay.relay(player, audio.audio)
+                }
+                VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO -> {
+                    val audio = VoiceKcpProtocol.decodeAudio(msg)
+                    if (!audio.isStale) PhoneCallSession.relayAudio(player, audio.audio)
+                }
+            }
+        }
+    }
+
+    private fun tickAll() {
+        val now = System.currentTimeMillis()
+        val it = sessionsByConv.entries.iterator()
+        while (it.hasNext()) {
+            val (_, session) = it.next()
+            if (now - session.lastActivityMs > SESSION_IDLE_TIMEOUT_MS) {
+                it.remove()
+                sessionsByPlayer.remove(session.playerUuid, session)
+                continue
+            }
+            session.kcp.update(now)
+        }
+        pendingByConv.entries.removeIf { now - it.value.createdAtMs > PENDING_SESSION_TIMEOUT_MS }
+    }
+}

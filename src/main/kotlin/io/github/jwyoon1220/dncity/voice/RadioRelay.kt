@@ -1,9 +1,9 @@
 package io.github.jwyoon1220.dncity.voice
 
 import io.github.jwyoon1220.dncity.block.RadioStationBlockEntity
-import io.github.jwyoon1220.dncity.network.RadioAudioRelayPayload
 import io.github.jwyoon1220.dncity.network.RadioRangeInfo
 import io.github.jwyoon1220.dncity.network.RadioSenderPosition
+import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer
 import io.github.jwyoon1220.dncity.radio.RadioActions
 import io.github.jwyoon1220.dncity.radio.RadioBand
 import io.github.jwyoon1220.dncity.radio.RadioStationRegistry
@@ -16,7 +16,6 @@ import net.minecraft.world.level.levelgen.Heightmap
 import net.minecraft.world.phys.HitResult
 import net.minecraft.world.phys.Vec3
 import net.minecraft.world.phys.shapes.CollisionContext
-import net.neoforged.neoforge.network.PacketDistributor
 import kotlin.math.abs
 
 /**
@@ -186,12 +185,11 @@ object RadioRelay {
             val competitorReceived = strongestCompetitorPower(level, band, frequencyKhz, senderEntityId, nowTick, listenerPos, listenerEye)
             if (competitorReceived > 0.0 && RadioVoice.isDrownedOutBy(ownReceived, competitorReceived)) continue
 
-            val payload = RadioAudioRelayPayload(
-                senderEntityId, audioData, frequencyKhz, modeName,
+            VoiceKcpServer.sendRadioRelay(
+                listener.uuid, senderEntityId, audioData, frequencyKhz, modeName,
                 RadioSenderPosition(originPos.x, originPos.y, originPos.z),
                 RadioRangeInfo.of(effectiveRange, obstructed, stormNoise),
             )
-            PacketDistributor.sendToPlayer(listener, payload)
         }
     }
 

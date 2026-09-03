@@ -294,6 +294,8 @@ neoForge {
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:window:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcpg-jdk18on:1.78.1")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcprov-jdk18on:1.78.1")
             // Same reason as the three above -- confirmed by hand: without this, runClient throws
             // NoClassDefFoundError on NanoVGGL3 even though it's on the compile classpath fine
             // (compileKotlin/jarJar packaging don't need this; only the dev-run classpath does).
@@ -340,6 +342,15 @@ dependencies {
     bundledExternalMods("curse.maven:sable-1312371:8007005")
 
     implementation("thedarkcolour:kotlinforforge-neoforge:5.3.0")
+
+    // Raw Netty API for network.kcp's self-built KCP-over-UDP voice/radio/phone-call transport
+    // (VoiceKcpServer/VoiceKcpClient) -- compileOnly, not implementation/jarJar: NeoForge already
+    // ships this exact netty-transport jar (Bootstrap/NioDatagramChannel/etc.) transitively at
+    // runtime for its own networking, so this is compile-time symbols only. Pinned to the version
+    // actually resolved from NeoForge 21.1.248's own dependency graph (confirmed via the IDE's
+    // resolved classpath) rather than left to float, so a NeoForge bump can't silently drift this
+    // out of sync with what's really on the runtime classpath.
+    compileOnly("io.netty:netty-transport:4.1.97.Final")
 
     // TACZ, included as a composite build submodule (mods/TACZ-1.21.1) so it
     // shares this project's NeoForge version and Minecraft artifact instead
@@ -452,6 +463,16 @@ dependencies {
     runtimeOnly("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
     jarJar("org.lwjgl:lwjgl-nanovg:3.3.3")
     jarJar("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
+
+    // BouncyCastle OpenPGP (io.github.jwyoon1220.dncity.security's login-gate PGP
+    // challenge/response, see PgpCrypto) -- not shipped by NeoForge/Minecraft, so jarJar'd the
+    // same way as the other plain-library deps above (also needs additionalRuntimeClasspath, see
+    // the `runs` block, for the same ModDevGradle-doesn't-jarJar-onto-dev-runs reason documented
+    // on engine:audio's dependency above).
+    implementation("org.bouncycastle:bcpg-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    jarJar("org.bouncycastle:bcpg-jdk18on:1.78.1")
+    jarJar("org.bouncycastle:bcprov-jdk18on:1.78.1")
 }
 
 // The ModernUI-MC universal jar (see the fileTree dependency above) has to actually be built

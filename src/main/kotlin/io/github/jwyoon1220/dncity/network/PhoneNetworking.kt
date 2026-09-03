@@ -1,7 +1,6 @@
 package io.github.jwyoon1220.dncity.network
 
 import io.github.jwyoon1220.dncity.client.phone.PhoneCallManager
-import io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver
 import io.github.jwyoon1220.dncity.phone.PhoneCallSession
 import io.github.jwyoon1220.dncity.phone.PhoneCallState
 import net.minecraft.server.level.ServerPlayer
@@ -41,12 +40,6 @@ object PhoneNetworking {
             }
         })
 
-        registrar.playToServer(PhoneCallAudioPayload.TYPE, PhoneCallAudioPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
-            context.enqueueWork {
-                PhoneCallSession.relayAudio(context.player() as ServerPlayer, payload.opusData)
-            }
-        })
-
         registrar.playToClient(PhoneNumberAssignedPayload.TYPE, PhoneNumberAssignedPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
             context.enqueueWork {
                 PhoneCallManager.setMyNumber(payload.number)
@@ -60,10 +53,7 @@ object PhoneNetworking {
             }
         })
 
-        registrar.playToClient(PhoneCallAudioRelayPayload.TYPE, PhoneCallAudioRelayPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
-            context.enqueueWork {
-                PhoneCallReceiver.handleFrame(payload.opusData)
-            }
-        })
+        // Call audio itself no longer rides this channel -- see
+        // io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer/VoiceKcpClient.
     }
 }

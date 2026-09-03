@@ -2,6 +2,7 @@ package io.github.jwyoon1220.dncity
 
 import io.github.jwyoon1220.dncity.block.ModBlockEntities
 import io.github.jwyoon1220.dncity.block.ModBlocks
+import io.github.jwyoon1220.dncity.command.PgpCommand
 import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
@@ -9,12 +10,15 @@ import io.github.jwyoon1220.dncity.item.component.ModDataComponents
 import io.github.jwyoon1220.dncity.command.MusicCommand
 import io.github.jwyoon1220.dncity.music.MusicServerEvents
 import io.github.jwyoon1220.dncity.network.MusicNetworking
+import io.github.jwyoon1220.dncity.network.PgpNetworking
 import io.github.jwyoon1220.dncity.network.PhoneNetworking
 import io.github.jwyoon1220.dncity.network.RadioNetworking
 import io.github.jwyoon1220.dncity.network.RadioStationNetworking
 import io.github.jwyoon1220.dncity.network.VoiceNetworking
+import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServerEvents
 import io.github.jwyoon1220.dncity.phone.PhoneServerEvents
 import io.github.jwyoon1220.dncity.radio.RadioStationServerEvents
+import io.github.jwyoon1220.dncity.security.PgpAuthServerEvents
 import net.minecraft.world.item.CreativeModeTabs
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
@@ -64,15 +68,22 @@ object Dncity {
         NeoForge.EVENT_BUS.addListener(RadioCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(PhoneNumberCommand::onRegisterCommands)
+        NeoForge.EVENT_BUS.addListener(PgpCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicServerEvents::onPlayerLoggedIn)
         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedIn)
         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedOut)
         NeoForge.EVENT_BUS.addListener(RadioStationServerEvents::onPlayerLoggedOut)
+        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onServerStarting)
+        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onServerStopping)
+        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onPlayerLoggedIn)
+        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onPlayerLoggedOut)
         MOD_BUS.addListener(RadioNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(RadioStationNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(VoiceNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(MusicNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PhoneNetworking::onRegisterPayloadHandlers)
+        MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
+        MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
     }
 
     /**

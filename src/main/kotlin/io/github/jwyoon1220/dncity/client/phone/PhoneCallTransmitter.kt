@@ -1,9 +1,8 @@
 package io.github.jwyoon1220.dncity.client.phone
 
 import com.plasmoverse.opus.OpusEncoder
-import io.github.jwyoon1220.dncity.network.PhoneCallAudioPayload
+import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
 import io.github.jwyoon1220.dncity.voice.OpusCodec
-import net.neoforged.neoforge.network.PacketDistributor
 
 /**
  * Client-side TX pump for an active phone call, driven by
@@ -21,7 +20,7 @@ object PhoneCallTransmitter {
 
     fun submit(frame48k: ShortArray) {
         val enc = encoder ?: OpusCodec.createEncoder().also { encoder = it }
-        PacketDistributor.sendToServer(PhoneCallAudioPayload(enc.encode(frame48k)))
+        VoiceKcpClient.sendPhoneCallAudio(enc.encode(frame48k))
     }
 
     /** Called on [io.github.jwyoon1220.dncity.voice.VoiceClientLoop.stop]. */
