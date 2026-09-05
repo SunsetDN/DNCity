@@ -1,3 +1,4 @@
+# AGENT-DONE(codex): ignore-native-build-artifacts
 # 프로젝트 제외 경로
 /.gradle/
 /build/
@@ -12,3 +13,18 @@
 /engine/window/build/
 /run/
 /run-client2/
+
+# Native module build output and caches (including new engine modules)
+/engine/*/build/
+/engine/*/.gradle/
+
+# CMake generated build directories and metadata
+cmake-build*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+
+# Generated Windows native libraries (already tracked runtime DLLs stay tracked)
+*.[dD][lL][lL]

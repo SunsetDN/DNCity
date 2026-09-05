@@ -1,0 +1,1472 @@
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'build.gradle.kts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/audio/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/fmod/src/main/java/com/iwei20/fmod/FModLoad.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/window/build.gradle.kts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/window/src/main/java/io/github/jwyoon1220/dncity/window/NativeWindowLibrary.java', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'settings.gradle.kts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/client/render/OverlayCullingManager.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneDirectory.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/voice/Codec2Codec.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/main/kotlin/io/github/jwyoon1220/dncity/voice/OpusCodec.kt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/.gitmodules b/.gitmodules
+index df30734..cd0ea20 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -35,3 +35,10 @@
+ 	path = mods/sound-physics-remastered
+ 	url = https://github.com/SunsetDN/sound-physics-remastered
+ 	branch = 1.21.1
++[submodule "mods/distant-horizons"]
++	path = mods/distant-horizons
++	url = https://github.com/SunsetDN/distant-horizons.git
++	branch = main
++[submodule "mods/lithium"]
++	path = mods/lithium
++	url = https://github.com/SunsetDN/lithium.git
+diff --git a/CLAUDE.md b/CLAUDE.md
+deleted file mode 100644
+index e65818c..0000000
+--- a/CLAUDE.md
++++ /dev/null
+@@ -1,404 +0,0 @@
+-# CLAUDE.md
+-
+-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+-
+-## Overview
+-
+-DNCity is a NeoForge (Minecraft 1.21.1) mod written in Kotlin, using Kotlin for Forge. The
+-current feature under active development is voice chat (item, tuning UI, networking, and the
+-domain model for modes/bands/frequencies), replacing a previously-removed Simple Voice Chat
+-integration with two tiers: close-range (Opus, full-duplex, no PTT) and radio (codec2, PTT,
+-half-duplex, frequency/range-gated — see "Architecture: the radio system"). Two other mods
+-(TACZ, First Aid) are vendored as composite-build submodules the project depends on; TACZ (a gun
+-mod) plays its weapon sounds through DNCity's own bundled FMOD Studio banks
+-(`src/main/resources/fmod/*.bank`) rather than TACZ's normal vanilla-sound-engine OGG files — see
+-"Composite builds / submodules" below. Two native modules exist under `engine/`: `engine/audio`
+-(miniaudio capture/playback + the codec2 JNI bridge) and `engine/fmod` (FMOD Studio Panama FFI
+-bindings) are both wired into the main build.
+-
+-## Build & run commands
+-
+-Use the Gradle wrapper (`./gradlew` on bash, `gradlew.bat` on cmd/PowerShell — PowerShell can
+-also invoke `./gradlew`).
+-
+-- `./gradlew build` — compile and build the mod jar.
+-- `./gradlew runClient` — launch a dev client (`run/` game directory).
+-- `./gradlew runClient2` — launch a second dev client with a distinct username/UUID and its
+-  own game directory (`run-client2/`), for testing multiplayer-only features (radio,
+-  proximity chat) by connecting two clients to the same world/LAN game at once.
+-- `./gradlew runServer` — launch a dev dedicated server (`--nogui`).
+-- `./gradlew runGameTestServer` — launches `GameTestServer` and runs all registered gametests,
+-  then exits (namespace filtered via `neoforge.enabledGameTestNamespaces` = `dncity`).
+-- `./gradlew runData` — data generation; outputs to `src/generated/resources/`, with
+-  `src/main/resources/` as the existing-data source.
+-- `generateModMetadata` runs automatically on IDE sync and expands `${...}` placeholders in
+-  `src/main/templates/META-INF/neoforge.mods.toml` (mod id/version/authors/description, MC and
+-  Neo version ranges) into `build/generated/sources/modMetadata`. Edit the template, not a
+-  generated copy.
+-
+-There is no separate lint/test task beyond `runGameTestServer`; this is a Minecraft mod, so
+-most verification is done by running a dev client.
+-
+-## Toolchain
+-
+-The whole repo (root project, TACZ submodule, First Aid submodule, `engine/audio`,
+-`engine/fmod`) is pinned to **Java 21** — what Mojang ships to end users for Minecraft 1.21.1,
+-so it's what players actually have. Don't lower `sourceCompatibility`/`targetCompatibility` in
+-any of these modules independently; keep them unified.
+-
+-This was **Java 25** until 2026-08-26: `engine/fmod`'s bindings used to be jextract-generated
+-`java.lang.foreign` (Panama FFI) code, which needed `SymbolLookup.findOrThrow()` (added in JDK
+-24) — and `java.lang.foreign` itself only stabilized out of preview in JDK 22 — so the whole
+-module required JDK 24+ just to launch. TACZ loads `engine/fmod`'s classes directly at runtime
+-(`FmodWeaponSoundManager`), so that requirement cascaded to the whole repo
+-(`UnsupportedClassVersionError` on an older JVM otherwise). `engine/fmod` now uses hand-written
+-JNI instead (see its own entry below), which has no such floor — don't reintroduce a
+-jextract/FFM-based binding without solving that the same way, or this section (and the Java 21
+-pin across every module) needs revisiting.
+-
+-## Composite builds / submodules
+-
+-`mods/TACZ-1.21.1` and `mods/First-Aid-New` are git submodules included via
+-`includeBuild(...)` + `dependencySubstitution` in `settings.gradle.kts`, so their own project
+-graph resolves using *this* project's repositories (see the `flatDir`/jitpack/maven blocks in
+-`build.gradle.kts` that exist specifically to satisfy TACZ's dependencies). Their versions in
+-`gradle.properties` (`mods_tacz_version`, `mods_firstaid_version`) are for readability only —
+-the included build's own version always wins during substitution.
+-
+-`engine/fmod` and `engine/audio` are both **standalone Gradle projects** (their own
+-`settings.gradle.kts`), each wired into the root build via `includeBuild` + `dependencySubstitution`
+-in `settings.gradle.kts` (same pattern TACZ/First Aid use). `engine/audio` is a direct dependency
+-of the root project (`implementation`/`jarJar` on `engine:audio:1.0`, see `build.gradle.kts`'s
+-comments for why both). `engine/fmod` is consumed the same way, but by **TACZ**
+-(`mods/TACZ-1.21.1/build.gradle.kts` depends on `engine:fmod:1.0`), not the root project directly
+-— TACZ's `com.tacz.guns.client.sound.fmod` package uses it to play weapon sounds from DNCity's
+-bundled banks (`FmodBankLocator` locates them via `ModList`/`IModFile.findResource`, since TACZ
+-and DNCity are separate mods/jars — see "Architecture: TACZ weapon sound (FMOD)" below). Both
+-modules can still be built/used standalone with `./gradlew -p engine/<fmod|audio> <task>` (they
+-reuse the root project's Gradle wrapper distribution; neither has its own `gradlew`).
+-
+-- `engine/fmod` is a **hand-written JNI bridge** (`src/main/cpp/jni_fmod.cpp`, over a minimal,
+-  hand-declared subset of the FMOD Studio C API in `fmod_min.h`) plus a small Java wrapper
+-  (`src/main/java/com/iwei20/fmod/studio/FMODSystem.java`) — `System`
+-  (create/initialize/update/loadBankFile/getEvent/setListenerAttributes/loadPlugin), `Bank`
+-  (loadSampleData/unload), `EventDescription` (getPath/getId/getParameterNames/createInstance),
+-  `EventInstance` (start/stop/set3DAttributes/setParameterByName/getPlaybackState/release) — and
+-  `FModLoad` extracts/loads the bundled native FMOD libraries
+-  (`src/main/resources/<os>/<arch>/`) from the jar, including this module's own JNI glue DLL
+-  last. Building a bank-backed `FMODSystem` needs `System.InitFlags.AllowMissingPlugins` if the
+-  bank references a DSP/spatializer plugin (e.g. Resonance Audio) this build doesn't ship —
+-  otherwise the *whole* bank fails to load with `FMOD_ERR_DSP_NOTFOUND`; confirmed by hand that
+-  the flag alone is sufficient (no need to `System.loadPlugin` the actual plugin `.dll`).
+-  **`fmod_min.h`'s declared API surface is intentionally minimal** — only what `FMODSystem`'s
+-  public API needs, which is itself only what TACZ's `com.tacz.guns.client.sound.fmod` package
+-  actually calls, not a general-purpose FMOD binding; extending it means hand-declaring more
+-  functions/structs the same way (see `fmod_min.h`'s file comment for how the current set's
+-  correctness was verified without the real FMOD headers on hand: cross-checked byte-for-byte
+-  against this module's old jextract-generated bindings before they were deleted). Builds with
+-  plain MSVC on Windows (`CMakeLists.txt`, default generator — no clang/MinGW toolchain dance
+-  needed here, unlike `engine/audio`'s codec2 work, since there's no C99 `_Complex`-style
+-  constraint) linked directly against the vendored `fmod_vc.lib`/`fmodstudio_vc.lib` import
+-  libraries. `FModLoad` extracts this module's own DLL to a plain `File.createTempFile` location
+-  in the OS temp root, deliberately *not* into the same subdirectory as `fmod.dll`/`fmodstudio.dll`
+-  (unlike those, which must share a directory for Windows to resolve fmodstudio's dependency on
+-  fmod by name) — on this dev machine, an unsigned freshly-built DLL extracted into a *subdirectory*
+-  of the temp root got silently blocked by the machine's Application Control policy
+-  (AppLocker/WDAC), while a temp-root-level file (matching `engine/audio`'s `NativeLibrary`
+-  extraction pattern) did not.
+-  <br><br>**Why hand-written JNI, not jextract-generated `java.lang.foreign` bindings** (this
+-  module's approach until 2026-08-26 — the deleted bindings lived under
+-  `src/generated/java`/`com.iwei20.fmod.gen.*`, regenerated on Windows because upstream's
+-  checked-in bindings hardcode `long` as 8 bytes (LP64), which breaks on Windows where `long` is
+-  4 bytes (LLP64)): that approach needed JDK 24+ (see the "Toolchain" section above) —
+-  incompatible with players' actual Java 21. `FMODSystem`'s public API was kept identical on
+-  purpose, so switching needed zero changes in TACZ's `com.tacz.guns.client.sound.fmod` package.
+-- `engine/audio` is a JNI bridge over two things, both hand-written JNI (not jextract-generated
+-  FFI like `engine/fmod`) sharing one native library (`dncity_audio.{dll,so,dylib}`, built from
+-  `engine/audio/src/main/cpp` via `engine/audio/CMakeLists.txt`):
+-  - [miniaudio](https://miniaud.io) (vendored single-header at `engine/audio/vendor/miniaudio.h`,
+-    public domain/MIT-0 — see `vendor/README.md`) for local mic capture/speaker playback. Fixed
+-    mono/16-bit/48kHz PCM moved through lock-free ring buffers (`ma_pcm_rb`, see
+-    `jni_audio.cpp`), so the realtime audio device thread never attaches to the JVM. A native
+-    noise gate/VAD runs on captured samples before they hit the ring buffer (attack/release
+-    envelope follower with hysteresis) — see `NativeAudio.java`'s
+-    `setNoiseGateThresholdDb`/`isVoiceActive`/`getInputLevelDb`.
+-  - [codec2](https://github.com/drowe67/codec2) (vendored as a git submodule at
+-    `engine/audio/vendor/codec2`, LGPL-2.1) for the radio-voice tier's actual codec (MODE_2400/
+-    MODE_1200 — see `Codec2.java` and the mod's `voice/Codec2Codec.kt`). Handle-based JNI
+-    (`jni_codec2.cpp`): one `create`/`destroy` pair per stream, `encode`/`decode` per frame.
+-  - Both classes' `System.load` goes through the shared `NativeLibrary.java` (package-private):
+-    the built library is a classpath resource under `natives/<os>-<arch>/` (staged by
+-    `build.gradle.kts`'s `buildNativeAudio` task), which plain `System.loadLibrary` can't see
+-    (it only searches `java.library.path`) — `NativeLibrary.load()` extracts it to a temp file
+-    and `System.load`s the absolute path instead, idempotently so either class's static
+-    initializer can trigger it first.
+-  - **Build toolchain: clang targeting `x86_64-w64-mingw32` (MinGW-w64), not MSVC** — codec2's
+-    sources use real C99 `_Complex` arithmetic (`fsk.c`, `fmfsk.c`, `ofdm.c`, ...), which clang
+-    cannot provide against the MSVC ABI (MSVC's own CRT has never supported `_Complex`, and
+-    clang's MSVC-target `<complex.h>` is a no-op there — confirmed by hand: `complex float`
+-    fails to parse at all under `--target=x86_64-pc-windows-msvc`). mingw's libc genuinely
+-    supports it, so the whole module (not just codec2) builds against mingw instead; see
+-    `CMakeLists.txt`'s and `build.gradle.kts`'s comments for the exact flags. Linking uses only
+-    `clang.exe`/LLVM's own `ld.lld.exe` plus a MinGW-w64 sysroot's headers/import libraries
+-    (read-only, never executed) — no MinGW-w64-provided *binary* is invoked, which matters on
+-    this dev machine specifically because its Application Control policy (AppLocker/WDAC) blocks
+-    the only installed MinGW-w64 toolchain binary (`x86_64-w64-mingw32-g++`, via Cygwin) from
+-    running at all. `jni_audio.cpp`'s cross-thread noise-gate fields use `__atomic_load`/
+-    `__atomic_store` compiler builtins on plain fields rather than `std::atomic`, since this
+-    dev machine's MinGW-w64 sysroot has no libstdc++ headers installed (C runtime only, no
+-    `<atomic>`) — the builtins need no header. `./gradlew -p engine/audio build` (or the root
+-    build, which depends on it) has been verified working end-to-end on this dev machine,
+-    including a smoke test that loads the built DLL, calls `NativeAudio.init()`, and round-trips
+-    a codec2 encode/decode.
+-
+-Large binary audio assets (`*.bank`) are tracked via Git LFS (see `.gitattributes`).
+-
+-## Architecture: the radio system
+-
+-Package root: `io.github.jwyoon1220.dncity`.
+-
+-- **`item/RadioItem.kt`** + **`item/component/ModDataComponents.kt`** — the radio item and its
+-  persistent data component (power state, per-slot list, active slot index). `item/ModItems.kt`
+-  registers the item variants (`ALL_RADIOS`, added to the tools/utilities creative tab in
+-  `Dncity.kt`).
+-- **`radio/RadioSlot.kt`**, **`radio/RadioMode.kt`**, **`radio/RadioBand.kt`** — a radio's tuned
+-  state (frequency in kHz, mode, enabled flag) and the domain model for modes (AM/USB/FM, each
+-  with cutoff frequencies and a base noise level — for a future audio backend to consume) and
+-  bands (ITU designations ELF–THF, each with a kHz range, an optional max range in blocks —
+-  `null` means unlimited/ground-wave — and a tuning tolerance). `RadioBand.fromFrequencyKhz`
+-  maps a frequency to its band. `radio/RadioActions.kt` holds the server-side mutations
+-  (`tune`/`setActive`/`setPowered`) shared by the `/radio` command and the network payload
+-  handlers.
+-- **`network/RadioPayloads.kt`** + **`network/RadioNetworking.kt`** — client/server payloads and
+-  registration for radio state changes.
+-- **`command/RadioCommand.kt`** — `/radio`-style command registration.
+-- **`client/RadioScreen.kt`** — the client-side GUI opened when using a radio item
+-  (`RadioItem.screenOpener`, wired in `Dncity.onClientSetup`).
+-- **Voice** (`voice/` package) — two tiers sharing one client-side mixer/playback pump
+-  (`VoiceClientLoop.kt`, `VoiceAudioMixer.kt`), both riding on `engine/audio`'s `NativeAudio` for
+-  local mic capture/speaker playback:
+-  - **Close-range**: Opus (`OpusCodec.kt`, via the `opus-jni-rust` prebuilt JNI binding), no PTT,
+-    auto-sent whenever `NativeAudio`'s native VAD gates open. Server fan-out by distance only
+-    (`VoiceRelay.kt`); client applies distance-based gain (`CloseRangeVoice.kt`,
+-    `ClientVoiceReceiver.kt`).
+-  - **Radio**: PTT-gated (`client/ModKeyMappings.kt`'s `RADIO_PTT`, unbound by default),
+-    half-duplex with close-range (`VoiceClientLoop`'s capture routing). The codec is chosen by
+-    `RadioMode` (AM/USB/FM on the tuned slot), not by band: AM/FM use Opus (same `OpusCodec` as
+-    close-range — the "radio" sound for these two comes entirely from receive-side DSP, not a
+-    lossy transmit codec), USB uses codec2 (`Codec2Codec.kt`, wrapping `engine/audio`'s `Codec2`
+-    JNI class — the actual low-bitrate digital-voice codec). `RadioTransmitter.kt` branches
+-    accordingly; for codec2 it also buffers mic audio across its mode-dependent frame size
+-    (`Resampler.kt`'s `AntiAliasDownsampler`/`upsample` handle the 48kHz↔8kHz conversion codec2
+-    needs — the downsampler is a real anti-aliasing filter, not a box-average, since that was
+-    audibly adding its own coloring on top of codec2's inherent low-bitrate character). Server
+-    fan-out (`RadioRelay.kt`) is authoritative on both the transmitter's held-radio state and
+-    every listener's — frequency must match within `RadioBand.tuningToleranceKhz` and, for
+-    line-of-sight bands, distance must be within `RadioBand.maxRangeBlocks` (VHF-and-up; tuned
+-    for a ~7.5km²/7500-block-square map — see `RadioBand.kt`'s doc comment). The relay payload
+-    carries the transmitter's position directly rather than leaving the client to resolve it via
+-    `Level.getEntity` — that only works within Minecraft's own (much shorter) entity-tracking
+-    radius, which silently capped every band's real range below what `maxRangeBlocks`/`null`
+-    said. Client-side (`ClientRadioReceiver.kt`, `RadioDsp.kt`, `RadioVoice.kt`) applies per-mode
+-    bandpass filtering and mode-flavored static (AM crackle, FM hiss with a capture-effect noise
+-    curve, USB warble) before handing decoded audio to the shared mixer.
+-
+-`Dncity.kt` is the `@Mod` entry point: registers the `ModBlocks`/`ModItems`/
+-`ModDataComponents` deferred registries on the mod bus, hooks command registration and payload
+-handlers, and dispatches client- vs. server-only setup via `runForDist`.
+-
+-## Architecture: TACZ weapon sound (FMOD)
+-
+-TACZ (`mods/TACZ-1.21.1`) plays its own gun sounds — shoot, reload, bolt, draw, put-away —
+-through FMOD Studio against DNCity's bundled banks (`src/main/resources/fmod/*.bank`) instead of
+-its normal vanilla-sound-engine OGG files, entirely in TACZ's own code
+-(`com.tacz.guns.client.sound.fmod` package), using `engine/fmod`'s `FMODSystem` wrapper:
+-
+-- **`FmodWeaponSoundManager`** — owns the client-side `FMODSystem` (best-effort init: any
+-  failure falls back to silence, not vanilla sounds, for the actions it covers), loads
+-  Master/Master.strings/Weapons banks via `FmodBankLocator` (which locates DNCity's bundled
+-  resources through `ModList`/`IModFile.findResource`, since TACZ and DNCity are separate
+-  mods/jars), updates the FMOD listener from the client camera and calls `System::update` once
+-  per client tick, and exposes `playShoot`/`playReloadTactical`/`playReloadEmpty`/`playBolt`/
+-  `playDraw`/`playPutAway`/`stopLast`. `playShoot` also sets the `IsOutside` local parameter
+-  (present on Fire events, confirmed by dumping event parameters) from
+-  `entity.level().canSeeSky(entity.blockPosition())` when the event defines it, so gunshots
+-  actually sound different indoors vs. outdoors per the bank's own authored acoustics.
+-- **`WeaponFmodEvents`** — TACZ-gun-id → bank-event-path maps, one per action
+-  (`GUN_SHOOT_EVENTS`, `GUN_RELOAD_TACTICAL_EVENTS`, `GUN_RELOAD_EMPTY_EVENTS`, plus
+-  category-keyed `DRAW_EVENTS`/`HOLSTER_EVENTS`). Every weapon folder in the bank names its
+-  events inconsistently (compare M4A1's `ReloadNormalMagIn` to MP5's `Reload Start` to AK47's
+-  `AK102MagIn`), so these maps were built by hand from a dump of every event path in the bank,
+-  not derived programmatically — extending them for a new gun means dumping that gun's mapped
+-  weapon folder's events the same way (see `WeaponFmodEvents`'s class doc and
+-  [[project-tacz-fmod-weapon-sound]] memory for the exact method) rather than guessing a naming
+-  pattern. Guns with no gun-specific reload event in their folder (verified empty, not just
+-  unmapped — G36/M24-family/M249-family/SR16-family/M32A1/Uzi) fall back to a single generic
+-  `Shared/Rifles Shared/Mag In` placeholder shared by all such guns.
+-- **`FmodBankLocator`** — copies a resource from another loaded mod's `IModFile` out to a real
+-  temp-directory file, since FMOD's native `loadBankFile` needs an actual filesystem path.
+-
+-`SoundPlayManager` (TACZ's general sound dispatcher) calls straight into
+-`FmodWeaponSoundManager` for these actions — no vanilla `SoundEvent` playback happens for them at
+-all, so there's no double-audio concern to manage when changing which bank event an action maps
+-to.
+-
+-## Architecture: `/music` (server-sent playback, no resourcepack)
+-
+-Package `io.github.jwyoon1220.dncity.music` + `network/MusicPayloads.kt` +
+-`command/MusicCommand.kt`. `/music play <name>` looks for `<name>.{mid,midi,ogg,flac,mp3,opus}`
+-in `config/dncity/music/` (in that order) and broadcasts it to every online player as chunked
+-`MusicAssetChunkPayload`s (`MusicAssetSender`/`MusicClientReceiver`, 250KB/packet — soundfonts and
+-tracks can be large); `/music stop` broadcasts `MusicStopPayload`. No playlists, no per-player
+-targeting (explicitly out of scope).
+-
+-Two independent, format-specific client-side players, chosen by extension:
+-- **`.mid`/`.midi`** — `MidiPlayer`, `javax.sound.midi`'s public API only (`Synthesizer`/
+-  `Sequencer`), loaded with a soundfont the server pushes on login (`MusicServerEvents`, cached
+-  from `config/dncity/soundfont.sf2`) — plays on Java Sound's own default output device, not
+-  mixed into this mod's `VoiceAudioMixer`.
+-- **`.ogg`/`.flac`/`.mp3`/`.opus`** — `AudioPlayer`, via `engine/fmod`'s `FMODCoreSystem` (Core
+-  `FMOD::System`, direct `createSound`/`play` file playback — distinct from the Studio-event API
+-  `FMODSystem` wraps for TACZ weapon sounds above). A **second, independent** FMOD system
+-  instance from TACZ's own Studio system — deliberately not shared, so this feature doesn't
+-  depend on TACZ being installed. `AudioPlayer.tick()` (pumping `FMODCoreSystem.update()`) is
+-  wired into the same per-client-tick hook as `VoiceClientLoop.tick()` in `Dncity.kt`.
+-
+-`engine:fmod` is consumed directly by the root project (via `includeBuild("engine/fmod")` in
+-`settings.gradle.kts` plus `implementation`/`jarJar` in `build.gradle.kts`), not only indirectly
+-through TACZ's own jarJar as before — needed since `AudioPlayer` must work even without TACZ.
+-
+-## Architecture: window overlay (native window + JCEF)
+-
+-Package `io.github.jwyoon1220.dncity.client.window`, backed by a new native module,
+-`engine/window`. Lets other features put an n×m rendering surface on top of the Minecraft window
+-as a 2D screen-space overlay — either an embedded `javax.swing.JFrame` (for arbitrary Swing
+-content, including a JCEF browser view) or a completely empty native window handle for external
+-native rendering to draw into directly. No in-game feature consumes this yet; `/windowtest` and
+-`/browser` are debug-only commands for exercising it manually.
+-
+-- **`engine/window`** — a Win32 JNI bridge (`src/main/cpp/jni_window.cpp`), same composite-build
+-  shape as `engine/audio`/`engine/fmod` (own `settings.gradle.kts`, own `build.gradle.kts`
+-  wired into the root via `includeBuild` + `dependencySubstitution` +
+-  `implementation`/`jarJar`/`additionalRuntimeClasspathConfiguration`, exactly like `engine:audio`).
+-  **Windows-only today** — like `engine/fmod`, Win32 windowing needs nothing beyond the default
+-  MSVC toolchain (`user32.lib`; no C99 `_Complex`-style constraint like `engine/audio`'s codec2
+-  work), so it copies `engine/fmod`'s simpler CMake/Gradle shape rather than `engine/audio`'s
+-  clang+MinGW one. `NativeWindowLibrary.java` mirrors `engine/audio`'s `NativeLibrary.java`
+-  exactly (`natives/<os>-<arch>/` resource layout, `File.createTempFile` straight into the OS
+-  temp root — not a subdirectory, for the same AppLocker/WDAC-safe-extraction reason already
+-  documented for `engine/fmod`'s `FModLoad`). `NativeWindow.java`'s native declarations
+-  (`nCreateChild`/`nDestroy`/`nShow`/`nMove`/`nFindWindowByTitle`/`nReparent`/
+-  `nGetForegroundWindow`/`nSetRoundRectRgn`) are thin and mechanical, same as `NativeAudio`.
+-  `nSetRoundRectRgn` clips a window to a rounded-rectangle region via
+-  `CreateRoundRectRgn`/`SetWindowRgn` (phone-UI-style corners, pixels outside the region show
+-  whatever is behind the window) — `cornerRadius <= 0` restores the normal rectangle. Note
+-  `SetWindowRgn` takes ownership of the `HRGN` on success (must not be deleted after), but not on
+-  failure (deleted there to avoid a GDI object leak) — see the function's own comment.
+-- **`client/window/WindowOverlay.kt`** — `nCreateChild` (a `WS_CHILD` window parented directly
+-  to the Minecraft/GLFW window, resolved via LWJGL's `GLFWNativeWin32.glfwGetWin32Window` — no
+-  native code needed for that lookup) underlies both public entry points:
+-  - `createFrame(x, y, w, h, title, options) { frame -> ... }` builds a uniquely-titled,
+-    undecorated `JFrame` off-screen, lets the caller populate it via the callback *before*
+-    showing it (avoids a flash of empty white), locates its real HWND by that unique title
+-    (`nFindWindowByTitle` — a `FindWindowW`-by-title trick, not JDK internal `--add-opens`
+-    reflection), and reparents it into the child window (`nReparent`: strips top-level style
+-    bits, `SetParent`, resizes to fill).
+-  - `createNativeHandle(x, y, w, h, title, options)` creates the same kind of child window but
+-    touches no AWT/Swing at all — `.nativeHandle` is the raw HWND for external native rendering.
+-  - `setCornerRadius(radius)` applies `nSetRoundRectRgn` using the overlay's current
+-    `width`/`height`; `move(...)` re-applies it automatically when `cornerRadius > 0`, since the
+-    region is sized in window-local coordinates and a size change invalidates the old one.
+-- **`client/window/WindowOverlayManager.kt`** — per-tick lifecycle manager (same
+-  start/stop/tick shape as `voice/VoiceClientLoop`), wired into `Dncity.onClientSetup`'s
+-  `ClientTickEvent.Post` hook alongside the voice/music tick calls. Since overlays are real
+-  `WS_CHILD` windows, they already track the parent's position/z-order for free at the OS level
+-  — the manager's only job is polling `Minecraft.getInstance().screen`'s type each tick and
+-  applying each overlay's `OverlayOptions` (`hideOnPauseMenu`/`hideOnInventoryScreen`/
+-  `hideOnAnyOtherScreen`, same `is PauseScreen`/`is InventoryScreen` pattern as
+-  `client/ui/MaterialScreens.kt`'s `onScreenOpening`). `destroyAll()` runs on
+-  `ClientPlayerNetworkEvent.LoggingOut` to avoid dangling HWNDs. Visibility rules are plain
+-  in-memory constructor parameters, not a persisted config — this mod has no `ModConfigSpec`/
+-  toml-backed config system at all (see `VoiceSettingsScreen`'s own documented precedent).
+-- **`client/window/BrowserOverlay.kt`** — the web-page use case: `open(x, y, w, h, url, options)`
+-  lazily builds one shared `org.cef.CefApp` (`me.friwi:jcefmaven`'s `CefAppBuilder().build()`,
+-  which downloads/installs a full platform Chromium/JCEF runtime — **~150–300MB, one-time
+-  network + disk cost on first use** — to `jcef-bundle/`), creates a `CefClient`/`CefBrowser`
+-  per call, and mounts `browser.uiComponent` into a `createFrame`-hosted `JFrame`. Sets
+-  `WindowOverlay.extraTeardown` so `destroy()` on the returned overlay also releases the JCEF
+-  browser/client — any caller that tears the overlay down releases those resources, not just
+-  `BrowserOverlay` itself. `me.friwi:jcefmaven`'s transitive deps (`commons-compress`/`gson`/
+-  `commons-lang3`/`commons-codec`) conflict with Minecraft's own strict pins on those same
+-  libraries — forced onto Minecraft's versions in the root `build.gradle.kts`'s
+-  `configurations.all { resolutionStrategy.force(...) }` block (same fix already used there for
+-  `commons-io`).
+-- **`command/WindowCommand.kt`** — `/windowtest frame`, `/windowtest handle`, and
+-  `/browser open <url>`, debug-only commands in the same Brigadier style as
+-  `RadioCommand`/`MusicCommand`, registered from `Dncity.onClientSetup` (not the shared
+-  `init {}` block those two use) because their bodies touch AWT/native APIs and JCEF that must
+-  never run on a dedicated server. Every handler hops onto the render thread via
+-  `Minecraft.getInstance().execute {}` before touching `WindowOverlay`/`BrowserOverlay` --
+-  Brigadier commands run on the integrated server's own thread even in singleplayer, but a
+-  native Win32 window is thread-affine (its messages are only pumped by whatever thread's
+-  message loop created it), and Minecraft's own GLFW message pump runs on the render thread.
+-
+-Three easy-to-hit gotchas, all fixed:
+-- **`java.awt.HeadlessException`** — `net.minecraft.client.main.Main` (the real client entry
+-  point) unconditionally sets `System.setProperty("java.awt.headless", "true")` in a static
+-  initializer at JVM boot (it renders via GLFW, not AWT), which predates any of this mod's code.
+-  `WindowOverlay.ensureAwtAvailable()` flips it back to `"false"` -- this only works because
+-  nothing earlier in this mod calls `GraphicsEnvironment.isHeadless()` (which caches its result
+-  on first call); if some other code path ends up checking headless-ness first, this stops
+-  working and needs a different fix (e.g. resetting `GraphicsEnvironment`'s cached field via
+-  reflection, which needs `--add-opens java.desktop/java.awt` and wasn't needed here). **Must run
+-  before the *first* AWT-touching call in the whole flow, not just before a `JFrame(...)`** --
+-  confirmed by hand: JCEF's own `CefBrowserWr` constructor calls
+-  `MouseInfo.getNumberOfButtons()` internally, which hits the same check, and that happens in
+-  `BrowserOverlay.open()` *before* it ever calls `WindowOverlay.createFrame`. So
+-  `BrowserOverlay.open()` calls `ensureAwtAvailable()` itself, before creating its `CefClient`/
+-  `CefBrowser`, rather than relying on `createFrame`'s own call happening in time.
+-- **Wrong thread** — see `WindowCommand.kt` above; applies to any future caller of
+-  `WindowOverlay.createFrame`/`createNativeHandle`, not just the debug commands.
+-- **Blocking the render thread on the JCEF download** — `CefAppBuilder().build()` is a blocking
+-  network call on first use (~150-300MB Chromium runtime). `BrowserOverlay.open()` therefore does
+-  *not* run on the render thread like `WindowCommand`'s other handlers -- it spawns its own
+-  daemon thread for everything through `createBrowser`, and only hops onto the render thread
+-  (`Minecraft.getInstance().execute {}`) for the final `WindowOverlay.createFrame` call, which is
+-  the only part that actually needs it (creating the native window). Confirmed by hand: without
+-  this split, the whole game freezes for the entire download/install duration.
+-- **`client/render/OverlayCullingManager.kt`** + **`mixin/MixinEntityRenderDispatcher.java`** —
+-  an entity-render-skip optimization: whichever overlay is currently visible (`WindowOverlay`'s
+-  `applyVisible`/`move`/`destroy` push their bounds into this manager's single
+-  `activeOverlayBounds` `Rect`) is a real, opaque native window sitting on top of Minecraft's own
+-  rendering, so anything drawn underneath it is wasted work. `shouldCull(x, y, z)` projects a
+-  world point through `RenderSystem.getProjectionMatrix()`/`getModelViewMatrix()` (camera-relative,
+-  same convention `LevelRenderer` itself uses) to screen pixels and checks it against that
+-  rectangle; `MixinEntityRenderDispatcher` injects at the `HEAD` of
+-  `EntityRenderDispatcher.render(...)` and cancels it when true. Deliberately **entity-only, not
+-  terrain/blocks**: Minecraft frustum-culls terrain per-chunk, not per-pixel, so a screen-space
+-  rectangle can't skip chunk geometry submission the way it can skip one entity's `render()` call
+-  — the real payoff is skipping whatever expensive *fragment* work (an Iris shader pack's
+-  per-pixel lighting on that entity, say) would otherwise run for pixels about to be covered
+-  anyway, not terrain draw calls. `shouldCull` is a single-point (entity origin) approximation of
+-  "behind the overlay," not true per-entity bounding-box coverage. Also doesn't special-case
+-  Iris's shadow-map render pass (a different camera/projection than the main view) — a shadow
+-  pass entity shouldn't be culled by a rectangle meant for the player's screen, but nothing here
+-  currently distinguishes the two passes; worth revisiting if shadows visibly break near an
+-  overlay.
+-
+-**Known limitations**: Linux/X11 is not implemented (the JNI surface is isolated enough to add
+-later, but every `jni_window.cpp` export is currently compiled only under `_WIN32`). There is no
+-mouse/keyboard focus handoff between an overlay and Minecraft's own raw-mouse-look input capture
+-— once an overlay (or its embedded `JFrame`) has real OS focus, Minecraft keeps reading the same
+-input stream underneath it. `nGetForegroundWindow` exists for future use here, but note it can't
+-actually distinguish an overlay's focus from Minecraft's own once the overlay has been reparented
+-under Minecraft's top-level HWND (`GetForegroundWindow` only returns top-level windows) — a real
+-fix needs `WM_SETFOCUS`/`WM_KILLFOCUS` forwarding from the child window, not foreground-window
+-polling; left as documented future work rather than shipped half-working. The entity-culling
+-Mixin above has the shadow-pass caveat noted there, and (like the rest of this section) is only
+-exercised by the debug commands today, not a real consumer feature.
+-
+-## Editing the mod metadata template
+-
+-`mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in
+-`src/main/templates/META-INF/neoforge.mods.toml` directly — the template only has `${...}`
+-placeholders expanded by the `generateModMetadata` task.
+diff --git a/README.md b/README.md
+index dda0294..dff3ec2 100644
+--- a/README.md
++++ b/README.md
+@@ -2,12 +2,12 @@
+ 
+ NeoForge (Minecraft 1.21.1) mod written in Kotlin. Voice chat (close-range Opus + PTT radio on
+ codec2), TACZ weapon sounds through a bundled FMOD Studio bank, server-pushed `/music` playback,
+-and an experimental native window/JCEF browser overlay. See `CLAUDE.md` for the full architecture
++and an experimental native window/JCEF browser overlay. See `AGENTS.md` for the full architecture
+ writeup — this file only covers getting a dev environment running.
+ 
+ ## Requirements
+ 
+-- **JDK 21** (exactly this major version — see `CLAUDE.md`'s "Toolchain" section for why the repo
++- **JDK 21** (exactly this major version — see `AGENTS.md`'s "Toolchain" section for why the repo
+   used to require JDK 25 and no longer does). Point `JAVA_HOME` at a JDK 21 install, or let the
+   Gradle toolchain resolver (`org.gradle.toolchains.foojay-resolver-convention`) download one.
+ - **Git LFS** — `*.bank` files (FMOD Studio banks) are tracked via LFS (`.gitattributes`). Install
+@@ -21,7 +21,7 @@ writeup — this file only covers getting a dev environment running.
+     MinGW-w64 sysroot on `PATH`.
+   - `engine/fmod` and `engine/window` build with plain **MSVC** (Visual Studio Build Tools) via
+     `cmake` — no special toolchain needed.
+-  - See each module's `CLAUDE.md` section / `CMakeLists.txt` comments for exact flags if a build
++  - See each module's `AGENTS.md` section / `CMakeLists.txt` comments for exact flags if a build
+     fails.
+ - **Windows** is the only platform the native modules currently support (`engine/window` is
+   Win32-only; `engine/fmod`/`engine/audio` are Windows-focused too). Linux/macOS are not set up.
+diff --git a/build.gradle.kts b/build.gradle.kts
+index a82175b..251157c 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -182,7 +182,7 @@ neoForge {
+             // bundled Groovy runtime no longer provides that way -- a NoSuchMethodError during
+             // IntelliJ sync (ModDevGradle 2.0.144 only officially supports Gradle 8.8). Disabled
+             // here since these runs are launched via ./gradlew runClient/runServer/etc. anyway
+-            // (see CLAUDE.md), not via IDE-generated run configurations.
++            // (see AGENTS.md), not via IDE-generated run configurations.
+             disableIdeRun()
+             client()
+             jvmArgument("-Xmx4G")
+@@ -259,7 +259,7 @@ neoForge {
+             // dev machine's Application Control policy (AppLocker/WDAC) silently blocks that
+             // (UnsatisfiedLinkError on OpusEncoder.createNative even though extraction/System.load
+             // themselves report no error), the same class of problem already documented in
+-            // CLAUDE.md for engine/fmod's FModLoad and engine/audio's NativeLibrary -- except here
++            // AGENTS.md for engine/fmod's FModLoad and engine/audio's NativeLibrary -- except here
+             // the fix can't be "extract to the temp root, not a subdirectory" since it's
+             // opus-jni-rust's own code doing the extracting, not ours. Must be a real `-D` JVM
+             // argument (not a post-launch System.setProperty) so it's in effect before the JVM's
+@@ -293,6 +293,7 @@ neoForge {
+             // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:window:1.0")
++            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:kcp:1.0")
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcpg-jdk18on:1.78.1")
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcprov-jdk18on:1.78.1")
+@@ -393,7 +394,7 @@ dependencies {
+     implementation("com.plasmoverse:opus-jni-rust:1.0.4")
+     jarJar("com.plasmoverse:opus-jni-rust:1.0.4")
+ 
+-    // engine/fmod (hand-written JNI FMOD bindings, see CLAUDE.md) -- was already an indirect
++    // engine/fmod (hand-written JNI FMOD bindings, see AGENTS.md) -- was already an indirect
+     // dependency via TACZ's own jarJar, but that's TACZ's private copy; depending on it directly
+     // here gives DNCity its own FMODCoreSystem instance (io.github.jwyoon1220.dncity.music.
+     // AudioPlayer) for direct OGG/FLAC/MP3/Opus file playback, independent of TACZ being
+@@ -404,12 +405,19 @@ dependencies {
+     jarJar("engine:fmod:1.0")
+ 
+     // engine/window (Win32 child-window/AWT-reparenting JNI bridge, see
+-    // io.github.jwyoon1220.dncity.client.window and CLAUDE.md). Same jarJar +
++    // io.github.jwyoon1220.dncity.client.window and AGENTS.md). Same jarJar +
+     // additionalRuntimeClasspath requirement as engine:audio above -- see that entry's comment
+     // (also plain Java, no external dependencies of its own).
+     implementation("engine:window:1.0")
+     jarJar("engine:window:1.0")
+ 
++    // engine/kcp (C++/JNI port of this mod's KCP-over-UDP transport, see
++    // io.github.jwyoon1220.dncity.network.kcp.NativeKcpSession and AGENTS.md). Same jarJar +
++    // additionalRuntimeClasspath requirement as engine:audio/engine:window above -- see that
++    // entry's comment (also plain Java, no external dependencies of its own).
++    implementation("engine:kcp:1.0")
++    jarJar("engine:kcp:1.0")
++
+     // ModernUI-MC (mods/ModernUI-MC), for the phone screen's Fragment/View host (see
+     // io.github.jwyoon1220.dncity.client.phone.PhoneFragment). Not a dependencySubstitution like TACZ/First
+     // Aid/Automobility/SuperbWarfare above -- its "neoforge" subproject builds with Architectury
+@@ -449,10 +457,33 @@ dependencies {
+         include("*.jar")
+     })
+ 
++    // Distant Horizons (mods/distant-horizons) -- distant-terrain LOD rendering, not referenced by
++    // this repo's own code (same as Sound Physics Remastered above), just a standalone mod that
++    // needs to be on the dev runtime's classpath for runClient/runClient2/runServer to load it, and
++    // built for collectDistributionJars to pick up. Its "neoforge" subproject's shadowJar task
++    // produces a "-all.jar" (the shaded, distributable jar with dependencies bundled in) alongside
++    // plain/dev/sources variants (see mods/distant-horizons/neoforge/build.gradle) -- only the
++    // "-all" one is wanted, same reasoning as ModernUI-MC/VoxelMap above for avoiding a plain
++    // project substitution.
++    implementation(fileTree("mods/distant-horizons/neoforge/build/libs") {
++        include("*-all.jar")
++    })
++
++    // Lithium (mods/lithium) -- general server/client performance optimizations, not referenced by
++    // this repo's own code (same as Sound Physics Remastered/Distant Horizons above), just a
++    // standalone mod that needs to be on the dev runtime's classpath for
++    // runClient/runClient2/runServer to load it, and built for collectDistributionJars to pick up.
++    // Its "neoforge" subproject's plain "jar" task is its full distributable jar (already bundles
++    // ":common" -- see settings.gradle.kts's comment on this includeBuild), same shape as
++    // Sodium/Iris/VoxelMap above.
++    implementation(fileTree("mods/lithium/build/libs") {
++        include("*.jar")
++    })
++
+     // NanoVG (phone screen's chrome/keypad rendering, see
+     // io.github.jwyoon1220.dncity.client.phone.nanovg) -- LWJGL's own prebuilt bindings, classic
+     // JNI like the rest of LWJGL 3.3.x (no java.lang.foreign/Panama, so no Java-24-floor risk --
+-    // see CLAUDE.md's "Toolchain" section). Pinned to exactly 3.3.3 since Minecraft 1.21.1's own
++    // see AGENTS.md's "Toolchain" section). Pinned to exactly 3.3.3 since Minecraft 1.21.1's own
+     // dependency management pins org.lwjgl:lwjgl itself to `strictly 3.3.3`; lwjgl-nanovg:3.3.3's
+     // own POM depends on org.lwjgl:lwjgl:3.3.3, which satisfies that constraint exactly, so no
+     // resolutionStrategy.force is needed here (unlike the commons-io force above). natives-windows
+@@ -482,6 +513,8 @@ listOf("compileJava", "compileKotlin", "runClient", "runClient2", "runServer", "
+         dependsOn(gradle.includedBuild("ModernUI-MC").task(":ModernUI-NeoForge:remapJar"))
+         dependsOn(gradle.includedBuild("VoxelMap").task(":neoforge:jar"))
+         dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
++        dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:shadowJar"))
++        dependsOn(gradle.includedBuild("lithium").task(":neoforge:jar"))
+     }
+ }
+ 
+@@ -555,7 +588,7 @@ idea {
+ }
+ 
+ // Distributing this mod means handing out DNCity's own jar, the TACZ/First Aid submodule jars
+-// (see CLAUDE.md's "Composite builds / submodules" -- they're separate mods, not merged into this
++// (see AGENTS.md's "Composite builds / submodules" -- they're separate mods, not merged into this
+ // one), and Sodium/Iris (TACZ is built against them, and this pack is meant to be played with
+ // them, both now built from source -- see mods/sodium, mods/Iris) together, which by default land
+ // in several different build/libs directories (each submodule is its own included build). Copy
+@@ -569,7 +602,7 @@ idea {
+ // this run's `from(...)` set.
+ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
+     group = "distribution"
+-    description = "Copies this project's jar, the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
++    description = "Copies this project's jar, the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered/Distant Horizons/Lithium submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
+ 
+     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
+     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
+@@ -597,6 +630,12 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
+     // Sound Physics Remastered's "neoforge" subproject's shadowJar is its distributable jar --
+     // see the fileTree dependency above's comment.
+     dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
++    // Distant Horizons's "neoforge" subproject's shadowJar produces the shaded "-all.jar" this
++    // repo wants to distribute -- see the fileTree dependency above's comment.
++    dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:shadowJar"))
++    // Lithium's "neoforge" subproject's plain "jar" task is its full distributable jar -- see the
++    // fileTree dependency above's comment.
++    dependsOn(gradle.includedBuild("lithium").task(":neoforge:jar"))
+ 
+     // Excludes sources/javadoc jars in case either submodule's build ever starts producing them
+     // (neither does today) -- only the runtime mod jar belongs in a distribution folder.
+@@ -649,6 +688,19 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
+         include("*.jar")
+         exclude("*-sources.jar", "*-javadoc.jar")
+     }
++    // Lithium's "neoforge" subproject's own "build" dir (its rootProject, i.e. mods/lithium/build,
++    // not the neoforge subproject's) -- its jar task's destinationDirectory is set explicitly to
++    // "<lithium root>/build/libs" (mods/lithium/neoforge/build.gradle.kts), same as Iris/VoxelMap.
++    from(file("mods/lithium/build/libs")) {
++        include("*.jar")
++        exclude("*-sources.jar", "*-javadoc.jar")
++    }
++    // Distant Horizons's "neoforge" subproject's own build/libs -- only the shaded "-all.jar",
++    // same reasoning as the fileTree dependency above (the plain/dev/sources variants alongside it
++    // aren't meant to be distributed standalone).
++    from(file("mods/distant-horizons/neoforge/build/libs")) {
++        include("*-all.jar")
++    }
+     // SuperbWarfare's own externally-published (Create/Create: Aeronautics/Sable) runtime
+     // dependencies -- see this file's `bundledExternalMods` configuration declaration above for why.
+     from(bundledExternalMods)
+diff --git a/engine/audio/CMakeLists.txt b/engine/audio/CMakeLists.txt
+index 77e3fbc..5d65d41 100644
+--- a/engine/audio/CMakeLists.txt
++++ b/engine/audio/CMakeLists.txt
+@@ -17,7 +17,7 @@ find_package(JNI REQUIRED)
+ # is portable C/C++ that doesn't care which ABI it's built for. See build.gradle.kts for the
+ # toolchain flags (sysroot/gcc-lib paths, `-fuse-ld=lld`) that make this work with only clang.exe
+ # and LLVM's own ld.lld.exe -- no invocation of any MinGW-w64-provided binary (blocked by this
+-# dev machine's Application Control policy, see CLAUDE.md) is required, since clang/lld only ever
++# dev machine's Application Control policy, see AGENTS.md) is required, since clang/lld only ever
+ # *read* the MinGW sysroot's headers/import libraries, never execute anything from it.
+ if(WIN32)
+     # codec2's CMakeLists.txt unconditionally links several targets (generate_codebook, several
+diff --git a/engine/fmod/src/main/java/com/iwei20/fmod/FModLoad.java b/engine/fmod/src/main/java/com/iwei20/fmod/FModLoad.java
+index 5ad2364..d3a43f9 100644
+--- a/engine/fmod/src/main/java/com/iwei20/fmod/FModLoad.java
++++ b/engine/fmod/src/main/java/com/iwei20/fmod/FModLoad.java
+@@ -160,7 +160,7 @@ public class FModLoad {
+         // into libDir alongside fmod.dll/fmodstudio.dll (unlike everything above): on this dev
+         // machine, extracting an unsigned, freshly-built DLL into a *subdirectory* of the temp
+         // root got silently blocked by the machine's Application Control policy
+-        // (AppLocker/WDAC -- same class of restriction documented in CLAUDE.md for engine/audio's
++        // (AppLocker/WDAC -- same class of restriction documented in AGENTS.md for engine/audio's
+         // toolchain), while a temp-root-level file did not; matches the exact extraction pattern
+         // engine/audio's NativeLibrary.java already uses successfully for its own unsigned DLL.
+         // Placing it outside libDir doesn't break the fmod.dll/fmodstudio.dll dependency lookup
+diff --git a/engine/window/build.gradle.kts b/engine/window/build.gradle.kts
+index 6f500c8..30d56ef 100644
+--- a/engine/window/build.gradle.kts
++++ b/engine/window/build.gradle.kts
+@@ -2,7 +2,7 @@
+ // window, either handed back raw (for external native rendering) or reparented with an AWT
+ // Frame/JFrame embedded inside it (found via a unique-title FindWindowW lookup, not JDK internal
+ // --add-opens hacks) so Swing content -- including a JCEF browser's UI component -- can be added.
+-// See CLAUDE.md's "Architecture: window overlay" section.
++// See AGENTS.md's "Architecture: window overlay" section.
+ //
+ // Windows-only for now, same as engine/fmod: plain Win32 windowing APIs need nothing beyond the
+ // default MSVC toolchain (no C99 `_Complex`-style constraint like engine/audio's codec2 has), so
+diff --git a/engine/window/src/main/java/io/github/jwyoon1220/dncity/window/NativeWindowLibrary.java b/engine/window/src/main/java/io/github/jwyoon1220/dncity/window/NativeWindowLibrary.java
+index d5a37df..a37ed1b 100644
+--- a/engine/window/src/main/java/io/github/jwyoon1220/dncity/window/NativeWindowLibrary.java
++++ b/engine/window/src/main/java/io/github/jwyoon1220/dncity/window/NativeWindowLibrary.java
+@@ -38,7 +38,7 @@ final class NativeWindowLibrary {
+         String osName = System.getProperty("os.name").toLowerCase();
+         if (!osName.contains("win")) {
+             throw new UnsupportedOperationException(
+-                "engine/window is Windows-only today (os.name=" + osName + ") -- see CLAUDE.md's "
++                "engine/window is Windows-only today (os.name=" + osName + ") -- see AGENTS.md's "
+                     + "\"Architecture: window overlay\" section.");
+         }
+         String platform = "windows";
+diff --git a/mods/Iris b/mods/Iris
+--- a/mods/Iris
++++ b/mods/Iris
+@@ -1 +1 @@
+-Subproject commit 3eebac8070d4295832177f7f26e66181380384b1
++Subproject commit 3eebac8070d4295832177f7f26e66181380384b1-dirty
+diff --git a/mods/distant-horizons b/mods/distant-horizons
+new file mode 160000
+index 0000000..ff41e07
+--- /dev/null
++++ b/mods/distant-horizons
+@@ -0,0 +1 @@
++Subproject commit ff41e070fd029c82db22bbdd00a5ef646dc72e49-dirty
+diff --git a/mods/lithium b/mods/lithium
+new file mode 160000
+index 0000000..5aaa093
+--- /dev/null
++++ b/mods/lithium
+@@ -0,0 +1 @@
++Subproject commit 5aaa093a8096edafff73d20f3e7a0c7f27da52c8-dirty
+diff --git a/mods/sound-physics-remastered b/mods/sound-physics-remastered
+--- a/mods/sound-physics-remastered
++++ b/mods/sound-physics-remastered
+@@ -1 +1 @@
+-Subproject commit 9dbee91be4dd866e51fdeb342599faa003ca4326
++Subproject commit 9dbee91be4dd866e51fdeb342599faa003ca4326-dirty
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index f09cea1..b20f2cb 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -4,6 +4,7 @@ pluginManagement {
+         gradlePluginPortal()
+         maven { url = uri("https://maven.neoforged.net/releases") }
+     }
++
+ }
+ 
+ plugins {
+@@ -22,7 +23,7 @@ includeBuild("mods/First-Aid-New") {
+     }
+ }
+ 
+-// engine/audio (miniaudio JNI bridge -- see CLAUDE.md) is a standalone Gradle project, wired in
++// engine/audio (miniaudio JNI bridge -- see AGENTS.md) is a standalone Gradle project, wired in
+ // here the same way as the TACZ/First Aid submodules above so its NativeAudio class and native
+ // library resource land on the main mod's classpath.
+ includeBuild("engine/audio") {
+@@ -31,7 +32,7 @@ includeBuild("engine/audio") {
+     }
+ }
+ 
+-// engine/fmod (hand-written JNI FMOD bindings -- see CLAUDE.md) was previously only reachable
++// engine/fmod (hand-written JNI FMOD bindings -- see AGENTS.md) was previously only reachable
+ // via TACZ's own includeBuild (mods/TACZ-1.21.1/settings.gradle.kts) -- included here too so the
+ // root project can depend on it directly, for FMODCoreSystem-based direct audio-file playback
+ // (io.github.jwyoon1220.dncity.music.AudioPlayer) independent of TACZ's own Studio system.
+@@ -44,7 +45,7 @@ includeBuild("engine/fmod") {
+     }
+ }
+ 
+-// engine/window (Win32 child-window/AWT-reparenting JNI bridge -- see CLAUDE.md) follows the
++// engine/window (Win32 child-window/AWT-reparenting JNI bridge -- see AGENTS.md) follows the
+ // same standalone-composite-build pattern as engine/audio/engine/fmod.
+ includeBuild("engine/window") {
+     dependencySubstitution {
+@@ -52,8 +53,17 @@ includeBuild("engine/window") {
+     }
+ }
+ 
++// engine/kcp (C++/JNI port of this mod's KCP-over-UDP transport -- see AGENTS.md and this
++// module's own build.gradle.kts doc comment) follows the same standalone-composite-build pattern
++// as engine/audio/engine/fmod/engine/window.
++includeBuild("engine/kcp") {
++    dependencySubstitution {
++        substitute(module("engine:kcp")).using(project(":"))
++    }
++}
++
+ // engine/browserhost (standalone JCEF/AWT child-process host -- see its own build.gradle.kts doc
+-// and CLAUDE.md's "Architecture: window overlay" section) is included WITHOUT a
++// and AGENTS.md's "Architecture: window overlay" section) is included WITHOUT a
+ // dependencySubstitution, same reasoning as mods/ModernUI-MC below: it's never consumed as a
+ // library dependency of the root project (it only ever runs as an independent `java -jar`
+ // process with its own self-contained shadow jar) -- this include exists purely so the root
+@@ -166,9 +176,27 @@ includeBuild("mods/VoxelMap")
+ // wants, the exact class of bug already documented for Sodium/Iris above. Its `voicechat`
+ // (Simple Voice Chat) and `cloth_config` mod dependencies are both declared `optional` in its
+ // own neoforge.mods.toml, so it loads fine standalone without either present -- no conflict with
+-// this repo having replaced Simple Voice Chat with its own voice/radio system (see CLAUDE.md's
++// this repo having replaced Simple Voice Chat with its own voice/radio system (see AGENTS.md's
+ // "Architecture: the radio system"); its `implementation "de.maxhenkel.voicechat:voicechat-api"`
+ // dependency only affects this submodule's OWN isolated build environment (needed to compile
+ // against SVC's API for its optional integration), not this repo's runtime dependencies, since
+ // it's pulled in via a plain file dependency below rather than a project dependency.
+ includeBuild("mods/sound-physics-remastered")
++
++// Distant Horizons (mods/distant-horizons, SunsetDN mirror of upstream jeseibel/distant-horizons
++includeBuild("mods/distant-horizons")
++
++// Lithium (mods/lithium, SunsetDN fork, "1.21.1" branch) -- general server/client performance
++// optimizations (game logic, not rendering, so it's complementary to Sodium/Iris/Distant Horizons
++// above rather than overlapping with them). Included WITHOUT a dependencySubstitution, same
++// reasoning as VoxelMap/Sound Physics Remastered above: nothing in this repo declares a
++// "maven.modrinth:lithium"/similar coordinate to intercept, and its "neoforge" subproject's own
++// `tasks.jar` (mods/lithium/neoforge/build.gradle.kts) already bundles ":common"'s compiled
++// classes directly into one self-contained jar with its own explicit
++// `destinationDirectory = rootDir.resolve("build").resolve("libs")`, same shape as Sodium's own
++// neoforge subproject -- so it's just included as a composite build (for its own build/run tasks
++// and IDE integration) and that plain jar copied by collectDistributionJars in the root
++// build.gradle.kts. Also brings in its own nested (non-submodule, checked directly into the fork)
++// "components/mixin-config-plugin" included build, used only by Lithium's own neoforge subproject
++// to auto-generate its mixin config at build time -- no action needed here, it resolves on its own.
++includeBuild("mods/lithium")
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/client/render/OverlayCullingManager.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/client/render/OverlayCullingManager.kt
+index 982ad51..e3e17ee 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/client/render/OverlayCullingManager.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/client/render/OverlayCullingManager.kt
+@@ -24,7 +24,7 @@ data class Rect(val x: Int, val y: Int, val width: Int, val height: Int) {
+  *
+  * [shouldCull] is a single-point (entity origin) approximation of "is this entity behind the
+  * overlay", not true per-entity bounding-box coverage -- an entity whose model extends outside
+- * the overlay while its origin sits inside it is still culled. See CLAUDE.md's "window overlay"
++ * the overlay while its origin sits inside it is still culled. See AGENTS.md's "window overlay"
+  * section for this and other documented limitations (e.g. this has no special handling for
+  * Iris's shadow-map render pass, which uses a different camera and should not be culled by a
+  * screen-space rectangle meant for the main view).
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/Kcp.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/Kcp.kt
+deleted file mode 100644
+index 0772264..0000000
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/Kcp.kt
++++ /dev/null
+@@ -1,313 +0,0 @@
+-package io.github.jwyoon1220.dncity.network.kcp
+-
+-/**
+- * A from-scratch Kotlin implementation of the essential mechanics of the KCP ARQ protocol
+- * (github.com/skywind3000/kcp): per-segment selective ACK, adaptive RTO, and fast retransmit on
+- * top of a sliding send/receive window -- the parts that make it a useful low-latency alternative
+- * to raw unreliable UDP for this mod's voice traffic (see [VoiceKcpServer]/[VoiceKcpClient]).
+- *
+- * Deliberately **not** a full port of the reference algorithm: there is no congestion-control
+- * window (slow start/ssthresh) and no window-probe (WASK/WINS) handshake -- this mod's own
+- * transport tuning always runs in "no congestion control" mode (`nc=1` in upstream terms) since
+- * voice traffic is small, bursty, and only ever crosses a private/LAN-scale link (see
+- * `RadioBand`'s own doc comment on the map's ~7.5km² scale), so the extra machinery upstream needs
+- * for internet-scale fairness would only add complexity without changing behavior here. `sn`/`una`
+- * sequence numbers are tracked as unwrapped [Long]s rather than the reference's 32-bit wraparound
+- * arithmetic -- at this protocol's realistic frame rate (tens of segments/second) a session would
+- * need to run for months before that matters, comfortably longer than this mod's actual server
+- * uptime between restarts.
+- *
+- * One instance is one logical connection ("conv"). Message-oriented, not stream-oriented: each
+- * [send] call is reassembled into exactly one [recv] on the peer, regardless of how many segments
+- * it had to be split across. Knows nothing about sockets or threads -- [output] is invoked with
+- * the exact bytes to put on the wire for this conv, and [update]/[input] are meant to be driven by
+- * the caller's own timer/event loop (see [VoiceKcpServer]/[VoiceKcpClient], which drive it from a
+- * dedicated Netty event-loop-scheduled tick rather than Minecraft's own tick rate, so voice
+- * latency isn't bounded by the game's 50ms tick).
+- */
+-class Kcp(private val conv: Int, private val output: (ByteArray) -> Unit) {
+-
+-    private class Segment(var data: ByteArray = EMPTY) {
+-        var frg: Int = 0
+-        var sn: Long = 0
+-        var resendTs: Long = 0
+-        var rto: Long = RTO_DEFAULT
+-        var fastAck: Int = 0
+-        var xmit: Int = 0
+-    }
+-
+-    // ---- send side ----
+-    private var sndUna = 0L
+-    private var sndNxt = 0L
+-    private val sndQueue = ArrayDeque<Segment>()
+-    private val sndBuf = ArrayDeque<Segment>()
+-
+-    // ---- receive side ----
+-    private var rcvNxt = 0L
+-    private val rcvBuf = ArrayDeque<Segment>()
+-    private val rcvQueue = ArrayDeque<Segment>()
+-    private val ackList = ArrayList<LongArray>() // pending (sn, ts) pairs to acknowledge
+-
+-    // ---- RTT/RTO estimation (RFC 6298-style) ----
+-    private var rxSrtt = 0L
+-    private var rxRttval = 0L
+-    private var rxRto = RTO_DEFAULT
+-
+-    private var rmtWnd = RCV_WND
+-    private var current = 0L
+-    private var started = false
+-
+-    private var outChunk = ByteArray(0)
+-    private var outChunkLen = 0
+-
+-    /** Queues [data] for delivery, fragmenting across multiple segments if it exceeds one
+-     * segment's payload capacity ([MSS]). Actual sending happens later, from [update]/[flush]. */
+-    fun send(data: ByteArray) {
+-        if (data.isEmpty()) return
+-        val count = (data.size + MSS - 1) / MSS
+-        var offset = 0
+-        for (i in 0 until count) {
+-            val size = minOf(MSS, data.size - offset)
+-            val seg = Segment(data.copyOfRange(offset, offset + size))
+-            seg.frg = count - i - 1
+-            sndQueue.addLast(seg)
+-            offset += size
+-        }
+-    }
+-
+-    /** Returns the next fully-reassembled message, or `null` if none is complete yet. */
+-    fun recv(): ByteArray? {
+-        val size = peekSize() ?: return null
+-        val result = ByteArray(size)
+-        var offset = 0
+-        while (true) {
+-            val seg = rcvQueue.removeFirst()
+-            System.arraycopy(seg.data, 0, result, offset, seg.data.size)
+-            offset += seg.data.size
+-            if (seg.frg == 0) break
+-        }
+-        return result
+-    }
+-
+-    private fun peekSize(): Int? {
+-        if (rcvQueue.isEmpty()) return null
+-        var len = 0
+-        for (seg in rcvQueue) {
+-            len += seg.data.size
+-            if (seg.frg == 0) return len
+-        }
+-        return null // first message isn't fully reassembled yet
+-    }
+-
+-    /** Feeds one raw incoming datagram (which may contain several concatenated segments, per
+-     * [flush]'s own packing) into the protocol state machine. */
+-    fun input(data: ByteArray) {
+-        var offset = 0
+-        while (data.size - offset >= OVERHEAD) {
+-            var p = offset
+-            val segConv = decode32(data, p); p += 4
+-            if (segConv != conv) return // not for this session -- shouldn't happen, already demuxed by conv
+-            val cmd = decode8(data, p); p += 1
+-            val frg = decode8(data, p); p += 1
+-            decode16(data, p); p += 2 // peer's advertised window -- read for wire-format parity, unused (see class doc: no probe/congestion-control)
+-            val ts = decode32(data, p).toLong() and 0xFFFFFFFFL; p += 4
+-            val sn = decode32(data, p).toLong() and 0xFFFFFFFFL; p += 4
+-            val una = decode32(data, p).toLong() and 0xFFFFFFFFL; p += 4
+-            val len = decode32(data, p); p += 4
+-            offset = p
+-            if (data.size - offset < len) return
+-
+-            parseUna(una)
+-
+-            when (cmd) {
+-                CMD_PUSH -> {
+-                    // Ack regardless of whether this is new data -- if sn < rcvNxt, it's already
+-                    // been delivered and the peer's own earlier ack for it was likely lost.
+-                    ackList.add(longArrayOf(sn, ts))
+-                    if (sn >= rcvNxt) {
+-                        val seg = Segment(data.copyOfRange(offset, offset + len))
+-                        seg.sn = sn
+-                        seg.frg = frg
+-                        insertIntoRcvBuf(seg) // de-dupes internally
+-                    }
+-                }
+-                CMD_ACK -> {
+-                    if (current >= ts) updateRto(current - ts)
+-                    parseAck(sn)
+-                }
+-            }
+-            offset += len
+-        }
+-        moveRcvBufToQueue()
+-    }
+-
+-    private fun parseUna(una: Long) {
+-        while (sndBuf.isNotEmpty() && sndBuf.first().sn < una) sndBuf.removeFirst()
+-        if (una > sndUna) sndUna = una
+-    }
+-
+-    private fun parseAck(sn: Long) {
+-        if (sn < sndUna || sn >= sndNxt) return
+-        val it = sndBuf.iterator()
+-        while (it.hasNext()) {
+-            val seg = it.next()
+-            when {
+-                seg.sn == sn -> { it.remove(); return }
+-                seg.sn < sn -> seg.fastAck++
+-                else -> return // sndBuf is sn-ordered; nothing further can match or need incrementing
+-            }
+-        }
+-    }
+-
+-    private fun updateRto(rtt: Long) {
+-        if (rxSrtt == 0L) {
+-            rxSrtt = rtt
+-            rxRttval = rtt / 2
+-        } else {
+-            val delta = kotlin.math.abs(rtt - rxSrtt)
+-            rxRttval = (3 * rxRttval + delta) / 4
+-            rxSrtt = (7 * rxSrtt + rtt) / 8
+-            if (rxSrtt < 1) rxSrtt = 1
+-        }
+-        rxRto = (rxSrtt + maxOf(INTERVAL_MS, 4 * rxRttval)).coerceIn(RTO_MIN, RTO_MAX)
+-    }
+-
+-    private fun insertIntoRcvBuf(newSeg: Segment) {
+-        var index = rcvBuf.size
+-        for (i in rcvBuf.indices.reversed()) {
+-            val seg = rcvBuf[i]
+-            if (seg.sn == newSeg.sn) return // duplicate
+-            if (seg.sn < newSeg.sn) { index = i + 1; break }
+-            index = i
+-        }
+-        rcvBuf.add(index, newSeg)
+-    }
+-
+-    private fun moveRcvBufToQueue() {
+-        while (rcvBuf.isNotEmpty()) {
+-            val seg = rcvBuf.first()
+-            if (seg.sn == rcvNxt && rcvQueue.size < RCV_WND) {
+-                rcvBuf.removeFirst()
+-                rcvQueue.addLast(seg)
+-                rcvNxt++
+-            } else {
+-                break
+-            }
+-        }
+-    }
+-
+-    /** Drives retransmission/flush timing -- call at a fixed short interval (see [VoiceKcpServer]/
+-     * [VoiceKcpClient]'s own scheduled tick), passing the caller's own monotonic millisecond
+-     * clock. */
+-    fun update(currentMs: Long) {
+-        current = currentMs
+-        started = true
+-        flush()
+-    }
+-
+-    private fun flush() {
+-        if (!started) return
+-
+-        for ((sn, ts) in ackList) appendSegment(CMD_ACK, sn, ts, 0, EMPTY)
+-        ackList.clear()
+-
+-        val window = minOf(SND_WND, rmtWnd).coerceAtLeast(1)
+-        while (sndNxt < sndUna + window && sndQueue.isNotEmpty()) {
+-            val seg = sndQueue.removeFirst()
+-            seg.sn = sndNxt++
+-            seg.rto = rxRto
+-            seg.xmit = 0
+-            seg.resendTs = current
+-            sndBuf.addLast(seg)
+-        }
+-
+-        for (seg in sndBuf) {
+-            val due = seg.xmit == 0 || current >= seg.resendTs || seg.fastAck >= FAST_RESEND_LIMIT
+-            if (!due) continue
+-            seg.xmit++
+-            seg.fastAck = 0
+-            if (seg.xmit > 1) seg.rto = (seg.rto + seg.rto / 2).coerceAtMost(RTO_MAX)
+-            seg.resendTs = current + seg.rto
+-            appendSegment(CMD_PUSH, seg.sn, current, seg.frg, seg.data)
+-        }
+-
+-        flushOutChunk()
+-    }
+-
+-    private fun appendSegment(cmd: Int, sn: Long, ts: Long, frg: Int, data: ByteArray) {
+-        val segSize = OVERHEAD + data.size
+-        if (outChunkLen + segSize > MTU) flushOutChunk()
+-        if (outChunk.size < outChunkLen + segSize) outChunk = outChunk.copyOf(maxOf(MTU, outChunkLen + segSize))
+-        var p = outChunkLen
+-        p = encode32(outChunk, p, conv)
+-        p = encode8(outChunk, p, cmd)
+-        p = encode8(outChunk, p, frg)
+-        p = encode16(outChunk, p, (RCV_WND - rcvQueue.size).coerceAtLeast(0))
+-        p = encode32(outChunk, p, ts.toInt())
+-        p = encode32(outChunk, p, sn.toInt())
+-        p = encode32(outChunk, p, rcvNxt.toInt())
+-        p = encode32(outChunk, p, data.size)
+-        System.arraycopy(data, 0, outChunk, p, data.size)
+-        outChunkLen = p + data.size
+-    }
+-
+-    private fun flushOutChunk() {
+-        if (outChunkLen == 0) return
+-        output(outChunk.copyOf(outChunkLen))
+-        outChunkLen = 0
+-    }
+-
+-    companion object {
+-        private val EMPTY = ByteArray(0)
+-
+-        private const val MTU = 1200
+-        private const val OVERHEAD = 24
+-        private const val MSS = MTU - OVERHEAD
+-
+-        private const val SND_WND = 128
+-        private const val RCV_WND = 128
+-
+-        private const val INTERVAL_MS = 10L
+-        private const val RTO_MIN = 30L
+-        private const val RTO_DEFAULT = 200L
+-        private const val RTO_MAX = 5000L
+-
+-        /** Fast-retransmit threshold ("resend=2" in upstream terms): a segment is resent as soon
+-         * as this many later segments have been acked ahead of it, without waiting for its own
+-         * RTO to expire. */
+-        private const val FAST_RESEND_LIMIT = 2
+-
+-        private const val CMD_PUSH = 81
+-        private const val CMD_ACK = 82
+-
+-        private fun encode8(buf: ByteArray, offset: Int, v: Int): Int {
+-            buf[offset] = v.toByte()
+-            return offset + 1
+-        }
+-
+-        private fun decode8(buf: ByteArray, offset: Int): Int = buf[offset].toInt() and 0xFF
+-
+-        private fun encode16(buf: ByteArray, offset: Int, v: Int): Int {
+-            buf[offset] = v.toByte()
+-            buf[offset + 1] = (v ushr 8).toByte()
+-            return offset + 2
+-        }
+-
+-        private fun decode16(buf: ByteArray, offset: Int): Int =
+-            (buf[offset].toInt() and 0xFF) or ((buf[offset + 1].toInt() and 0xFF) shl 8)
+-
+-        private fun encode32(buf: ByteArray, offset: Int, v: Int): Int {
+-            buf[offset] = v.toByte()
+-            buf[offset + 1] = (v ushr 8).toByte()
+-            buf[offset + 2] = (v ushr 16).toByte()
+-            buf[offset + 3] = (v ushr 24).toByte()
+-            return offset + 4
+-        }
+-
+-        private fun decode32(buf: ByteArray, offset: Int): Int =
+-            (buf[offset].toInt() and 0xFF) or
+-                ((buf[offset + 1].toInt() and 0xFF) shl 8) or
+-                ((buf[offset + 2].toInt() and 0xFF) shl 16) or
+-                ((buf[offset + 3].toInt() and 0xFF) shl 24)
+-    }
+-}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt
+index 39da296..ac3480b 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt
+@@ -29,7 +29,7 @@ object VoiceKcpClient {
+ 
+     private var group: NioEventLoopGroup? = null
+     private var channel: Channel? = null
+-    private var kcp: Kcp? = null
++    private var kcp: NativeKcpSession? = null
+ 
+     fun connect(host: String, port: Int, conv: Int, secret: Long) {
+         disconnect()
+@@ -54,7 +54,7 @@ object VoiceKcpClient {
+                 })
+             val ch = bootstrap.bind(0).sync().channel()
+             channel = ch
+-            val session = Kcp(conv) { out -> ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), remote)) }
++            val session = NativeKcpSession(conv) { out -> ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), remote)) }
+             kcp = session
+             session.send(VoiceKcpProtocol.encodeHello(conv, secret))
+             eventLoopGroup.next().scheduleAtFixedRate({ tick() }, 0, TICK_INTERVAL_MS, TimeUnit.MILLISECONDS)
+@@ -69,6 +69,7 @@ object VoiceKcpClient {
+         group?.shutdownGracefully(0, 500, TimeUnit.MILLISECONDS)
+         channel = null
+         group = null
++        kcp?.close()
+         kcp = null
+     }
+ 
+@@ -93,6 +94,18 @@ object VoiceKcpClient {
+         kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO, opusData))
+     }
+ 
++    /** Sends an opaque bulk payload (e.g. a Distant Horizons LOD/terrain request) to the server
++     * over the same unified KCP channel voice/radio/phone audio already use -- see
++     * [VoiceKcpProtocol.TYPE_LOD_DATA]. No-op if not currently connected. */
++    fun sendLodData(payload: ByteArray) {
++        kcp?.send(VoiceKcpProtocol.encodeLodData(payload))
++    }
++
++    /** Set by whichever feature wants to receive [TYPE_LOD_DATA][VoiceKcpProtocol.TYPE_LOD_DATA]
++     * messages sent by the server (e.g. a future Distant Horizons LOD response) -- invoked on the
++     * render/client thread, same as every other message handler here. */
++    var onLodDataReceived: ((ByteArray) -> Unit)? = null
++
+     private fun tick() {
+         kcp?.update(System.currentTimeMillis())
+         drainReceived()
+@@ -131,6 +144,9 @@ object VoiceKcpClient {
+                     val audio = VoiceKcpProtocol.decodeAudio(msg)
+                     if (!audio.isStale) PhoneCallReceiver.handleFrame(audio.audio)
+                 }
++                VoiceKcpProtocol.TYPE_LOD_DATA -> {
++                    onLodDataReceived?.invoke(VoiceKcpProtocol.decodeLodData(msg))
++                }
+             }
+         }
+     }
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt
+index 0a50a26..03ac642 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt
+@@ -25,6 +25,13 @@ object VoiceKcpProtocol {
+     const val TYPE_PHONE_CALL_AUDIO: Byte = 5
+     const val TYPE_PHONE_CALL_AUDIO_RELAY: Byte = 6
+ 
++    /** Opaque bulk data (e.g. Distant Horizons LOD/terrain streaming payloads) riding the same
++     * per-player [NativeKcpSession] as voice/radio/phone audio, demuxed by this same leading
++     * type-tag byte -- see [VoiceKcpServer.sendLodData]/[VoiceKcpClient.sendLodData]. Unlike the
++     * audio types above this carries no send timestamp: LOD data isn't perishable the way a stale
++     * audio frame is, so there's nothing to drop on a late/retransmitted arrival. */
++    const val TYPE_LOD_DATA: Byte = 7
++
+     const val STALE_MS = 250L
+ 
+     // ---- HELLO: the first message a client sends on a fresh UDP session, proving it holds the
+@@ -61,6 +68,21 @@ object VoiceKcpProtocol {
+         return TimedAudio(sentAt, audio)
+     }
+ 
++    // ---- LOD/terrain data (opaque bulk payload, either direction -- see TYPE_LOD_DATA's doc
++    // comment). No addressing or timestamp: the payload's own format (e.g. Distant Horizons'
++    // already-compressed FullDataPayload bytes) is meaningless to this transport layer. ----
++
++    fun encodeLodData(payload: ByteArray): ByteArray =
++        ByteBuffer.allocate(1 + payload.size).put(TYPE_LOD_DATA).put(payload).array()
++
++    fun decodeLodData(data: ByteArray): ByteArray {
++        val buf = ByteBuffer.wrap(data)
++        buf.get()
++        val payload = ByteArray(buf.remaining())
++        buf.get(payload)
++        return payload
++    }
++
+     // ---- Close-range voice relay (server -> one in-range listener): needs the speaker's entity
+     // id so the client can key its per-speaker decoder and look up their live position for gain. ----
+ 
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt
+index 239bbc0..4ff89a6 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt
+@@ -47,7 +47,7 @@ object VoiceKcpServer {
+         var remote: InetSocketAddress? = null
+         var authenticated = false
+         var lastActivityMs = System.currentTimeMillis()
+-        lateinit var kcp: Kcp
++        lateinit var kcp: NativeKcpSession
+     }
+ 
+     private var group: NioEventLoopGroup? = null
+@@ -103,6 +103,7 @@ object VoiceKcpServer {
+         group = null
+         mcServer = null
+         pendingByConv.clear()
++        sessionsByConv.values.forEach { it.kcp.close() }
+         sessionsByConv.clear()
+         sessionsByPlayer.clear()
+     }
+@@ -120,7 +121,10 @@ object VoiceKcpServer {
+     }
+ 
+     fun endSession(playerUuid: UUID) {
+-        sessionsByPlayer.remove(playerUuid)?.let { sessionsByConv.remove(it.conv) }
++        sessionsByPlayer.remove(playerUuid)?.let {
++            sessionsByConv.remove(it.conv)
++            it.kcp.close()
++        }
+         pendingByConv.entries.removeIf { it.value.playerUuid == playerUuid }
+     }
+ 
+@@ -146,6 +150,18 @@ object VoiceKcpServer {
+         authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY, opusData))
+     }
+ 
++    /** Sends an opaque bulk payload (e.g. Distant Horizons LOD/terrain data) to one player over
++     * the same unified KCP channel voice/radio/phone audio already use -- see
++     * [VoiceKcpProtocol.TYPE_LOD_DATA]. No-op if the player has no authenticated session. */
++    fun sendLodData(playerUuid: UUID, payload: ByteArray) {
++        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeLodData(payload))
++    }
++
++    /** Set by whichever feature wants to receive [TYPE_LOD_DATA][VoiceKcpProtocol.TYPE_LOD_DATA]
++     * messages sent by a client (e.g. a future Distant Horizons request payload) -- invoked on the
++     * server's main thread, same as every other message handler here. */
++    var onLodDataReceived: ((java.util.UUID, ByteArray) -> Unit)? = null
++
+     private fun authenticatedSession(playerUuid: UUID): ServerSession? =
+         sessionsByPlayer[playerUuid]?.takeIf { it.authenticated }
+ 
+@@ -158,7 +174,7 @@ object VoiceKcpServer {
+         if (session == null) {
+             val pending = pendingByConv[conv] ?: return // unknown conv -- drop (no session was ever allocated for it)
+             val newSession = ServerSession(conv, pending.playerUuid, pending.secret)
+-            newSession.kcp = Kcp(conv) { out -> channel?.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), newSession.remote ?: sender)) }
++            newSession.kcp = NativeKcpSession(conv) { out -> channel?.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), newSession.remote ?: sender)) }
+             session = newSession
+             sessionsByConv[conv] = session
+         }
+@@ -178,10 +194,11 @@ object VoiceKcpServer {
+             val hello = VoiceKcpProtocol.decodeHello(msg)
+             if (hello.conv == session.conv && hello.secret == session.secret) {
+                 pendingByConv.remove(session.conv)
+-                sessionsByPlayer.put(session.playerUuid, session)?.takeIf { it !== session }?.let { old -> sessionsByConv.remove(old.conv) }
++                sessionsByPlayer.put(session.playerUuid, session)?.takeIf { it !== session }?.let { old -> sessionsByConv.remove(old.conv); old.kcp.close() }
+                 session.authenticated = true
+             } else {
+                 sessionsByConv.remove(session.conv) // bad secret -- reject, don't trust this conv going forward
++                session.kcp.close()
+             }
+             return
+         }
+@@ -207,6 +224,9 @@ object VoiceKcpServer {
+                     val audio = VoiceKcpProtocol.decodeAudio(msg)
+                     if (!audio.isStale) PhoneCallSession.relayAudio(player, audio.audio)
+                 }
++                VoiceKcpProtocol.TYPE_LOD_DATA -> {
++                    onLodDataReceived?.invoke(session.playerUuid, VoiceKcpProtocol.decodeLodData(msg))
++                }
+             }
+         }
+     }
+@@ -219,6 +239,7 @@ object VoiceKcpServer {
+             if (now - session.lastActivityMs > SESSION_IDLE_TIMEOUT_MS) {
+                 it.remove()
+                 sessionsByPlayer.remove(session.playerUuid, session)
++                session.kcp.close()
+                 continue
+             }
+             session.kcp.update(now)
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneDirectory.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneDirectory.kt
+index 1cafbad..57ce8bd 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneDirectory.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneDirectory.kt
+@@ -9,7 +9,7 @@ import java.util.UUID
+  * across sessions without needing any registration step. [PhoneCallSession] looks numbers up via
+  * [lookup] when a call is placed. Deliberately not persisted: the cache repopulates itself
+  * on-demand (same derivation every time), and this mod has no config/save system anyway (see
+- * CLAUDE.md's `VoiceSettingsScreen` precedent).
++ * AGENTS.md's `VoiceSettingsScreen` precedent).
+  */
+ object PhoneDirectory {
+     private const val DIGITS = 8
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt
+index 60500c0..79b7ead 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt
+@@ -1,33 +1,50 @@
+ package io.github.jwyoon1220.dncity.security
+ 
+ import io.github.jwyoon1220.dncity.network.PgpChallengePayload
++import net.minecraft.client.server.IntegratedServer
+ import net.minecraft.network.chat.Component
+ import net.minecraft.server.network.ServerConfigurationPacketListenerImpl
+ import net.neoforged.neoforge.network.event.RegisterConfigurationTasksEvent
++import net.neoforged.neoforge.server.ServerLifecycleHooks
++import java.net.InetSocketAddress
+ 
+ /**
+  * Gates every connection at the configuration phase -- before it ever reaches the play phase / the
+  * actual world -- behind a PGP challenge-response (see [PgpAuthConfigurationTask]), unless the
+- * whole gate is turned off via [PgpSettings] (`/pgp disable`). A player with no registered key
+- * ([PgpKeyRegistry]) is disconnected outright rather than let through unauthenticated, and so is a
+- * client that doesn't even have this mod's channel open (a vanilla client couldn't complete the
+- * handshake anyway, and this server requires the mod for gameplay regardless).
++ * whole gate is turned off via [PgpSettings] (`/pgp enable`/`/pgp disable`, off by default) or the
++ * connection is [isExempt] (plain singleplayer, the host of a LAN-opened world, or any connection
++ * arriving from localhost/127.0.0.1 -- the gate only matters once a world is actually reachable by
++ * someone else). A player with no registered key ([PgpKeyRegistry]) is disconnected outright rather
++ * than let through unauthenticated, and so is a client that doesn't even have this mod's channel
++ * open (a vanilla client couldn't complete the handshake anyway, and this server requires the mod
++ * for gameplay regardless) -- both kicks go through a registered [PgpKickConfigurationTask] rather
++ * than calling `disconnect()` directly here; see that class's doc comment for why (a real crash
++ * this caused, not just theoretical).
+  */
+ object PgpAuthServerEvents {
+     fun onRegisterConfigurationTasks(event: RegisterConfigurationTasksEvent) {
+         if (!PgpSettings.enabled) return
+ 
+         val listener = event.listener as? ServerConfigurationPacketListenerImpl ?: return
++        if (isExempt(listener)) return
+ 
+         if (!listener.hasChannel(PgpChallengePayload.TYPE)) {
+-            listener.disconnect(Component.literal("This server requires the DNCity mod (PGP login verification)."))
++            event.register(
++                PgpKickConfigurationTask(
++                    listener,
++                    Component.literal("This server requires the DNCity mod (PGP login verification)."),
++                ),
++            )
+             return
+         }
+ 
+         val playerId = listener.owner.id
+         if (!PgpKeyRegistry.hasKey(playerId)) {
+-            listener.disconnect(
+-                Component.literal("No PGP key is registered for your account. Ask an operator to register one with /pgp register."),
++            event.register(
++                PgpKickConfigurationTask(
++                    listener,
++                    Component.literal("No PGP key is registered for your account. Ask an operator to register one with /pgp register."),
++                ),
+             )
+             return
+         }
+@@ -36,4 +53,26 @@ object PgpAuthServerEvents {
+         PgpAuthManager.begin(listener, playerId, challenge)
+         event.register(PgpAuthConfigurationTask(challenge))
+     }
++
++    /**
++     * True when this connection shouldn't be gated at all, regardless of [PgpSettings.enabled]:
++     * - Plain singleplayer (an [IntegratedServer] not published to LAN) -- nobody else can reach
++     *   it over the network anyway.
++     * - The host's own connection on a LAN-opened [IntegratedServer] ([IntegratedServer.isSingleplayerOwner]) --
++     *   they already own the world; the gate exists for guests, not the owner.
++     * - Any connection whose remote address is loopback (127.0.0.1/::1) -- covers a dedicated (or
++     *   LAN-opened) server being reached from the same machine it's running on.
++     */
++    private fun isExempt(listener: ServerConfigurationPacketListenerImpl): Boolean {
++        val server = ServerLifecycleHooks.getCurrentServer()
++        if (server is IntegratedServer) {
++            if (!server.isPublished()) return true
++            if (server.isSingleplayerOwner(listener.owner)) return true
++        }
++
++        val remoteAddress = listener.connection.remoteAddress
++        if (remoteAddress is InetSocketAddress && remoteAddress.address.isLoopbackAddress) return true
++
++        return false
++    }
+ }
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt
+index aa71a27..f8d8978 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt
+@@ -3,18 +3,19 @@ package io.github.jwyoon1220.dncity.security
+ import java.io.File
+ 
+ /**
+- * Whether the PGP login gate ([PgpAuthServerEvents]) is enforced at all -- `/pgp disable` lets an
+- * operator open the server up to unregistered/vanilla-incapable clients temporarily (e.g. while
+- * onboarding players who haven't set up a key yet) without deleting anyone's registered key.
+- * Backed by a single marker file rather than an in-memory flag so the setting survives a server
+- * restart, same file-per-fact convention as [PgpKeyRegistry].
++ * Whether the PGP login gate ([PgpAuthServerEvents]) is enforced at all -- defaults to **off**;
++ * `/pgp enable` turns it on for a server that actually wants it (e.g. before opening a world up
++ * publicly), `/pgp disable` turns it back off without deleting anyone's registered key. Backed by
++ * a single marker file rather than an in-memory flag so the setting survives a server restart,
++ * same file-per-fact convention as [PgpKeyRegistry] -- presence of the marker means enabled, its
++ * absence (the default, e.g. a fresh `config/` dir) means disabled.
+  */
+ object PgpSettings {
+-    private val disabledMarker: File by lazy { File(PgpPaths.let { it.keysDir.parentFile }, "disabled") }
++    private val enabledMarker: File by lazy { File(PgpPaths.let { it.keysDir.parentFile }, "enabled") }
+ 
+     var enabled: Boolean
+-        get() = !disabledMarker.isFile
++        get() = enabledMarker.isFile
+         set(value) {
+-            if (value) disabledMarker.delete() else disabledMarker.createNewFile()
++            if (value) enabledMarker.createNewFile() else enabledMarker.delete()
+         }
+ }
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/Codec2Codec.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/Codec2Codec.kt
+index be89548..486d2f2 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/Codec2Codec.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/Codec2Codec.kt
+@@ -4,7 +4,7 @@ import io.github.jwyoon1220.dncity.audio.Codec2
+ import io.github.jwyoon1220.dncity.radio.RadioBand
+ 
+ /**
+- * codec2 (engine/audio's `Codec2` JNI bridge, see CLAUDE.md/engine/audio/CMakeLists.txt for the
++ * codec2 (engine/audio's `Codec2` JNI bridge, see AGENTS.md/engine/audio/CMakeLists.txt for the
+  * clang+MinGW toolchain that build requires) for the radio-voice tiers -- unlike close-range
+  * voice's Opus ([OpusCodec]), which stays a full-quality wideband codec. Fixed at [SAMPLE_RATE]
+  * (8kHz) regardless of mode; callers resample to/from the rest of the mod's 48kHz pipeline via
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/OpusCodec.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/OpusCodec.kt
+index 2b113d4..5877a8d 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/OpusCodec.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/OpusCodec.kt
+@@ -13,7 +13,7 @@ import com.plasmoverse.opus.OpusMode
+  * radio tiers' CODEC2 codec which has no equivalent off-the-shelf JNI library.
+  *
+  * Fixed format: mono, 48kHz, [FRAME_SIZE]-sample (20ms) frames -- matches engine/audio's
+- * `NativeAudio` capture/playback format (not yet a dependency of this module -- see CLAUDE.md),
++ * `NativeAudio` capture/playback format (not yet a dependency of this module -- see AGENTS.md),
+  * so PCM read via that module's `readCapture` can be handed to [createEncoder] directly with no
+  * resampling once it's wired in.
+  */

@@ -1,0 +1,2310 @@
+diff --git a/build.gradle.kts b/build.gradle.kts
+index ca2b45d..a82175b 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -294,6 +294,8 @@ neoForge {
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:window:1.0")
+             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
++            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcpg-jdk18on:1.78.1")
++            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcprov-jdk18on:1.78.1")
+             // Same reason as the three above -- confirmed by hand: without this, runClient throws
+             // NoClassDefFoundError on NanoVGGL3 even though it's on the compile classpath fine
+             // (compileKotlin/jarJar packaging don't need this; only the dev-run classpath does).
+@@ -341,6 +343,15 @@ dependencies {
+ 
+     implementation("thedarkcolour:kotlinforforge-neoforge:5.3.0")
+ 
++    // Raw Netty API for network.kcp's self-built KCP-over-UDP voice/radio/phone-call transport
++    // (VoiceKcpServer/VoiceKcpClient) -- compileOnly, not implementation/jarJar: NeoForge already
++    // ships this exact netty-transport jar (Bootstrap/NioDatagramChannel/etc.) transitively at
++    // runtime for its own networking, so this is compile-time symbols only. Pinned to the version
++    // actually resolved from NeoForge 21.1.248's own dependency graph (confirmed via the IDE's
++    // resolved classpath) rather than left to float, so a NeoForge bump can't silently drift this
++    // out of sync with what's really on the runtime classpath.
++    compileOnly("io.netty:netty-transport:4.1.97.Final")
++
+     // TACZ, included as a composite build submodule (mods/TACZ-1.21.1) so it
+     // shares this project's NeoForge version and Minecraft artifact instead
+     // of generating its own.
+@@ -452,6 +463,16 @@ dependencies {
+     runtimeOnly("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
+     jarJar("org.lwjgl:lwjgl-nanovg:3.3.3")
+     jarJar("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
++
++    // BouncyCastle OpenPGP (io.github.jwyoon1220.dncity.security's login-gate PGP
++    // challenge/response, see PgpCrypto) -- not shipped by NeoForge/Minecraft, so jarJar'd the
++    // same way as the other plain-library deps above (also needs additionalRuntimeClasspath, see
++    // the `runs` block, for the same ModDevGradle-doesn't-jarJar-onto-dev-runs reason documented
++    // on engine:audio's dependency above).
++    implementation("org.bouncycastle:bcpg-jdk18on:1.78.1")
++    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
++    jarJar("org.bouncycastle:bcpg-jdk18on:1.78.1")
++    jarJar("org.bouncycastle:bcprov-jdk18on:1.78.1")
+ }
+ 
+ // The ModernUI-MC universal jar (see the fileTree dependency above) has to actually be built
+diff --git a/fsb5-1.0.tar.gz b/fsb5-1.0.tar.gz
+new file mode 100644
+index 0000000..f0a6f4a
+Binary files /dev/null and b/fsb5-1.0.tar.gz differ
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/Dncity.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/Dncity.kt
+index 03992f1..370014a 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/Dncity.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/Dncity.kt
+@@ -2,6 +2,7 @@ package io.github.jwyoon1220.dncity
+ 
+ import io.github.jwyoon1220.dncity.block.ModBlockEntities
+ import io.github.jwyoon1220.dncity.block.ModBlocks
++import io.github.jwyoon1220.dncity.command.PgpCommand
+ import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
+ import io.github.jwyoon1220.dncity.command.RadioCommand
+ import io.github.jwyoon1220.dncity.item.ModItems
+@@ -9,12 +10,15 @@ import io.github.jwyoon1220.dncity.item.component.ModDataComponents
+ import io.github.jwyoon1220.dncity.command.MusicCommand
+ import io.github.jwyoon1220.dncity.music.MusicServerEvents
+ import io.github.jwyoon1220.dncity.network.MusicNetworking
++import io.github.jwyoon1220.dncity.network.PgpNetworking
+ import io.github.jwyoon1220.dncity.network.PhoneNetworking
+ import io.github.jwyoon1220.dncity.network.RadioNetworking
+ import io.github.jwyoon1220.dncity.network.RadioStationNetworking
+ import io.github.jwyoon1220.dncity.network.VoiceNetworking
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServerEvents
+ import io.github.jwyoon1220.dncity.phone.PhoneServerEvents
+ import io.github.jwyoon1220.dncity.radio.RadioStationServerEvents
++import io.github.jwyoon1220.dncity.security.PgpAuthServerEvents
+ import net.minecraft.world.item.CreativeModeTabs
+ import net.neoforged.bus.api.SubscribeEvent
+ import net.neoforged.fml.common.EventBusSubscriber
+@@ -64,15 +68,22 @@ object Dncity {
+         NeoForge.EVENT_BUS.addListener(RadioCommand::onRegisterCommands)
+         NeoForge.EVENT_BUS.addListener(MusicCommand::onRegisterCommands)
+         NeoForge.EVENT_BUS.addListener(PhoneNumberCommand::onRegisterCommands)
++        NeoForge.EVENT_BUS.addListener(PgpCommand::onRegisterCommands)
+         NeoForge.EVENT_BUS.addListener(MusicServerEvents::onPlayerLoggedIn)
+         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedIn)
+         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedOut)
+         NeoForge.EVENT_BUS.addListener(RadioStationServerEvents::onPlayerLoggedOut)
++        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onServerStarting)
++        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onServerStopping)
++        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onPlayerLoggedIn)
++        NeoForge.EVENT_BUS.addListener(VoiceKcpServerEvents::onPlayerLoggedOut)
+         MOD_BUS.addListener(RadioNetworking::onRegisterPayloadHandlers)
+         MOD_BUS.addListener(RadioStationNetworking::onRegisterPayloadHandlers)
+         MOD_BUS.addListener(VoiceNetworking::onRegisterPayloadHandlers)
+         MOD_BUS.addListener(MusicNetworking::onRegisterPayloadHandlers)
+         MOD_BUS.addListener(PhoneNetworking::onRegisterPayloadHandlers)
++        MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
++        MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
+     }
+ 
+     /**
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/client/phone/PhoneCallTransmitter.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/client/phone/PhoneCallTransmitter.kt
+index 294b773..32b433a 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/client/phone/PhoneCallTransmitter.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/client/phone/PhoneCallTransmitter.kt
+@@ -1,9 +1,8 @@
+ package io.github.jwyoon1220.dncity.client.phone
+ 
+ import com.plasmoverse.opus.OpusEncoder
+-import io.github.jwyoon1220.dncity.network.PhoneCallAudioPayload
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
+ import io.github.jwyoon1220.dncity.voice.OpusCodec
+-import net.neoforged.neoforge.network.PacketDistributor
+ 
+ /**
+  * Client-side TX pump for an active phone call, driven by
+@@ -21,7 +20,7 @@ object PhoneCallTransmitter {
+ 
+     fun submit(frame48k: ShortArray) {
+         val enc = encoder ?: OpusCodec.createEncoder().also { encoder = it }
+-        PacketDistributor.sendToServer(PhoneCallAudioPayload(enc.encode(frame48k)))
++        VoiceKcpClient.sendPhoneCallAudio(enc.encode(frame48k))
+     }
+ 
+     /** Called on [io.github.jwyoon1220.dncity.voice.VoiceClientLoop.stop]. */
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/client/security/ClientPgpAuthReceiver.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/client/security/ClientPgpAuthReceiver.kt
+new file mode 100644
+index 0000000..ccdadf6
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/client/security/ClientPgpAuthReceiver.kt
+@@ -0,0 +1,20 @@
++package io.github.jwyoon1220.dncity.client.security
++
++import io.github.jwyoon1220.dncity.network.PgpChallengePayload
++import net.minecraft.client.Minecraft
++import net.neoforged.neoforge.network.handling.IPayloadContext
++
++/**
++ * Client-side handler for [io.github.jwyoon1220.dncity.network.PgpNetworking]'s configuration-phase
++ * challenge payload -- opens [PgpAuthScreen] to collect the player's passphrase and sign it. Same
++ * "referenced only from inside a `configurationToClient` closure" pattern as
++ * [io.github.jwyoon1220.dncity.voice.ClientRadioStationReceiver] for why it's safe to reference
++ * client-only classes here despite `PgpNetworking.onRegisterPayloadHandlers` itself running on
++ * both sides -- a dedicated server never actually invokes this handler, so this class is never
++ * loaded there.
++ */
++object ClientPgpAuthReceiver {
++    fun handleChallenge(payload: PgpChallengePayload, context: IPayloadContext) {
++        Minecraft.getInstance().setScreen(PgpAuthScreen(payload.challenge, context))
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/client/security/PgpAuthScreen.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/client/security/PgpAuthScreen.kt
+new file mode 100644
+index 0000000..b9b9571
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/client/security/PgpAuthScreen.kt
+@@ -0,0 +1,96 @@
++package io.github.jwyoon1220.dncity.client.security
++
++import io.github.jwyoon1220.dncity.network.PgpResponsePayload
++import io.github.jwyoon1220.dncity.security.PgpCrypto
++import io.github.jwyoon1220.dncity.security.PgpPaths
++import net.minecraft.client.gui.GuiGraphics
++import net.minecraft.client.gui.components.Button
++import net.minecraft.client.gui.components.EditBox
++import net.minecraft.client.gui.screens.Screen
++import net.minecraft.network.chat.Component
++import net.minecraft.network.chat.Style
++import net.minecraft.util.FormattedCharSequence
++import net.neoforged.neoforge.network.handling.IPayloadContext
++
++/**
++ * Blocking login-gate GUI shown during the configuration phase, before the player ever reaches
++ * the world -- see [io.github.jwyoon1220.dncity.security.PgpAuthConfigurationTask]. The player
++ * types the passphrase to their own local secret key ([PgpPaths.secretKeyFile], exported from
++ * Kleopatra ahead of time), which is used to sign [challenge] entirely client-side -- the
++ * passphrase itself never leaves this machine, only the resulting signature does
++ * ([PgpCrypto.sign]).
++ *
++ * A wrong passphrase, or a missing/unparsable key file, is caught here and shown inline so the
++ * player can just retry. A signature the server doesn't recognize (signed with a key it has no
++ * matching registered public key for) instead fails on the server side and disconnects the whole
++ * connection -- there's no synchronous way for a configuration task to report an error back into
++ * this same screen for a retry, so that failure mode surfaces as a normal disconnect-with-reason
++ * screen instead.
++ */
++class PgpAuthScreen(private val challenge: String, private val context: IPayloadContext) :
++    Screen(Component.literal("PGP Login Verification")) {
++
++    private lateinit var passphraseBox: EditBox
++    private lateinit var submitButton: Button
++    private var statusMessage: String? = null
++    private var statusIsError = false
++
++    override fun init() {
++        val boxWidth = 220
++        val left = (width - boxWidth) / 2
++        val top = height / 2 - 10
++
++        passphraseBox = EditBox(font, left, top, boxWidth, 20, Component.literal("passphrase"))
++        passphraseBox.setFormatter { text, _ -> FormattedCharSequence.forward("•".repeat(text.length), Style.EMPTY) }
++        passphraseBox.setResponder { statusMessage = null }
++        addRenderableWidget(passphraseBox)
++        setInitialFocus(passphraseBox)
++
++        submitButton = addRenderableWidget(
++            Button.builder(Component.literal("Sign in")) { submit() }
++                .bounds(left, top + 26, boxWidth, 20)
++                .build(),
++        )
++    }
++
++    private fun submit() {
++        if (!PgpPaths.secretKeyFile.isFile) {
++            statusMessage = "No secret key found at config/dncity/security/pgp/secret.asc"
++            statusIsError = true
++            return
++        }
++
++        try {
++            val signature = PgpCrypto.sign(
++                PgpPaths.secretKeyFile.readText(),
++                passphraseBox.value.toCharArray(),
++                challenge.toByteArray(Charsets.UTF_8),
++            )
++            context.reply(PgpResponsePayload(signature))
++            statusMessage = "Verifying..."
++            statusIsError = false
++            submitButton.active = false
++        } catch (e: Exception) {
++            statusMessage = "Signing failed: ${e.message ?: e::class.simpleName}"
++            statusIsError = true
++        }
++        passphraseBox.value = ""
++    }
++
++    override fun render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
++        super.render(graphics, mouseX, mouseY, partialTick)
++        graphics.drawCenteredString(font, title, width / 2, height / 2 - 40, 0xFFFFFF)
++        graphics.drawCenteredString(
++            font, Component.literal("Enter your PGP passphrase to continue"), width / 2, height / 2 - 26, 0xA0A0A0,
++        )
++        statusMessage?.let {
++            graphics.drawCenteredString(font, Component.literal(it), width / 2, height / 2 + 52, if (statusIsError) 0xFF5555 else 0xA0A0A0)
++        }
++    }
++
++    override fun isPauseScreen(): Boolean = false
++
++    // Deliberately no ESC-to-close -- this screen is the login gate itself, not a normal menu,
++    // so there's no "cancel" that still lets the player in.
++    override fun shouldCloseOnEsc(): Boolean = false
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/command/PgpCommand.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/command/PgpCommand.kt
+new file mode 100644
+index 0000000..c46674a
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/command/PgpCommand.kt
+@@ -0,0 +1,104 @@
++package io.github.jwyoon1220.dncity.command
++
++import com.mojang.brigadier.CommandDispatcher
++import com.mojang.brigadier.arguments.StringArgumentType
++import io.github.jwyoon1220.dncity.security.PgpKeyRegistry
++import io.github.jwyoon1220.dncity.security.PgpPaths
++import io.github.jwyoon1220.dncity.security.PgpSettings
++import net.minecraft.commands.CommandSourceStack
++import net.minecraft.commands.Commands
++import net.minecraft.network.chat.Component
++import net.minecraft.server.MinecraftServer
++import net.neoforged.neoforge.event.RegisterCommandsEvent
++import java.io.File
++import java.util.UUID
++
++/**
++ * Operator-only key lifecycle management for [PgpKeyRegistry] -- see
++ * [io.github.jwyoon1220.dncity.security.PgpAuthServerEvents] for how a registered key gates
++ * login. Registration itself stays a two-step, out-of-band process rather than a single command
++ * that takes an armored key as a chat argument (those routinely run to 20+ lines, far past what a
++ * Brigadier word/quoted-string argument is meant for): the player exports their public key from
++ * Kleopatra and sends it to an operator by any channel, the operator drops the file at
++ * `config/dncity/security/pgp/incoming/<playername>.asc`, then runs `/pgp register <playername>`
++ * to move it into the real registry. `/pgp enable`/`/pgp disable` toggle the whole login gate
++ * ([io.github.jwyoon1220.dncity.security.PgpSettings]) without touching anyone's registered key.
++ */
++object PgpCommand {
++    fun onRegisterCommands(event: RegisterCommandsEvent) {
++        register(event.dispatcher)
++    }
++
++    private fun register(dispatcher: CommandDispatcher<CommandSourceStack>) {
++        dispatcher.register(
++            Commands.literal("pgp")
++                .requires { it.hasPermission(2) }
++                .then(
++                    Commands.literal("register").then(
++                        Commands.argument("player", StringArgumentType.word()).executes { ctx ->
++                            val name = StringArgumentType.getString(ctx, "player")
++                            val playerId = resolvePlayerId(ctx.source.server, name)
++                            if (playerId == null) {
++                                ctx.source.sendFailure(Component.literal("Unknown player: $name"))
++                                return@executes 0
++                            }
++                            val incoming = File(PgpPaths.incomingDir, "$name.asc")
++                            if (!incoming.isFile) {
++                                ctx.source.sendFailure(
++                                    Component.literal("No pending key at config/dncity/security/pgp/incoming/$name.asc"),
++                                )
++                                return@executes 0
++                            }
++                            PgpKeyRegistry.register(playerId, incoming.readText())
++                            incoming.delete()
++                            ctx.source.sendSuccess({ Component.literal("Registered PGP key for $name") }, true)
++                            1
++                        },
++                    ),
++                )
++                .then(
++                    Commands.literal("unregister").then(
++                        Commands.argument("player", StringArgumentType.word()).executes { ctx ->
++                            val name = StringArgumentType.getString(ctx, "player")
++                            val playerId = resolvePlayerId(ctx.source.server, name)
++                            if (playerId == null || !PgpKeyRegistry.unregister(playerId)) {
++                                ctx.source.sendFailure(Component.literal("No registered key for $name"))
++                                return@executes 0
++                            }
++                            ctx.source.sendSuccess({ Component.literal("Unregistered PGP key for $name") }, true)
++                            1
++                        },
++                    ),
++                )
++                .then(
++                    Commands.literal("list").executes { ctx ->
++                        val ids = PgpKeyRegistry.registeredPlayerIds()
++                        ctx.source.sendSuccess(
++                            { Component.literal(if (ids.isEmpty()) "No registered PGP keys" else "Registered: ${ids.joinToString()}") },
++                            false,
++                        )
++                        1
++                    },
++                )
++                .then(
++                    Commands.literal("enable").executes { ctx ->
++                        PgpSettings.enabled = true
++                        ctx.source.sendSuccess({ Component.literal("PGP login gate enabled") }, true)
++                        1
++                    },
++                )
++                .then(
++                    Commands.literal("disable").executes { ctx ->
++                        PgpSettings.enabled = false
++                        ctx.source.sendSuccess({ Component.literal("PGP login gate disabled") }, true)
++                        1
++                    },
++                ),
++        )
++    }
++
++    private fun resolvePlayerId(server: MinecraftServer, name: String): UUID? {
++        server.playerList.getPlayerByName(name)?.let { return it.uuid }
++        return server.profileCache?.get(name)?.map { it.id }?.orElse(null)
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/KCPServer.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/KCPServer.kt
+deleted file mode 100644
+index 601f1f0..0000000
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/KCPServer.kt
++++ /dev/null
+@@ -1,4 +0,0 @@
+-package io.github.jwyoon1220.dncity.network
+-
+-class KCPServer {
+-}
+\ No newline at end of file
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/PgpNetworking.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PgpNetworking.kt
+new file mode 100644
+index 0000000..235abfd
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PgpNetworking.kt
+@@ -0,0 +1,35 @@
++package io.github.jwyoon1220.dncity.network
++
++import io.github.jwyoon1220.dncity.client.security.ClientPgpAuthReceiver
++import io.github.jwyoon1220.dncity.security.PgpAuthConfigurationTask
++import io.github.jwyoon1220.dncity.security.PgpAuthManager
++import net.minecraft.network.chat.Component
++import net.minecraft.server.network.ServerConfigurationPacketListenerImpl
++import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent
++import net.neoforged.neoforge.network.handling.IPayloadHandler
++
++/** Registers the PGP login-gate's two configuration-phase payloads -- see
++ * [io.github.jwyoon1220.dncity.security.PgpAuthServerEvents]/[PgpAuthConfigurationTask] for how
++ * the handshake is driven. */
++object PgpNetworking {
++    fun onRegisterPayloadHandlers(event: RegisterPayloadHandlersEvent) {
++        val registrar = event.registrar("1")
++
++        registrar.configurationToClient(PgpChallengePayload.TYPE, PgpChallengePayload.STREAM_CODEC, IPayloadHandler { payload, context ->
++            context.enqueueWork {
++                ClientPgpAuthReceiver.handleChallenge(payload, context)
++            }
++        })
++
++        registrar.configurationToServer(PgpResponsePayload.TYPE, PgpResponsePayload.STREAM_CODEC, IPayloadHandler { payload, context ->
++            context.enqueueWork {
++                val listener = context.listener() as? ServerConfigurationPacketListenerImpl ?: return@enqueueWork
++                if (PgpAuthManager.verifyAndComplete(listener, payload.signatureArmored)) {
++                    context.finishCurrentTask(PgpAuthConfigurationTask.TYPE)
++                } else {
++                    context.disconnect(Component.literal("PGP signature verification failed."))
++                }
++            }
++        })
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/PgpPayloads.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PgpPayloads.kt
+new file mode 100644
+index 0000000..fa3c6dc
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PgpPayloads.kt
+@@ -0,0 +1,44 @@
++package io.github.jwyoon1220.dncity.network
++
++import io.github.jwyoon1220.dncity.Dncity
++import net.minecraft.network.codec.ByteBufCodecs
++import net.minecraft.network.codec.StreamCodec
++import net.minecraft.network.protocol.common.custom.CustomPacketPayload
++import net.minecraft.resources.ResourceLocation
++
++/**
++ * Server -> client, sent during the configuration phase (before the player ever reaches the
++ * world): the random string the client must PGP-sign -- see
++ * [io.github.jwyoon1220.dncity.security.PgpAuthConfigurationTask].
++ */
++data class PgpChallengePayload(val challenge: String) : CustomPacketPayload {
++    override fun type() = TYPE
++
++    companion object {
++        val TYPE: CustomPacketPayload.Type<PgpChallengePayload> =
++            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "pgp_challenge"))
++
++        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, PgpChallengePayload> = StreamCodec.composite(
++            ByteBufCodecs.STRING_UTF8, PgpChallengePayload::challenge,
++            ::PgpChallengePayload,
++        )
++    }
++}
++
++/**
++ * Client -> server, sent during the configuration phase: the armored detached signature over the
++ * challenge, computed client-side by [io.github.jwyoon1220.dncity.client.security.PgpAuthScreen].
++ */
++data class PgpResponsePayload(val signatureArmored: String) : CustomPacketPayload {
++    override fun type() = TYPE
++
++    companion object {
++        val TYPE: CustomPacketPayload.Type<PgpResponsePayload> =
++            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "pgp_response"))
++
++        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, PgpResponsePayload> = StreamCodec.composite(
++            ByteBufCodecs.STRING_UTF8, PgpResponsePayload::signatureArmored,
++            ::PgpResponsePayload,
++        )
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhoneNetworking.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhoneNetworking.kt
+index 4189384..070fa13 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhoneNetworking.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhoneNetworking.kt
+@@ -1,7 +1,6 @@
+ package io.github.jwyoon1220.dncity.network
+ 
+ import io.github.jwyoon1220.dncity.client.phone.PhoneCallManager
+-import io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver
+ import io.github.jwyoon1220.dncity.phone.PhoneCallSession
+ import io.github.jwyoon1220.dncity.phone.PhoneCallState
+ import net.minecraft.server.level.ServerPlayer
+@@ -41,12 +40,6 @@ object PhoneNetworking {
+             }
+         })
+ 
+-        registrar.playToServer(PhoneCallAudioPayload.TYPE, PhoneCallAudioPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+-            context.enqueueWork {
+-                PhoneCallSession.relayAudio(context.player() as ServerPlayer, payload.opusData)
+-            }
+-        })
+-
+         registrar.playToClient(PhoneNumberAssignedPayload.TYPE, PhoneNumberAssignedPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+             context.enqueueWork {
+                 PhoneCallManager.setMyNumber(payload.number)
+@@ -60,10 +53,7 @@ object PhoneNetworking {
+             }
+         })
+ 
+-        registrar.playToClient(PhoneCallAudioRelayPayload.TYPE, PhoneCallAudioRelayPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+-            context.enqueueWork {
+-                PhoneCallReceiver.handleFrame(payload.opusData)
+-            }
+-        })
++        // Call audio itself no longer rides this channel -- see
++        // io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer/VoiceKcpClient.
+     }
+ }
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhonePayloads.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhonePayloads.kt
+index 7a1f460..b246103 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhonePayloads.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/PhonePayloads.kt
+@@ -9,11 +9,6 @@ import net.minecraft.resources.ResourceLocation
+ private const val MAX_NUMBER_LENGTH = 32
+ private const val MAX_NAME_LENGTH = 32
+ 
+-// Comfortably above OpusCodec's 1024-byte mtuSize, same bound VoiceAudioPayload/RadioAudioPayload
+-// use -- a hard cap so a malformed/hostile client can't make the server allocate an unbounded
+-// buffer per packet.
+-private const val MAX_OPUS_FRAME_BYTES = 2048
+-
+ /**
+  * Server -> client: this player's own phone number ([io.github.jwyoon1220.dncity.phone.PhoneDirectory],
+  * auto-derived from their UUID), sent once on login (`phone.PhoneServerEvents`) so the dialer UI
+@@ -87,43 +82,9 @@ class PhoneCallHangupPayload : CustomPacketPayload {
+     }
+ }
+ 
+-/**
+- * One ~20ms Opus-encoded frame of an active phone call, sent from either participant to the
+- * server (see [io.github.jwyoon1220.dncity.client.phone.PhoneCallTransmitter]).
+- */
+-class PhoneCallAudioPayload(val opusData: ByteArray) : CustomPacketPayload {
+-    override fun type() = TYPE
+-
+-    companion object {
+-        val TYPE: CustomPacketPayload.Type<PhoneCallAudioPayload> =
+-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "phone_call_audio"))
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, PhoneCallAudioPayload> = StreamCodec.composite(
+-            ByteBufCodecs.byteArray(MAX_OPUS_FRAME_BYTES), PhoneCallAudioPayload::opusData,
+-            ::PhoneCallAudioPayload,
+-        )
+-    }
+-}
+-
+-/**
+- * The same frame relayed by the server to the other participant in the call (see
+- * [io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver]). No sender/position info needed,
+- * unlike [VoiceAudioRelayPayload]/[RadioAudioRelayPayload] -- a call has exactly one possible
+- * peer, so the client already knows who it's from.
+- */
+-class PhoneCallAudioRelayPayload(val opusData: ByteArray) : CustomPacketPayload {
+-    override fun type() = TYPE
+-
+-    companion object {
+-        val TYPE: CustomPacketPayload.Type<PhoneCallAudioRelayPayload> =
+-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "phone_call_audio_relay"))
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, PhoneCallAudioRelayPayload> = StreamCodec.composite(
+-            ByteBufCodecs.byteArray(MAX_OPUS_FRAME_BYTES), PhoneCallAudioRelayPayload::opusData,
+-            ::PhoneCallAudioRelayPayload,
+-        )
+-    }
+-}
++// Phone call audio itself no longer rides this channel -- see
++// io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer/VoiceKcpClient (was PhoneCallAudioPayload/
++// PhoneCallAudioRelayPayload).
+ 
+ /**
+  * Server -> client: a call-state transition for this player -- drives both the phone UI's
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioNetworking.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioNetworking.kt
+index b8c2234..ea786b6 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioNetworking.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioNetworking.kt
+@@ -2,9 +2,6 @@ package io.github.jwyoon1220.dncity.network
+ 
+ import io.github.jwyoon1220.dncity.radio.RadioActions
+ import io.github.jwyoon1220.dncity.radio.RadioMode
+-import io.github.jwyoon1220.dncity.voice.ClientRadioReceiver
+-import io.github.jwyoon1220.dncity.voice.RadioRelay
+-import net.minecraft.server.level.ServerPlayer
+ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent
+ import net.neoforged.neoforge.network.handling.IPayloadHandler
+ 
+@@ -32,19 +29,7 @@ object RadioNetworking {
+             }
+         })
+ 
+-        registrar.playToServer(RadioAudioPayload.TYPE, RadioAudioPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+-            context.enqueueWork {
+-                RadioRelay.relay(context.player() as ServerPlayer, payload.audioData)
+-            }
+-        })
+-
+-        registrar.playToClient(RadioAudioRelayPayload.TYPE, RadioAudioRelayPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+-            context.enqueueWork {
+-                ClientRadioReceiver.handleRelayedFrame(
+-                    payload.senderEntityId, payload.audioData, payload.frequencyKhz, payload.mode,
+-                    payload.senderPosition, payload.effectiveMaxRangeBlocks, payload.obstructed, payload.stormNoise,
+-                )
+-            }
+-        })
++        // Radio audio itself no longer rides this channel -- see
++        // io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer/VoiceKcpClient.
+     }
+ }
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioVoicePayloads.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioVoicePayloads.kt
+deleted file mode 100644
+index 6359b0f..0000000
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioVoicePayloads.kt
++++ /dev/null
+@@ -1,133 +0,0 @@
+-package io.github.jwyoon1220.dncity.network
+-
+-import io.github.jwyoon1220.dncity.Dncity
+-import net.minecraft.network.codec.ByteBufCodecs
+-import net.minecraft.network.codec.StreamCodec
+-import net.minecraft.network.protocol.common.custom.CustomPacketPayload
+-import net.minecraft.resources.ResourceLocation
+-
+-/**
+- * One ~20ms radio-voice frame, sent from a transmitting (PTT-held) client to the server. Which
+- * codec encoded it depends on the active slot's [io.github.jwyoon1220.dncity.radio.RadioMode] --
+- * AM/FM use Opus, USB uses codec2 (see [io.github.jwyoon1220.dncity.voice.RadioTransmitter]) --
+- * not carried in the payload itself, since the server/receiving client both already know the
+- * mode from the sender's tuned slot. Carries no frequency/mode either -- the server reads those
+- * authoritatively off the sender's held radio's active slot (see
+- * [io.github.jwyoon1220.dncity.voice.RadioRelay]), the same way
+- * [io.github.jwyoon1220.dncity.radio.RadioActions] never trusts client-declared state.
+- */
+-class RadioAudioPayload(val audioData: ByteArray) : CustomPacketPayload {
+-    override fun type() = TYPE
+-
+-    companion object {
+-        // Comfortably above both codecs' largest per-frame size (codec2: a handful of bytes;
+-        // Opus: bounded by OpusCodec's 1024-byte mtuSize) -- a hard cap so a malformed/hostile
+-        // client can't make the server allocate an unbounded buffer per packet.
+-        private const val MAX_AUDIO_FRAME_BYTES = 2048
+-
+-        val TYPE: CustomPacketPayload.Type<RadioAudioPayload> =
+-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "radio_audio"))
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, RadioAudioPayload> = StreamCodec.composite(
+-            ByteBufCodecs.byteArray(MAX_AUDIO_FRAME_BYTES), RadioAudioPayload::audioData,
+-            ::RadioAudioPayload,
+-        )
+-    }
+-}
+-
+-/** The transmitter's world position at the moment it sent this frame, as of [RadioRelay.relay]'s
+- * own snapshot of it -- bundled into its own small codec so [RadioAudioRelayPayload]'s outer
+- * composite codec doesn't need one field per coordinate. */
+-data class RadioSenderPosition(val x: Double, val y: Double, val z: Double) {
+-    companion object {
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, RadioSenderPosition> = StreamCodec.composite(
+-            ByteBufCodecs.DOUBLE, RadioSenderPosition::x,
+-            ByteBufCodecs.DOUBLE, RadioSenderPosition::y,
+-            ByteBufCodecs.DOUBLE, RadioSenderPosition::z,
+-            ::RadioSenderPosition,
+-        )
+-    }
+-}
+-
+-/**
+- * The same frame relayed by the server to one listener tuned to the transmitter's frequency and
+- * within its band's range. [mode] tells the client which codec to decode with (see
+- * [io.github.jwyoon1220.dncity.radio.RadioMode.codec]) and, together with [frequencyKhz]'s
+- * derived [io.github.jwyoon1220.dncity.radio.RadioBand], drives static-noise coloring locally,
+- * same as [VoiceAudioRelayPayload] leaves gain-from-distance to the client rather than sending a
+- * precomputed value -- except the *range* that gain is computed against is not a fixed band
+- * constant any more: [effectiveMaxRangeBlocks] is this specific transmission's server-computed
+- * range for this specific listener (terrain/elevation for line-of-sight bands, day/night ground-
+- * wave-vs-skywave for LW/MW/SW -- see [io.github.jwyoon1220.dncity.voice.RadioRelay] for the
+- * computation and [io.github.jwyoon1220.dncity.radio.RadioVoice] for how the client applies it),
+- * since only the server has the terrain/time-of-day data needed to derive it. [obstructed] and
+- * [stormNoise] are extra static-only flags for the same reason (see
+- * [io.github.jwyoon1220.dncity.radio.RadioVoice.staticLevel]).
+- *
+- * [senderPosition] is carried explicitly rather than left for the client to look up via
+- * [senderEntityId] (`Level.getEntity`) -- that only resolves for entities Minecraft's normal
+- * entity-tracking has actually synced to this specific client, which is a much shorter radius
+- * than an unlimited-range radio band (SW-and-below, see [io.github.jwyoon1220.dncity.radio.RadioBand])
+- * is supposed to reach; relying on it silently dropped audio (and its static) the moment the
+- * sender left vanilla tracking range, well short of the band's real range. [senderEntityId] is
+- * kept only to key per-speaker decoder/mixer state and to filter out the local player's own
+- * transmission.
+- */
+-/** [effectiveMaxRangeBlocks] and the obstructed/storm flags bundled into their own small codec so
+- * [RadioAudioRelayPayload]'s outer composite codec stays within [StreamCodec.composite]'s 6-field
+- * arity limit (same reason [RadioSenderPosition] exists as its own type). */
+-data class RadioRangeInfo(val effectiveMaxRangeBlocks: Double, private val flags: Int) {
+-    val obstructed: Boolean get() = (flags and FLAG_OBSTRUCTED) != 0
+-    val stormNoise: Boolean get() = (flags and FLAG_STORM_NOISE) != 0
+-
+-    companion object {
+-        private const val FLAG_OBSTRUCTED = 1
+-        private const val FLAG_STORM_NOISE = 2
+-
+-        fun of(effectiveMaxRangeBlocks: Double, obstructed: Boolean, stormNoise: Boolean) = RadioRangeInfo(
+-            effectiveMaxRangeBlocks,
+-            (if (obstructed) FLAG_OBSTRUCTED else 0) or (if (stormNoise) FLAG_STORM_NOISE else 0),
+-        )
+-
+-        private fun flagsValueOf(info: RadioRangeInfo): Int =
+-            (if (info.obstructed) FLAG_OBSTRUCTED else 0) or (if (info.stormNoise) FLAG_STORM_NOISE else 0)
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, RadioRangeInfo> = StreamCodec.composite(
+-            ByteBufCodecs.DOUBLE, RadioRangeInfo::effectiveMaxRangeBlocks,
+-            ByteBufCodecs.VAR_INT, ::flagsValueOf,
+-            ::RadioRangeInfo,
+-        )
+-    }
+-}
+-
+-class RadioAudioRelayPayload(
+-    val senderEntityId: Int,
+-    val audioData: ByteArray,
+-    val frequencyKhz: Double,
+-    val mode: String,
+-    val senderPosition: RadioSenderPosition,
+-    val rangeInfo: RadioRangeInfo,
+-) : CustomPacketPayload {
+-    val effectiveMaxRangeBlocks: Double get() = rangeInfo.effectiveMaxRangeBlocks
+-    val obstructed: Boolean get() = rangeInfo.obstructed
+-    val stormNoise: Boolean get() = rangeInfo.stormNoise
+-
+-    override fun type() = TYPE
+-
+-    companion object {
+-        private const val MAX_AUDIO_FRAME_BYTES = 2048
+-
+-        val TYPE: CustomPacketPayload.Type<RadioAudioRelayPayload> =
+-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "radio_audio_relay"))
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, RadioAudioRelayPayload> = StreamCodec.composite(
+-            ByteBufCodecs.VAR_INT, RadioAudioRelayPayload::senderEntityId,
+-            ByteBufCodecs.byteArray(MAX_AUDIO_FRAME_BYTES), RadioAudioRelayPayload::audioData,
+-            ByteBufCodecs.DOUBLE, RadioAudioRelayPayload::frequencyKhz,
+-            ByteBufCodecs.STRING_UTF8, RadioAudioRelayPayload::mode,
+-            RadioSenderPosition.STREAM_CODEC, RadioAudioRelayPayload::senderPosition,
+-            RadioRangeInfo.STREAM_CODEC, RadioAudioRelayPayload::rangeInfo,
+-            ::RadioAudioRelayPayload,
+-        )
+-    }
+-}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioVoiceTypes.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioVoiceTypes.kt
+new file mode 100644
+index 0000000..b53f1e3
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/RadioVoiceTypes.kt
+@@ -0,0 +1,34 @@
++package io.github.jwyoon1220.dncity.network
++
++/**
++ * The transmitter's world position at the moment it sent a frame, as of
++ * [io.github.jwyoon1220.dncity.voice.RadioRelay]'s own snapshot of it. Plain value holder now --
++ * radio audio (and its relay) moved off Minecraft's packet channel onto
++ * [io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer]/[io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient],
++ * so this no longer needs its own [net.minecraft.network.codec.StreamCodec] -- see
++ * [io.github.jwyoon1220.dncity.network.kcp.VoiceKcpProtocol] for the wire encoding.
++ */
++data class RadioSenderPosition(val x: Double, val y: Double, val z: Double)
++
++/**
++ * [effectiveMaxRangeBlocks] and the obstructed/storm-noise flags for one radio relay frame,
++ * bundled together the same way [RadioSenderPosition] bundles a position -- see that class's doc
++ * comment for why this is no longer a [net.minecraft.network.protocol.common.custom.CustomPacketPayload]
++ * field type.
++ */
++data class RadioRangeInfo(val effectiveMaxRangeBlocks: Double, private val flags: Int) {
++    val obstructed: Boolean get() = (flags and FLAG_OBSTRUCTED) != 0
++    val stormNoise: Boolean get() = (flags and FLAG_STORM_NOISE) != 0
++
++    companion object {
++        private const val FLAG_OBSTRUCTED = 1
++        private const val FLAG_STORM_NOISE = 2
++
++        fun of(effectiveMaxRangeBlocks: Double, obstructed: Boolean, stormNoise: Boolean) = RadioRangeInfo(
++            effectiveMaxRangeBlocks,
++            (if (obstructed) FLAG_OBSTRUCTED else 0) or (if (stormNoise) FLAG_STORM_NOISE else 0),
++        )
++
++        fun flagsOf(info: RadioRangeInfo) = (if (info.obstructed) FLAG_OBSTRUCTED else 0) or (if (info.stormNoise) FLAG_STORM_NOISE else 0)
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceKcpHandshakePayload.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceKcpHandshakePayload.kt
+new file mode 100644
+index 0000000..93b22f7
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceKcpHandshakePayload.kt
+@@ -0,0 +1,32 @@
++package io.github.jwyoon1220.dncity.network
++
++import io.github.jwyoon1220.dncity.Dncity
++import net.minecraft.network.codec.ByteBufCodecs
++import net.minecraft.network.codec.StreamCodec
++import net.minecraft.network.protocol.common.custom.CustomPacketPayload
++import net.minecraft.resources.ResourceLocation
++
++/**
++ * Server -> client, sent once on login: bootstraps the client's
++ * [io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient] UDP session (conv id, shared secret,
++ * and the server's KCP port) so all subsequent close-range voice/radio/phone-call audio can flow
++ * entirely outside Minecraft's own packet channel -- see
++ * [io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer]'s doc comment. Carries no audio itself;
++ * this is the one piece of unavoidable bootstrap plumbing a raw UDP session needs, since the
++ * client has no other way to learn which session is its own.
++ */
++class VoiceKcpHandshakePayload(val conv: Int, val secret: Long, val port: Int) : CustomPacketPayload {
++    override fun type() = TYPE
++
++    companion object {
++        val TYPE: CustomPacketPayload.Type<VoiceKcpHandshakePayload> =
++            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "voice_kcp_handshake"))
++
++        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, VoiceKcpHandshakePayload> = StreamCodec.composite(
++            ByteBufCodecs.VAR_INT, VoiceKcpHandshakePayload::conv,
++            ByteBufCodecs.VAR_LONG, VoiceKcpHandshakePayload::secret,
++            ByteBufCodecs.VAR_INT, VoiceKcpHandshakePayload::port,
++            ::VoiceKcpHandshakePayload,
++        )
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceNetworking.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceNetworking.kt
+index 5bae025..5435442 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceNetworking.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoiceNetworking.kt
+@@ -1,25 +1,23 @@
+ package io.github.jwyoon1220.dncity.network
+ 
+-import io.github.jwyoon1220.dncity.voice.ClientVoiceReceiver
+-import io.github.jwyoon1220.dncity.voice.VoiceRelay
+-import net.minecraft.server.level.ServerPlayer
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
+ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent
+ import net.neoforged.neoforge.network.handling.IPayloadHandler
+ 
++/**
++ * Registers only the one-time KCP handshake payload now -- all actual close-range voice/radio/
++ * phone-call audio moved off Minecraft's own channel entirely onto
++ * [io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer]/[VoiceKcpClient] (a self-built
++ * KCP-over-Netty UDP transport). See [VoiceKcpHandshakePayload].
++ */
+ object VoiceNetworking {
+ 
+     fun onRegisterPayloadHandlers(event: RegisterPayloadHandlersEvent) {
+         val registrar = event.registrar("1")
+ 
+-        registrar.playToServer(VoiceAudioPayload.TYPE, VoiceAudioPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
++        registrar.playToClient(VoiceKcpHandshakePayload.TYPE, VoiceKcpHandshakePayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+             context.enqueueWork {
+-                VoiceRelay.relay(context.player() as ServerPlayer, payload.opusData)
+-            }
+-        })
+-
+-        registrar.playToClient(VoiceAudioRelayPayload.TYPE, VoiceAudioRelayPayload.STREAM_CODEC, IPayloadHandler { payload, context ->
+-            context.enqueueWork {
+-                ClientVoiceReceiver.handleRelayedFrame(payload.senderEntityId, payload.opusData)
++                VoiceKcpClient.connect(VoiceKcpClient.resolveHost(), payload.port, payload.conv, payload.secret)
+             }
+         })
+     }
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoicePayloads.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoicePayloads.kt
+deleted file mode 100644
+index cbd5e5b..0000000
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/network/VoicePayloads.kt
++++ /dev/null
+@@ -1,49 +0,0 @@
+-package io.github.jwyoon1220.dncity.network
+-
+-import io.github.jwyoon1220.dncity.Dncity
+-import net.minecraft.network.codec.ByteBufCodecs
+-import net.minecraft.network.codec.StreamCodec
+-import net.minecraft.network.protocol.common.custom.CustomPacketPayload
+-import net.minecraft.resources.ResourceLocation
+-
+-/** One ~20ms Opus-encoded close-range voice frame, sent from a speaking client to the server. */
+-class VoiceAudioPayload(val opusData: ByteArray) : CustomPacketPayload {
+-    override fun type() = TYPE
+-
+-    companion object {
+-        // Comfortably above OpusCodec's 1024-byte mtuSize; a hard cap so a malformed/hostile
+-        // client can't make the server allocate an unbounded buffer per packet.
+-        private const val MAX_OPUS_FRAME_BYTES = 2048
+-
+-        val TYPE: CustomPacketPayload.Type<VoiceAudioPayload> =
+-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "voice_audio"))
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, VoiceAudioPayload> = StreamCodec.composite(
+-            ByteBufCodecs.byteArray(MAX_OPUS_FRAME_BYTES), VoiceAudioPayload::opusData,
+-            ::VoiceAudioPayload,
+-        )
+-    }
+-}
+-
+-/**
+- * The same frame relayed by the server to one listener within
+- * [io.github.jwyoon1220.dncity.voice.CloseRangeVoice.MAX_RANGE_BLOCKS] of the speaker.
+- * [senderEntityId] lets the client look up the speaker's current (interpolated) position for
+- * the distance-based gain calculation, rather than trusting a position embedded in the packet.
+- */
+-class VoiceAudioRelayPayload(val senderEntityId: Int, val opusData: ByteArray) : CustomPacketPayload {
+-    override fun type() = TYPE
+-
+-    companion object {
+-        private const val MAX_OPUS_FRAME_BYTES = 2048
+-
+-        val TYPE: CustomPacketPayload.Type<VoiceAudioRelayPayload> =
+-            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "voice_audio_relay"))
+-
+-        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, VoiceAudioRelayPayload> = StreamCodec.composite(
+-            ByteBufCodecs.VAR_INT, VoiceAudioRelayPayload::senderEntityId,
+-            ByteBufCodecs.byteArray(MAX_OPUS_FRAME_BYTES), VoiceAudioRelayPayload::opusData,
+-            ::VoiceAudioRelayPayload,
+-        )
+-    }
+-}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/Kcp.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/Kcp.kt
+new file mode 100644
+index 0000000..0772264
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/Kcp.kt
+@@ -0,0 +1,313 @@
++package io.github.jwyoon1220.dncity.network.kcp
++
++/**
++ * A from-scratch Kotlin implementation of the essential mechanics of the KCP ARQ protocol
++ * (github.com/skywind3000/kcp): per-segment selective ACK, adaptive RTO, and fast retransmit on
++ * top of a sliding send/receive window -- the parts that make it a useful low-latency alternative
++ * to raw unreliable UDP for this mod's voice traffic (see [VoiceKcpServer]/[VoiceKcpClient]).
++ *
++ * Deliberately **not** a full port of the reference algorithm: there is no congestion-control
++ * window (slow start/ssthresh) and no window-probe (WASK/WINS) handshake -- this mod's own
++ * transport tuning always runs in "no congestion control" mode (`nc=1` in upstream terms) since
++ * voice traffic is small, bursty, and only ever crosses a private/LAN-scale link (see
++ * `RadioBand`'s own doc comment on the map's ~7.5km² scale), so the extra machinery upstream needs
++ * for internet-scale fairness would only add complexity without changing behavior here. `sn`/`una`
++ * sequence numbers are tracked as unwrapped [Long]s rather than the reference's 32-bit wraparound
++ * arithmetic -- at this protocol's realistic frame rate (tens of segments/second) a session would
++ * need to run for months before that matters, comfortably longer than this mod's actual server
++ * uptime between restarts.
++ *
++ * One instance is one logical connection ("conv"). Message-oriented, not stream-oriented: each
++ * [send] call is reassembled into exactly one [recv] on the peer, regardless of how many segments
++ * it had to be split across. Knows nothing about sockets or threads -- [output] is invoked with
++ * the exact bytes to put on the wire for this conv, and [update]/[input] are meant to be driven by
++ * the caller's own timer/event loop (see [VoiceKcpServer]/[VoiceKcpClient], which drive it from a
++ * dedicated Netty event-loop-scheduled tick rather than Minecraft's own tick rate, so voice
++ * latency isn't bounded by the game's 50ms tick).
++ */
++class Kcp(private val conv: Int, private val output: (ByteArray) -> Unit) {
++
++    private class Segment(var data: ByteArray = EMPTY) {
++        var frg: Int = 0
++        var sn: Long = 0
++        var resendTs: Long = 0
++        var rto: Long = RTO_DEFAULT
++        var fastAck: Int = 0
++        var xmit: Int = 0
++    }
++
++    // ---- send side ----
++    private var sndUna = 0L
++    private var sndNxt = 0L
++    private val sndQueue = ArrayDeque<Segment>()
++    private val sndBuf = ArrayDeque<Segment>()
++
++    // ---- receive side ----
++    private var rcvNxt = 0L
++    private val rcvBuf = ArrayDeque<Segment>()
++    private val rcvQueue = ArrayDeque<Segment>()
++    private val ackList = ArrayList<LongArray>() // pending (sn, ts) pairs to acknowledge
++
++    // ---- RTT/RTO estimation (RFC 6298-style) ----
++    private var rxSrtt = 0L
++    private var rxRttval = 0L
++    private var rxRto = RTO_DEFAULT
++
++    private var rmtWnd = RCV_WND
++    private var current = 0L
++    private var started = false
++
++    private var outChunk = ByteArray(0)
++    private var outChunkLen = 0
++
++    /** Queues [data] for delivery, fragmenting across multiple segments if it exceeds one
++     * segment's payload capacity ([MSS]). Actual sending happens later, from [update]/[flush]. */
++    fun send(data: ByteArray) {
++        if (data.isEmpty()) return
++        val count = (data.size + MSS - 1) / MSS
++        var offset = 0
++        for (i in 0 until count) {
++            val size = minOf(MSS, data.size - offset)
++            val seg = Segment(data.copyOfRange(offset, offset + size))
++            seg.frg = count - i - 1
++            sndQueue.addLast(seg)
++            offset += size
++        }
++    }
++
++    /** Returns the next fully-reassembled message, or `null` if none is complete yet. */
++    fun recv(): ByteArray? {
++        val size = peekSize() ?: return null
++        val result = ByteArray(size)
++        var offset = 0
++        while (true) {
++            val seg = rcvQueue.removeFirst()
++            System.arraycopy(seg.data, 0, result, offset, seg.data.size)
++            offset += seg.data.size
++            if (seg.frg == 0) break
++        }
++        return result
++    }
++
++    private fun peekSize(): Int? {
++        if (rcvQueue.isEmpty()) return null
++        var len = 0
++        for (seg in rcvQueue) {
++            len += seg.data.size
++            if (seg.frg == 0) return len
++        }
++        return null // first message isn't fully reassembled yet
++    }
++
++    /** Feeds one raw incoming datagram (which may contain several concatenated segments, per
++     * [flush]'s own packing) into the protocol state machine. */
++    fun input(data: ByteArray) {
++        var offset = 0
++        while (data.size - offset >= OVERHEAD) {
++            var p = offset
++            val segConv = decode32(data, p); p += 4
++            if (segConv != conv) return // not for this session -- shouldn't happen, already demuxed by conv
++            val cmd = decode8(data, p); p += 1
++            val frg = decode8(data, p); p += 1
++            decode16(data, p); p += 2 // peer's advertised window -- read for wire-format parity, unused (see class doc: no probe/congestion-control)
++            val ts = decode32(data, p).toLong() and 0xFFFFFFFFL; p += 4
++            val sn = decode32(data, p).toLong() and 0xFFFFFFFFL; p += 4
++            val una = decode32(data, p).toLong() and 0xFFFFFFFFL; p += 4
++            val len = decode32(data, p); p += 4
++            offset = p
++            if (data.size - offset < len) return
++
++            parseUna(una)
++
++            when (cmd) {
++                CMD_PUSH -> {
++                    // Ack regardless of whether this is new data -- if sn < rcvNxt, it's already
++                    // been delivered and the peer's own earlier ack for it was likely lost.
++                    ackList.add(longArrayOf(sn, ts))
++                    if (sn >= rcvNxt) {
++                        val seg = Segment(data.copyOfRange(offset, offset + len))
++                        seg.sn = sn
++                        seg.frg = frg
++                        insertIntoRcvBuf(seg) // de-dupes internally
++                    }
++                }
++                CMD_ACK -> {
++                    if (current >= ts) updateRto(current - ts)
++                    parseAck(sn)
++                }
++            }
++            offset += len
++        }
++        moveRcvBufToQueue()
++    }
++
++    private fun parseUna(una: Long) {
++        while (sndBuf.isNotEmpty() && sndBuf.first().sn < una) sndBuf.removeFirst()
++        if (una > sndUna) sndUna = una
++    }
++
++    private fun parseAck(sn: Long) {
++        if (sn < sndUna || sn >= sndNxt) return
++        val it = sndBuf.iterator()
++        while (it.hasNext()) {
++            val seg = it.next()
++            when {
++                seg.sn == sn -> { it.remove(); return }
++                seg.sn < sn -> seg.fastAck++
++                else -> return // sndBuf is sn-ordered; nothing further can match or need incrementing
++            }
++        }
++    }
++
++    private fun updateRto(rtt: Long) {
++        if (rxSrtt == 0L) {
++            rxSrtt = rtt
++            rxRttval = rtt / 2
++        } else {
++            val delta = kotlin.math.abs(rtt - rxSrtt)
++            rxRttval = (3 * rxRttval + delta) / 4
++            rxSrtt = (7 * rxSrtt + rtt) / 8
++            if (rxSrtt < 1) rxSrtt = 1
++        }
++        rxRto = (rxSrtt + maxOf(INTERVAL_MS, 4 * rxRttval)).coerceIn(RTO_MIN, RTO_MAX)
++    }
++
++    private fun insertIntoRcvBuf(newSeg: Segment) {
++        var index = rcvBuf.size
++        for (i in rcvBuf.indices.reversed()) {
++            val seg = rcvBuf[i]
++            if (seg.sn == newSeg.sn) return // duplicate
++            if (seg.sn < newSeg.sn) { index = i + 1; break }
++            index = i
++        }
++        rcvBuf.add(index, newSeg)
++    }
++
++    private fun moveRcvBufToQueue() {
++        while (rcvBuf.isNotEmpty()) {
++            val seg = rcvBuf.first()
++            if (seg.sn == rcvNxt && rcvQueue.size < RCV_WND) {
++                rcvBuf.removeFirst()
++                rcvQueue.addLast(seg)
++                rcvNxt++
++            } else {
++                break
++            }
++        }
++    }
++
++    /** Drives retransmission/flush timing -- call at a fixed short interval (see [VoiceKcpServer]/
++     * [VoiceKcpClient]'s own scheduled tick), passing the caller's own monotonic millisecond
++     * clock. */
++    fun update(currentMs: Long) {
++        current = currentMs
++        started = true
++        flush()
++    }
++
++    private fun flush() {
++        if (!started) return
++
++        for ((sn, ts) in ackList) appendSegment(CMD_ACK, sn, ts, 0, EMPTY)
++        ackList.clear()
++
++        val window = minOf(SND_WND, rmtWnd).coerceAtLeast(1)
++        while (sndNxt < sndUna + window && sndQueue.isNotEmpty()) {
++            val seg = sndQueue.removeFirst()
++            seg.sn = sndNxt++
++            seg.rto = rxRto
++            seg.xmit = 0
++            seg.resendTs = current
++            sndBuf.addLast(seg)
++        }
++
++        for (seg in sndBuf) {
++            val due = seg.xmit == 0 || current >= seg.resendTs || seg.fastAck >= FAST_RESEND_LIMIT
++            if (!due) continue
++            seg.xmit++
++            seg.fastAck = 0
++            if (seg.xmit > 1) seg.rto = (seg.rto + seg.rto / 2).coerceAtMost(RTO_MAX)
++            seg.resendTs = current + seg.rto
++            appendSegment(CMD_PUSH, seg.sn, current, seg.frg, seg.data)
++        }
++
++        flushOutChunk()
++    }
++
++    private fun appendSegment(cmd: Int, sn: Long, ts: Long, frg: Int, data: ByteArray) {
++        val segSize = OVERHEAD + data.size
++        if (outChunkLen + segSize > MTU) flushOutChunk()
++        if (outChunk.size < outChunkLen + segSize) outChunk = outChunk.copyOf(maxOf(MTU, outChunkLen + segSize))
++        var p = outChunkLen
++        p = encode32(outChunk, p, conv)
++        p = encode8(outChunk, p, cmd)
++        p = encode8(outChunk, p, frg)
++        p = encode16(outChunk, p, (RCV_WND - rcvQueue.size).coerceAtLeast(0))
++        p = encode32(outChunk, p, ts.toInt())
++        p = encode32(outChunk, p, sn.toInt())
++        p = encode32(outChunk, p, rcvNxt.toInt())
++        p = encode32(outChunk, p, data.size)
++        System.arraycopy(data, 0, outChunk, p, data.size)
++        outChunkLen = p + data.size
++    }
++
++    private fun flushOutChunk() {
++        if (outChunkLen == 0) return
++        output(outChunk.copyOf(outChunkLen))
++        outChunkLen = 0
++    }
++
++    companion object {
++        private val EMPTY = ByteArray(0)
++
++        private const val MTU = 1200
++        private const val OVERHEAD = 24
++        private const val MSS = MTU - OVERHEAD
++
++        private const val SND_WND = 128
++        private const val RCV_WND = 128
++
++        private const val INTERVAL_MS = 10L
++        private const val RTO_MIN = 30L
++        private const val RTO_DEFAULT = 200L
++        private const val RTO_MAX = 5000L
++
++        /** Fast-retransmit threshold ("resend=2" in upstream terms): a segment is resent as soon
++         * as this many later segments have been acked ahead of it, without waiting for its own
++         * RTO to expire. */
++        private const val FAST_RESEND_LIMIT = 2
++
++        private const val CMD_PUSH = 81
++        private const val CMD_ACK = 82
++
++        private fun encode8(buf: ByteArray, offset: Int, v: Int): Int {
++            buf[offset] = v.toByte()
++            return offset + 1
++        }
++
++        private fun decode8(buf: ByteArray, offset: Int): Int = buf[offset].toInt() and 0xFF
++
++        private fun encode16(buf: ByteArray, offset: Int, v: Int): Int {
++            buf[offset] = v.toByte()
++            buf[offset + 1] = (v ushr 8).toByte()
++            return offset + 2
++        }
++
++        private fun decode16(buf: ByteArray, offset: Int): Int =
++            (buf[offset].toInt() and 0xFF) or ((buf[offset + 1].toInt() and 0xFF) shl 8)
++
++        private fun encode32(buf: ByteArray, offset: Int, v: Int): Int {
++            buf[offset] = v.toByte()
++            buf[offset + 1] = (v ushr 8).toByte()
++            buf[offset + 2] = (v ushr 16).toByte()
++            buf[offset + 3] = (v ushr 24).toByte()
++            return offset + 4
++        }
++
++        private fun decode32(buf: ByteArray, offset: Int): Int =
++            (buf[offset].toInt() and 0xFF) or
++                ((buf[offset + 1].toInt() and 0xFF) shl 8) or
++                ((buf[offset + 2].toInt() and 0xFF) shl 16) or
++                ((buf[offset + 3].toInt() and 0xFF) shl 24)
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt
+new file mode 100644
+index 0000000..39da296
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpClient.kt
+@@ -0,0 +1,137 @@
++package io.github.jwyoon1220.dncity.network.kcp
++
++import io.github.jwyoon1220.dncity.Dncity
++import io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver
++import io.github.jwyoon1220.dncity.voice.ClientRadioReceiver
++import io.github.jwyoon1220.dncity.voice.ClientVoiceReceiver
++import io.netty.bootstrap.Bootstrap
++import io.netty.buffer.Unpooled
++import io.netty.channel.Channel
++import io.netty.channel.ChannelHandlerContext
++import io.netty.channel.ChannelInitializer
++import io.netty.channel.SimpleChannelInboundHandler
++import io.netty.channel.nio.NioEventLoopGroup
++import io.netty.channel.socket.DatagramPacket
++import io.netty.channel.socket.nio.NioDatagramChannel
++import net.minecraft.client.Minecraft
++import java.net.InetSocketAddress
++import java.util.concurrent.TimeUnit
++
++/**
++ * The client side of [VoiceKcpServer] -- see that class's doc comment for the overall design.
++ * Opens its own UDP socket as soon as the server's one-time handshake payload arrives
++ * (`network.VoiceKcpHandshakePayload`, sent on login), authenticates with a signed
++ * [VoiceKcpProtocol.encodeHello], then carries every close-range voice/radio/phone-call audio
++ * frame in both directions for the rest of the session.
++ */
++object VoiceKcpClient {
++    private const val TICK_INTERVAL_MS = 10L
++
++    private var group: NioEventLoopGroup? = null
++    private var channel: Channel? = null
++    private var kcp: Kcp? = null
++
++    fun connect(host: String, port: Int, conv: Int, secret: Long) {
++        disconnect()
++        val eventLoopGroup = NioEventLoopGroup(1)
++        group = eventLoopGroup
++        val remote = InetSocketAddress(host, port)
++        try {
++            val bootstrap = Bootstrap()
++                .group(eventLoopGroup)
++                .channel(NioDatagramChannel::class.java)
++                .handler(object : ChannelInitializer<NioDatagramChannel>() {
++                    override fun initChannel(ch: NioDatagramChannel) {
++                        ch.pipeline().addLast(object : SimpleChannelInboundHandler<DatagramPacket>() {
++                            override fun channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
++                                val bytes = ByteArray(msg.content().readableBytes())
++                                msg.content().readBytes(bytes)
++                                kcp?.input(bytes)
++                                drainReceived()
++                            }
++                        })
++                    }
++                })
++            val ch = bootstrap.bind(0).sync().channel()
++            channel = ch
++            val session = Kcp(conv) { out -> ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), remote)) }
++            kcp = session
++            session.send(VoiceKcpProtocol.encodeHello(conv, secret))
++            eventLoopGroup.next().scheduleAtFixedRate({ tick() }, 0, TICK_INTERVAL_MS, TimeUnit.MILLISECONDS)
++        } catch (e: Exception) {
++            Dncity.LOGGER.error("VoiceKcpClient failed to connect to {}:{} -- voice/radio/phone audio disabled this session", host, port, e)
++            disconnect()
++        }
++    }
++
++    fun disconnect() {
++        channel?.close()
++        group?.shutdownGracefully(0, 500, TimeUnit.MILLISECONDS)
++        channel = null
++        group = null
++        kcp = null
++    }
++
++    /** Same host the game's own TCP connection uses -- an integrated (singleplayer) server has no
++     * real socket to read that from, so falls back to loopback since it's running in this same
++     * process either way. */
++    fun resolveHost(): String {
++        val minecraft = Minecraft.getInstance()
++        if (minecraft.hasSingleplayerServer()) return "127.0.0.1"
++        return minecraft.currentServer?.ip?.substringBeforeLast(':') ?: "127.0.0.1"
++    }
++
++    fun sendVoiceAudio(opusData: ByteArray) {
++        kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_VOICE_AUDIO, opusData))
++    }
++
++    fun sendRadioAudio(audioData: ByteArray) {
++        kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_RADIO_AUDIO, audioData))
++    }
++
++    fun sendPhoneCallAudio(opusData: ByteArray) {
++        kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO, opusData))
++    }
++
++    private fun tick() {
++        kcp?.update(System.currentTimeMillis())
++        drainReceived()
++    }
++
++    private fun drainReceived() {
++        val session = kcp ?: return
++        while (true) {
++            val msg = session.recv() ?: break
++            handleMessage(msg)
++        }
++    }
++
++    private fun handleMessage(msg: ByteArray) {
++        if (msg.isEmpty()) return
++        // Hop onto the render/client thread -- these calls feed VoiceAudioMixer, which
++        // VoiceClientLoop also drains from that same thread every client tick; like the
++        // IPayloadHandler.enqueueWork bodies this replaced, they're not meant to run on an
++        // arbitrary I/O thread (this UDP channel's own Netty event loop, see connect()).
++        Minecraft.getInstance().execute {
++            when (msg[0]) {
++                VoiceKcpProtocol.TYPE_VOICE_AUDIO_RELAY -> {
++                    val relay = VoiceKcpProtocol.decodeVoiceRelay(msg)
++                    if (!relay.isStale) ClientVoiceReceiver.handleRelayedFrame(relay.senderEntityId, relay.audio)
++                }
++                VoiceKcpProtocol.TYPE_RADIO_AUDIO_RELAY -> {
++                    val relay = VoiceKcpProtocol.decodeRadioRelay(msg)
++                    if (!relay.isStale) {
++                        ClientRadioReceiver.handleRelayedFrame(
++                            relay.senderEntityId, relay.audio, relay.frequencyKhz, relay.modeName,
++                            relay.senderPosition, relay.rangeInfo.effectiveMaxRangeBlocks, relay.rangeInfo.obstructed, relay.rangeInfo.stormNoise,
++                        )
++                    }
++                }
++                VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY -> {
++                    val audio = VoiceKcpProtocol.decodeAudio(msg)
++                    if (!audio.isStale) PhoneCallReceiver.handleFrame(audio.audio)
++                }
++            }
++        }
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt
+new file mode 100644
+index 0000000..0a50a26
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpProtocol.kt
+@@ -0,0 +1,143 @@
++package io.github.jwyoon1220.dncity.network.kcp
++
++import io.github.jwyoon1220.dncity.network.RadioRangeInfo
++import io.github.jwyoon1220.dncity.network.RadioSenderPosition
++import io.github.jwyoon1220.dncity.radio.RadioMode
++import java.nio.ByteBuffer
++
++/**
++ * The application-level message format carried inside each [Kcp] message (itself carried inside
++ * [VoiceKcpServer]/[VoiceKcpClient]'s UDP datagrams) -- everything close-range voice/radio/phone-
++ * call audio used to encode via [net.minecraft.network.codec.StreamCodec] now packs by hand into a
++ * plain [ByteArray] instead, since none of this rides Minecraft's own packet channel any more. One
++ * leading type-tag byte selects the layout; every audio-carrying message also carries an 8-byte
++ * send timestamp so the receiver can drop a frame that arrived more than [STALE_MS] late after a
++ * KCP retransmit, bounding worst-case audio latency (KCP is a *reliable* protocol -- see [Kcp]'s
++ * doc comment -- so without this, a burst of loss could otherwise cause a backlog of stale audio
++ * to arrive all at once).
++ */
++object VoiceKcpProtocol {
++    const val TYPE_HELLO: Byte = 0
++    const val TYPE_VOICE_AUDIO: Byte = 1
++    const val TYPE_VOICE_AUDIO_RELAY: Byte = 2
++    const val TYPE_RADIO_AUDIO: Byte = 3
++    const val TYPE_RADIO_AUDIO_RELAY: Byte = 4
++    const val TYPE_PHONE_CALL_AUDIO: Byte = 5
++    const val TYPE_PHONE_CALL_AUDIO_RELAY: Byte = 6
++
++    const val STALE_MS = 250L
++
++    // ---- HELLO: the first message a client sends on a fresh UDP session, proving it holds the
++    // secret the server handed it over Minecraft's own (already encrypted/authenticated) channel
++    // -- see network.VoiceKcpHandshakePayload. ----
++
++    fun encodeHello(conv: Int, secret: Long): ByteArray =
++        ByteBuffer.allocate(1 + 4 + 8).put(TYPE_HELLO).putInt(conv).putLong(secret).array()
++
++    class Hello(val conv: Int, val secret: Long)
++
++    fun decodeHello(data: ByteArray): Hello {
++        val buf = ByteBuffer.wrap(data)
++        buf.get() // type tag, already dispatched on
++        return Hello(buf.int, buf.long)
++    }
++
++    // ---- Plain audio frames (close-range uplink, radio uplink, phone-call up/downlink -- all
++    // just a timestamp plus opaque codec bytes, no extra addressing needed). ----
++
++    fun encodeAudio(type: Byte, audio: ByteArray): ByteArray =
++        ByteBuffer.allocate(1 + 8 + audio.size).put(type).putLong(System.currentTimeMillis()).put(audio).array()
++
++    class TimedAudio(sentAtMs: Long, val audio: ByteArray) {
++        val isStale = System.currentTimeMillis() - sentAtMs > STALE_MS
++    }
++
++    fun decodeAudio(data: ByteArray): TimedAudio {
++        val buf = ByteBuffer.wrap(data)
++        buf.get()
++        val sentAt = buf.long
++        val audio = ByteArray(buf.remaining())
++        buf.get(audio)
++        return TimedAudio(sentAt, audio)
++    }
++
++    // ---- Close-range voice relay (server -> one in-range listener): needs the speaker's entity
++    // id so the client can key its per-speaker decoder and look up their live position for gain. ----
++
++    fun encodeVoiceRelay(senderEntityId: Int, audio: ByteArray): ByteArray =
++        ByteBuffer.allocate(1 + 8 + 4 + audio.size)
++            .put(TYPE_VOICE_AUDIO_RELAY).putLong(System.currentTimeMillis()).putInt(senderEntityId).put(audio)
++            .array()
++
++    class VoiceRelay(sentAtMs: Long, val senderEntityId: Int, val audio: ByteArray) {
++        val isStale = System.currentTimeMillis() - sentAtMs > STALE_MS
++    }
++
++    fun decodeVoiceRelay(data: ByteArray): VoiceRelay {
++        val buf = ByteBuffer.wrap(data)
++        buf.get()
++        val sentAt = buf.long
++        val senderEntityId = buf.int
++        val audio = ByteArray(buf.remaining())
++        buf.get(audio)
++        return VoiceRelay(sentAt, senderEntityId, audio)
++    }
++
++    // ---- Radio relay (server -> one qualifying listener, handheld or station broadcast alike --
++    // see io.github.jwyoon1220.dncity.voice.RadioRelay): the richest message, carrying everything
++    // io.github.jwyoon1220.dncity.voice.ClientRadioReceiver.handleRelayedFrame needs. ----
++
++    fun encodeRadioRelay(
++        senderEntityId: Int,
++        audio: ByteArray,
++        frequencyKhz: Double,
++        modeName: String,
++        senderPosition: RadioSenderPosition,
++        rangeInfo: RadioRangeInfo,
++    ): ByteArray {
++        val modeCode = RadioMode.entries.indexOfFirst { it.name.equals(modeName, ignoreCase = true) }
++        require(modeCode >= 0) { "Unknown RadioMode: $modeName" }
++        return ByteBuffer.allocate(1 + 8 + 4 + 8 + 1 + 8 + 8 + 8 + 8 + 1 + audio.size)
++            .put(TYPE_RADIO_AUDIO_RELAY)
++            .putLong(System.currentTimeMillis())
++            .putInt(senderEntityId)
++            .putDouble(frequencyKhz)
++            .put(modeCode.toByte())
++            .putDouble(senderPosition.x).putDouble(senderPosition.y).putDouble(senderPosition.z)
++            .putDouble(rangeInfo.effectiveMaxRangeBlocks)
++            .put(RadioRangeInfo.flagsOf(rangeInfo).toByte())
++            .put(audio)
++            .array()
++    }
++
++    class RadioRelay(
++        sentAtMs: Long,
++        val senderEntityId: Int,
++        val audio: ByteArray,
++        val frequencyKhz: Double,
++        val modeName: String,
++        val senderPosition: RadioSenderPosition,
++        val rangeInfo: RadioRangeInfo,
++    ) {
++        val isStale = System.currentTimeMillis() - sentAtMs > STALE_MS
++    }
++
++    fun decodeRadioRelay(data: ByteArray): RadioRelay {
++        val buf = ByteBuffer.wrap(data)
++        buf.get()
++        val sentAt = buf.long
++        val senderEntityId = buf.int
++        val frequencyKhz = buf.double
++        val modeCode = buf.get().toInt()
++        val x = buf.double; val y = buf.double; val z = buf.double
++        val effectiveMaxRangeBlocks = buf.double
++        val flags = buf.get().toInt()
++        val audio = ByteArray(buf.remaining())
++        buf.get(audio)
++        return RadioRelay(
++            sentAt, senderEntityId, audio, frequencyKhz, RadioMode.entries[modeCode].name,
++            RadioSenderPosition(x, y, z),
++            RadioRangeInfo.of(effectiveMaxRangeBlocks, (flags and 1) != 0, (flags and 2) != 0),
++        )
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt
+new file mode 100644
+index 0000000..239bbc0
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServer.kt
+@@ -0,0 +1,228 @@
++package io.github.jwyoon1220.dncity.network.kcp
++
++import io.github.jwyoon1220.dncity.Dncity
++import io.github.jwyoon1220.dncity.phone.PhoneCallSession
++import io.github.jwyoon1220.dncity.voice.RadioRelay
++import io.github.jwyoon1220.dncity.voice.VoiceRelay
++import io.netty.bootstrap.Bootstrap
++import io.netty.buffer.Unpooled
++import io.netty.channel.Channel
++import io.netty.channel.ChannelHandlerContext
++import io.netty.channel.ChannelInitializer
++import io.netty.channel.SimpleChannelInboundHandler
++import io.netty.channel.nio.NioEventLoopGroup
++import io.netty.channel.socket.DatagramPacket
++import io.netty.channel.socket.nio.NioDatagramChannel
++import net.minecraft.server.MinecraftServer
++import java.net.InetSocketAddress
++import java.util.UUID
++import java.util.concurrent.ConcurrentHashMap
++import java.util.concurrent.ThreadLocalRandom
++import java.util.concurrent.TimeUnit
++
++/**
++ * The server side of this mod's self-built KCP-over-Netty UDP transport for close-range voice,
++ * radio (handheld and station broadcast alike), and phone-call audio -- replacing what used to be
++ * plain Minecraft [net.minecraft.network.protocol.common.custom.CustomPacketPayload] traffic (see
++ * `network.VoiceNetworking`/`RadioNetworking`/`PhoneNetworking`'s git history). Only the one-time
++ * per-player handshake (`network.VoiceKcpHandshakePayload`, conv id + shared secret + this port)
++ * still rides Minecraft's own channel -- everything after that is raw UDP.
++ *
++ * One [Kcp] session per logged-in player, keyed by a random 32-bit `conv` id the player's client
++ * proves ownership of via a signed [VoiceKcpProtocol.encodeHello] before any of its audio is
++ * trusted (a UDP datagram is otherwise unauthenticated and easy to spoof -- see [beginSession]).
++ * Each session's [Kcp.update] is driven by a task scheduled directly on the channel's own Netty
++ * event loop (see [start]) rather than Minecraft's server tick, so voice latency isn't bounded by
++ * the game's 50ms tick rate.
++ */
++object VoiceKcpServer {
++    const val DEFAULT_PORT = 25577
++    private const val TICK_INTERVAL_MS = 10L
++    private const val PENDING_SESSION_TIMEOUT_MS = 60_000L
++    private const val SESSION_IDLE_TIMEOUT_MS = 120_000L
++
++    private class PendingSession(val playerUuid: UUID, val secret: Long, val createdAtMs: Long)
++
++    private class ServerSession(val conv: Int, val playerUuid: UUID, val secret: Long) {
++        var remote: InetSocketAddress? = null
++        var authenticated = false
++        var lastActivityMs = System.currentTimeMillis()
++        lateinit var kcp: Kcp
++    }
++
++    private var group: NioEventLoopGroup? = null
++    private var channel: Channel? = null
++    private var boundPort = DEFAULT_PORT
++    private var mcServer: MinecraftServer? = null
++
++    private val pendingByConv = ConcurrentHashMap<Int, PendingSession>()
++    private val sessionsByConv = ConcurrentHashMap<Int, ServerSession>()
++    private val sessionsByPlayer = ConcurrentHashMap<UUID, ServerSession>()
++
++    fun attachServer(server: MinecraftServer) {
++        mcServer = server
++    }
++
++    fun boundPort(): Int = boundPort
++
++    fun start() {
++        if (group != null) return
++        boundPort = System.getProperty("dncity.voiceKcpPort")?.toIntOrNull() ?: DEFAULT_PORT
++        val eventLoopGroup = NioEventLoopGroup(1)
++        group = eventLoopGroup
++        try {
++            val bootstrap = Bootstrap()
++                .group(eventLoopGroup)
++                .channel(NioDatagramChannel::class.java)
++                .handler(object : ChannelInitializer<NioDatagramChannel>() {
++                    override fun initChannel(ch: NioDatagramChannel) {
++                        ch.pipeline().addLast(object : SimpleChannelInboundHandler<DatagramPacket>() {
++                            override fun channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
++                                val bytes = ByteArray(msg.content().readableBytes())
++                                msg.content().readBytes(bytes)
++                                onDatagram(bytes, msg.sender())
++                            }
++                        })
++                    }
++                })
++            channel = bootstrap.bind(boundPort).sync().channel()
++            eventLoopGroup.next().scheduleAtFixedRate({ tickAll() }, 0, TICK_INTERVAL_MS, TimeUnit.MILLISECONDS)
++            Dncity.LOGGER.info("VoiceKcpServer bound on UDP port {}", boundPort)
++        } catch (e: Exception) {
++            Dncity.LOGGER.error("VoiceKcpServer failed to bind UDP port {} -- voice/radio/phone audio disabled this session", boundPort, e)
++            eventLoopGroup.shutdownGracefully()
++            group = null
++            channel = null
++        }
++    }
++
++    fun stop() {
++        channel?.close()
++        group?.shutdownGracefully(0, 500, TimeUnit.MILLISECONDS)
++        channel = null
++        group = null
++        mcServer = null
++        pendingByConv.clear()
++        sessionsByConv.clear()
++        sessionsByPlayer.clear()
++    }
++
++    /** Allocates a fresh conv/secret pair for a just-logged-in player -- handed to their client
++     * via `network.VoiceKcpHandshakePayload` (still sent over Minecraft's own channel, since the
++     * client has no other way to learn which UDP session belongs to it). */
++    fun beginSession(playerUuid: UUID): Pair<Int, Long> {
++        val random = ThreadLocalRandom.current()
++        var conv: Int
++        do conv = random.nextInt() while (conv == 0 || pendingByConv.containsKey(conv) || sessionsByConv.containsKey(conv))
++        val secret = random.nextLong()
++        pendingByConv[conv] = PendingSession(playerUuid, secret, System.currentTimeMillis())
++        return conv to secret
++    }
++
++    fun endSession(playerUuid: UUID) {
++        sessionsByPlayer.remove(playerUuid)?.let { sessionsByConv.remove(it.conv) }
++        pendingByConv.entries.removeIf { it.value.playerUuid == playerUuid }
++    }
++
++    fun sendVoiceRelay(playerUuid: UUID, senderEntityId: Int, opusData: ByteArray) {
++        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeVoiceRelay(senderEntityId, opusData))
++    }
++
++    fun sendRadioRelay(
++        playerUuid: UUID,
++        senderEntityId: Int,
++        audioData: ByteArray,
++        frequencyKhz: Double,
++        modeName: String,
++        senderPosition: io.github.jwyoon1220.dncity.network.RadioSenderPosition,
++        rangeInfo: io.github.jwyoon1220.dncity.network.RadioRangeInfo,
++    ) {
++        authenticatedSession(playerUuid)?.kcp?.send(
++            VoiceKcpProtocol.encodeRadioRelay(senderEntityId, audioData, frequencyKhz, modeName, senderPosition, rangeInfo)
++        )
++    }
++
++    fun sendPhoneCallRelay(playerUuid: UUID, opusData: ByteArray) {
++        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY, opusData))
++    }
++
++    private fun authenticatedSession(playerUuid: UUID): ServerSession? =
++        sessionsByPlayer[playerUuid]?.takeIf { it.authenticated }
++
++    private fun onDatagram(bytes: ByteArray, sender: InetSocketAddress) {
++        if (bytes.size < 4) return
++        val conv = (bytes[0].toInt() and 0xFF) or ((bytes[1].toInt() and 0xFF) shl 8) or
++            ((bytes[2].toInt() and 0xFF) shl 16) or ((bytes[3].toInt() and 0xFF) shl 24)
++
++        var session = sessionsByConv[conv]
++        if (session == null) {
++            val pending = pendingByConv[conv] ?: return // unknown conv -- drop (no session was ever allocated for it)
++            val newSession = ServerSession(conv, pending.playerUuid, pending.secret)
++            newSession.kcp = Kcp(conv) { out -> channel?.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), newSession.remote ?: sender)) }
++            session = newSession
++            sessionsByConv[conv] = session
++        }
++        session.remote = sender
++        session.lastActivityMs = System.currentTimeMillis()
++        session.kcp.input(bytes)
++
++        while (true) {
++            val msg = session.kcp.recv() ?: break
++            handleMessage(session, msg)
++        }
++    }
++
++    private fun handleMessage(session: ServerSession, msg: ByteArray) {
++        if (msg.isEmpty()) return
++        if (msg[0] == VoiceKcpProtocol.TYPE_HELLO) {
++            val hello = VoiceKcpProtocol.decodeHello(msg)
++            if (hello.conv == session.conv && hello.secret == session.secret) {
++                pendingByConv.remove(session.conv)
++                sessionsByPlayer.put(session.playerUuid, session)?.takeIf { it !== session }?.let { old -> sessionsByConv.remove(old.conv) }
++                session.authenticated = true
++            } else {
++                sessionsByConv.remove(session.conv) // bad secret -- reject, don't trust this conv going forward
++            }
++            return
++        }
++
++        if (!session.authenticated) return
++        val server = mcServer ?: return
++        // Hop onto the server's own main thread -- these calls touch ServerLevel/player state
++        // that (like the IPayloadHandler.enqueueWork bodies this replaced) isn't meant to be
++        // touched from an arbitrary I/O thread, which is what's calling handleMessage here (the
++        // UDP channel's own Netty event loop, see start()).
++        server.execute {
++            val player = server.playerList.getPlayer(session.playerUuid) ?: return@execute
++            when (msg[0]) {
++                VoiceKcpProtocol.TYPE_VOICE_AUDIO -> {
++                    val audio = VoiceKcpProtocol.decodeAudio(msg)
++                    if (!audio.isStale) VoiceRelay.relay(player, audio.audio)
++                }
++                VoiceKcpProtocol.TYPE_RADIO_AUDIO -> {
++                    val audio = VoiceKcpProtocol.decodeAudio(msg)
++                    if (!audio.isStale) RadioRelay.relay(player, audio.audio)
++                }
++                VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO -> {
++                    val audio = VoiceKcpProtocol.decodeAudio(msg)
++                    if (!audio.isStale) PhoneCallSession.relayAudio(player, audio.audio)
++                }
++            }
++        }
++    }
++
++    private fun tickAll() {
++        val now = System.currentTimeMillis()
++        val it = sessionsByConv.entries.iterator()
++        while (it.hasNext()) {
++            val (_, session) = it.next()
++            if (now - session.lastActivityMs > SESSION_IDLE_TIMEOUT_MS) {
++                it.remove()
++                sessionsByPlayer.remove(session.playerUuid, session)
++                continue
++            }
++            session.kcp.update(now)
++        }
++        pendingByConv.entries.removeIf { now - it.value.createdAtMs > PENDING_SESSION_TIMEOUT_MS }
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServerEvents.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServerEvents.kt
+new file mode 100644
+index 0000000..261132f
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/network/kcp/VoiceKcpServerEvents.kt
+@@ -0,0 +1,31 @@
++package io.github.jwyoon1220.dncity.network.kcp
++
++import io.github.jwyoon1220.dncity.network.VoiceKcpHandshakePayload
++import net.minecraft.server.level.ServerPlayer
++import net.neoforged.neoforge.event.entity.player.PlayerEvent
++import net.neoforged.neoforge.event.server.ServerStartingEvent
++import net.neoforged.neoforge.event.server.ServerStoppingEvent
++import net.neoforged.neoforge.network.PacketDistributor
++
++/** Lifecycle wiring for [VoiceKcpServer] -- see that class's doc comment for the overall design. */
++object VoiceKcpServerEvents {
++    fun onServerStarting(event: ServerStartingEvent) {
++        VoiceKcpServer.attachServer(event.server)
++        VoiceKcpServer.start()
++    }
++
++    fun onServerStopping(event: ServerStoppingEvent) {
++        VoiceKcpServer.stop()
++    }
++
++    fun onPlayerLoggedIn(event: PlayerEvent.PlayerLoggedInEvent) {
++        val player = event.entity as? ServerPlayer ?: return
++        val (conv, secret) = VoiceKcpServer.beginSession(player.uuid)
++        PacketDistributor.sendToPlayer(player, VoiceKcpHandshakePayload(conv, secret, VoiceKcpServer.boundPort()))
++    }
++
++    fun onPlayerLoggedOut(event: PlayerEvent.PlayerLoggedOutEvent) {
++        val player = event.entity as? ServerPlayer ?: return
++        VoiceKcpServer.endSession(player.uuid)
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneCallSession.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneCallSession.kt
+index da757f8..680a719 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneCallSession.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/phone/PhoneCallSession.kt
+@@ -1,7 +1,7 @@
+ package io.github.jwyoon1220.dncity.phone
+ 
+-import io.github.jwyoon1220.dncity.network.PhoneCallAudioRelayPayload
+ import io.github.jwyoon1220.dncity.network.PhoneCallStatePayload
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer
+ import net.minecraft.server.MinecraftServer
+ import net.minecraft.server.level.ServerPlayer
+ import net.neoforged.neoforge.network.PacketDistributor
+@@ -87,7 +87,7 @@ object PhoneCallSession {
+         val call = callsByPlayer[sender.uuid]?.takeIf { it.active } ?: return
+         val peerId = if (call.caller == sender.uuid) call.callee else call.caller
+         val peer = sender.serverLevel().server.playerList.getPlayer(peerId) ?: return
+-        PacketDistributor.sendToPlayer(peer, PhoneCallAudioRelayPayload(opusData))
++        VoiceKcpServer.sendPhoneCallRelay(peer.uuid, opusData)
+     }
+ 
+     private fun sendState(player: ServerPlayer, state: PhoneCallState, peerName: String) {
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/radio/RadioBand.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/radio/RadioBand.kt
+index 90bbc01..0c44a1e 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/radio/RadioBand.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/radio/RadioBand.kt
+@@ -1,32 +1,5 @@
+ package io.github.jwyoon1220.dncity.radio
+ 
+-/**
+- * Real-world-ish frequency bands (ITU designations, ELF through THF), keyed by frequency in
+- * kHz. Propagation is per band and modeled on two real mechanisms rather than one flat rule:
+- *
+- * - **LW/MW/SW** ("ground-wave" bands, [maxRangeBlocks] == null): a real MF/HF signal reaches
+- *   receivers two ways at once. Ground wave ([groundWaveRangeBlocks]) hugs the surface, is
+- *   available day or night, but attenuates faster the *higher* the frequency -- SW's ground wave
+- *   is shorter-ranged than MW's, mirroring how AM broadcast (MW) carries much further along the
+- *   ground than a similar-power shortwave signal does. Sky wave ([skywaveRangeBlocks]) reflects
+- *   off the ionosphere and can cover enormous distances, but only at night: the ionosphere's D
+- *   layer, which absorbs HF/MF energy passing through it, exists only under sunlight and
+- *   disappears after dusk, so daytime skywave on these bands is effectively dead (see
+- *   [RadioVoice.effectiveMaxRangeBlocks] for how the two combine with an isNight flag). This is
+- *   why real-world MW/shortwave stations audible for hundreds of miles at night vanish to a local
+- *   ground-wave-only footprint by midday.
+- * - **VHF-and-up** ([maxRangeBlocks] != null): genuinely line-of-sight -- range is a hard cutoff
+- *   that gets tighter as frequency rises, further gated by real terrain obstruction and antenna
+- *   height rather than distance alone (see [io.github.jwyoon1220.dncity.voice.RadioRelay]).
+- *
+- * VHF-and-up [maxRangeBlocks] are tuned against this project's actual play area, roughly a
+- * 7.5km x 7.5km (7500x7500-block) map: VHF at 3000 blocks covers a substantial chunk of the map
+- * (a "regional/squad" tier) without trivializing the ground-wave bands' role as the only tier
+- * that reliably spans the whole map (at night). UHF/SHF/EHF/THF keep the same falloff *shape*
+- * the original tuning had (each roughly 0.4x/0.15x/0.05x/0.015x of VHF) rather than a re-derived
+- * curve, just rescaled to the new VHF baseline. [skywaveRangeBlocks] for LW/MW/SW is set past the
+- * map's ~10600-block diagonal so a night skywave contact can, in principle, reach anywhere on it.
+- */
+ enum class RadioBand(
+     val minKhz: Double,
+     val maxKhz: Double,
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthConfigurationTask.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthConfigurationTask.kt
+new file mode 100644
+index 0000000..3ae642a
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthConfigurationTask.kt
+@@ -0,0 +1,27 @@
++package io.github.jwyoon1220.dncity.security
++
++import io.github.jwyoon1220.dncity.Dncity
++import io.github.jwyoon1220.dncity.network.PgpChallengePayload
++import net.minecraft.network.protocol.common.custom.CustomPacketPayload
++import net.minecraft.resources.ResourceLocation
++import net.minecraft.server.network.ConfigurationTask
++import net.neoforged.neoforge.network.configuration.ICustomConfigurationTask
++import java.util.function.Consumer
++
++/**
++ * Sends [PgpChallengePayload] and blocks the connection in the configuration phase (before it
++ * ever reaches the play phase) until the client's signed response
++ * ([io.github.jwyoon1220.dncity.network.PgpNetworking]'s `configurationToServer` handler) calls
++ * `finishCurrentTask(TYPE)`. Registered per-connection by [PgpAuthServerEvents].
++ */
++class PgpAuthConfigurationTask(private val challenge: String) : ICustomConfigurationTask {
++    override fun run(sender: Consumer<CustomPacketPayload>) {
++        sender.accept(PgpChallengePayload(challenge))
++    }
++
++    override fun type(): ConfigurationTask.Type = TYPE
++
++    companion object {
++        val TYPE: ConfigurationTask.Type = ConfigurationTask.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "pgp_auth"))
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthManager.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthManager.kt
+new file mode 100644
+index 0000000..05f43f0
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthManager.kt
+@@ -0,0 +1,35 @@
++package io.github.jwyoon1220.dncity.security
++
++import net.minecraft.server.network.ServerConfigurationPacketListenerImpl
++import java.util.Collections
++import java.util.UUID
++import java.util.WeakHashMap
++
++/**
++ * Server-side bookkeeping for in-flight PGP login challenges -- one entry per connecting
++ * [ServerConfigurationPacketListenerImpl] between [begin] (when
++ * [PgpAuthServerEvents.onRegisterConfigurationTasks] issues the challenge) and either
++ * [verifyAndComplete] succeeding or the connection dying before the client ever responds.
++ *
++ * A [WeakHashMap] (not a plain map cleared on disconnect) is deliberate: there's no NeoForge event
++ * fired specifically for "a configuration listener disconnected without finishing," so relying on
++ * the listener object itself becoming unreachable once its connection closes is the simplest way
++ * to not leak an entry per failed/abandoned login attempt.
++ */
++object PgpAuthManager {
++    private data class Pending(val playerId: UUID, val challenge: String)
++
++    private val pending = Collections.synchronizedMap(WeakHashMap<ServerConfigurationPacketListenerImpl, Pending>())
++
++    fun begin(listener: ServerConfigurationPacketListenerImpl, playerId: UUID, challenge: String) {
++        pending[listener] = Pending(playerId, challenge)
++    }
++
++    fun verifyAndComplete(listener: ServerConfigurationPacketListenerImpl, signatureArmored: String): Boolean {
++        val entry = pending[listener] ?: return false
++        val publicKey = PgpKeyRegistry.getKey(entry.playerId) ?: return false
++        val ok = PgpCrypto.verify(publicKey, entry.challenge.toByteArray(Charsets.UTF_8), signatureArmored)
++        if (ok) pending.remove(listener)
++        return ok
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt
+new file mode 100644
+index 0000000..60500c0
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpAuthServerEvents.kt
+@@ -0,0 +1,39 @@
++package io.github.jwyoon1220.dncity.security
++
++import io.github.jwyoon1220.dncity.network.PgpChallengePayload
++import net.minecraft.network.chat.Component
++import net.minecraft.server.network.ServerConfigurationPacketListenerImpl
++import net.neoforged.neoforge.network.event.RegisterConfigurationTasksEvent
++
++/**
++ * Gates every connection at the configuration phase -- before it ever reaches the play phase / the
++ * actual world -- behind a PGP challenge-response (see [PgpAuthConfigurationTask]), unless the
++ * whole gate is turned off via [PgpSettings] (`/pgp disable`). A player with no registered key
++ * ([PgpKeyRegistry]) is disconnected outright rather than let through unauthenticated, and so is a
++ * client that doesn't even have this mod's channel open (a vanilla client couldn't complete the
++ * handshake anyway, and this server requires the mod for gameplay regardless).
++ */
++object PgpAuthServerEvents {
++    fun onRegisterConfigurationTasks(event: RegisterConfigurationTasksEvent) {
++        if (!PgpSettings.enabled) return
++
++        val listener = event.listener as? ServerConfigurationPacketListenerImpl ?: return
++
++        if (!listener.hasChannel(PgpChallengePayload.TYPE)) {
++            listener.disconnect(Component.literal("This server requires the DNCity mod (PGP login verification)."))
++            return
++        }
++
++        val playerId = listener.owner.id
++        if (!PgpKeyRegistry.hasKey(playerId)) {
++            listener.disconnect(
++                Component.literal("No PGP key is registered for your account. Ask an operator to register one with /pgp register."),
++            )
++            return
++        }
++
++        val challenge = PgpChallengeGenerator.generate(playerId)
++        PgpAuthManager.begin(listener, playerId, challenge)
++        event.register(PgpAuthConfigurationTask(challenge))
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpChallengeGenerator.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpChallengeGenerator.kt
+new file mode 100644
+index 0000000..85732a4
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpChallengeGenerator.kt
+@@ -0,0 +1,21 @@
++package io.github.jwyoon1220.dncity.security
++
++import java.security.SecureRandom
++import java.util.Base64
++import java.util.UUID
++
++/**
++ * Generates the per-connection random challenge string the client must PGP-sign to log in (see
++ * [PgpAuthServerEvents]). The player id and a fixed protocol tag are folded into the string
++ * alongside the random nonce so a signature over one challenge can't be replayed against a
++ * different player or a different protocol that also happens to PGP-sign arbitrary strings.
++ */
++object PgpChallengeGenerator {
++    private val random = SecureRandom()
++
++    fun generate(playerId: UUID): String {
++        val nonce = ByteArray(32)
++        random.nextBytes(nonce)
++        return "dncity-pgp-auth:v1:$playerId:${Base64.getUrlEncoder().withoutPadding().encodeToString(nonce)}"
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpCrypto.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpCrypto.kt
+new file mode 100644
+index 0000000..a25dc5d
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpCrypto.kt
+@@ -0,0 +1,73 @@
++package io.github.jwyoon1220.dncity.security
++
++import org.bouncycastle.bcpg.ArmoredOutputStream
++import org.bouncycastle.bcpg.HashAlgorithmTags
++import org.bouncycastle.jce.provider.BouncyCastleProvider
++import org.bouncycastle.openpgp.PGPObjectFactory
++import org.bouncycastle.openpgp.PGPPublicKeyRingCollection
++import org.bouncycastle.openpgp.PGPSecretKeyRingCollection
++import org.bouncycastle.openpgp.PGPSignature
++import org.bouncycastle.openpgp.PGPSignatureGenerator
++import org.bouncycastle.openpgp.PGPSignatureList
++import org.bouncycastle.openpgp.PGPUtil
++import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
++import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder
++import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider
++import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder
++import java.io.ByteArrayOutputStream
++import java.security.Security
++
++/**
++ * Shared OpenPGP (BouncyCastle) helpers for the login-gate handshake -- see
++ * [PgpAuthServerEvents]. [sign] runs on the client, using the player's own locally-stored secret
++ * key ([PgpPaths.secretKeyFile]); [verify] runs on the server against the operator-registered
++ * public key ([PgpKeyRegistry]). Both sides operate on a detached signature over the exact same
++ * challenge string bytes (see [PgpChallengeGenerator]) -- never a full clearsign/encrypt, since
++ * the challenge itself carries no secret and only needs to prove possession of the private key.
++ */
++object PgpCrypto {
++    init {
++        Security.addProvider(BouncyCastleProvider())
++    }
++
++    /** Signs [message] with the first signing-capable key in [secretKeyArmored], unlocked with [passphrase]. */
++    fun sign(secretKeyArmored: String, passphrase: CharArray, message: ByteArray): String {
++        val keyIn = PGPUtil.getDecoderStream(secretKeyArmored.byteInputStream())
++        val secretKeyRings = PGPSecretKeyRingCollection(keyIn, JcaKeyFingerprintCalculator())
++        val secretKey = secretKeyRings.keyRings.asSequence()
++            .flatMap { it.secretKeys.asSequence() }
++            .firstOrNull { it.isSigningKey }
++            ?: error("No signing-capable key found in the provided secret key")
++
++        val privateKey = secretKey.extractPrivateKey(
++            JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(passphrase),
++        )
++        val signatureGenerator = PGPSignatureGenerator(
++            JcaPGPContentSignerBuilder(secretKey.publicKey.algorithm, HashAlgorithmTags.SHA256).setProvider("BC"),
++        )
++        signatureGenerator.init(PGPSignature.BINARY_DOCUMENT, privateKey)
++        signatureGenerator.update(message)
++
++        val out = ByteArrayOutputStream()
++        ArmoredOutputStream(out).use { armorOut -> signatureGenerator.generate().encode(armorOut) }
++        return out.toString(Charsets.UTF_8.name())
++    }
++
++    /** Verifies that [signatureArmored] is a valid detached signature over [message] by [publicKeyArmored]. */
++    fun verify(publicKeyArmored: String, message: ByteArray, signatureArmored: String): Boolean {
++        return try {
++            val sigIn = PGPUtil.getDecoderStream(signatureArmored.byteInputStream())
++            val signature = (PGPObjectFactory(sigIn, JcaKeyFingerprintCalculator()).nextObject() as PGPSignatureList)[0]
++
++            val keyIn = PGPUtil.getDecoderStream(publicKeyArmored.byteInputStream())
++            val publicKeyRings = PGPPublicKeyRingCollection(keyIn, JcaKeyFingerprintCalculator())
++            val publicKey = publicKeyRings.getPublicKey(signature.keyID) ?: return false
++
++            signature.init(JcaPGPContentVerifierBuilderProvider().setProvider("BC"), publicKey)
++            signature.update(message)
++            signature.verify()
++        } catch (e: Exception) {
++            false
++        }
++    }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpKeyRegistry.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpKeyRegistry.kt
+new file mode 100644
+index 0000000..c015736
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpKeyRegistry.kt
+@@ -0,0 +1,28 @@
++package io.github.jwyoon1220.dncity.security
++
++import java.io.File
++import java.util.UUID
++
++/**
++ * Server-side registry of one armored PGP public key per player UUID, backed by a plain file per
++ * player under [PgpPaths.keysDir] -- no in-memory cache, since this is only ever read once per
++ * login (see [PgpAuthServerEvents]/[PgpAuthManager]), not on any hot path.
++ */
++object PgpKeyRegistry {
++    private fun keyFile(playerId: UUID): File = File(PgpPaths.keysDir, "$playerId.asc")
++
++    fun hasKey(playerId: UUID): Boolean = keyFile(playerId).isFile
++
++    fun getKey(playerId: UUID): String? = keyFile(playerId).takeIf { it.isFile }?.readText()
++
++    fun register(playerId: UUID, armoredPublicKey: String) {
++        keyFile(playerId).writeText(armoredPublicKey)
++    }
++
++    fun unregister(playerId: UUID): Boolean = keyFile(playerId).delete()
++
++    fun registeredPlayerIds(): List<UUID> =
++        PgpPaths.keysDir.listFiles { f -> f.extension == "asc" }
++            ?.mapNotNull { runCatching { UUID.fromString(it.nameWithoutExtension) }.getOrNull() }
++            ?: emptyList()
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpPaths.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpPaths.kt
+new file mode 100644
+index 0000000..5d700ef
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpPaths.kt
+@@ -0,0 +1,27 @@
++package io.github.jwyoon1220.dncity.security
++
++import net.neoforged.fml.loading.FMLPaths
++import java.io.File
++
++/**
++ * Where PGP login-gate data lives, each side only ever touching its own files (see
++ * [PgpKeyRegistry] for the server-side registry, [io.github.jwyoon1220.dncity.client.security.PgpAuthScreen]
++ * for the client's own secret key) -- same `<config>/dncity/...`-rooted convention as
++ * [io.github.jwyoon1220.dncity.music.MusicPaths].
++ *
++ * - `keys/<uuid>.asc` -- one registered armored public key per player, written by `/pgp register`.
++ * - `incoming/<playername>.asc` -- staging area an operator drops a player's exported public key
++ *   into (out-of-band, e.g. via Kleopatra's "Export Public Keys...") before running
++ *   `/pgp register <playername>` to move it into `keys/`.
++ * - `secret.asc` -- the player's own exported secret key (Kleopatra's "Export Secret Keys..."),
++ *   placed by the player themselves into their own client's config folder. Never read by the
++ *   server -- the passphrase that unlocks it never leaves that machine either, only the resulting
++ *   signature does (see [PgpCrypto.sign]).
++ */
++object PgpPaths {
++    private val configDir: File by lazy { FMLPaths.CONFIGDIR.get().resolve("dncity/security/pgp").toFile() }
++
++    val keysDir: File get() = File(configDir, "keys").apply { mkdirs() }
++    val incomingDir: File get() = File(configDir, "incoming").apply { mkdirs() }
++    val secretKeyFile: File get() = File(configDir, "secret.asc")
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt
+new file mode 100644
+index 0000000..aa71a27
+--- /dev/null
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/security/PgpSettings.kt
+@@ -0,0 +1,20 @@
++package io.github.jwyoon1220.dncity.security
++
++import java.io.File
++
++/**
++ * Whether the PGP login gate ([PgpAuthServerEvents]) is enforced at all -- `/pgp disable` lets an
++ * operator open the server up to unregistered/vanilla-incapable clients temporarily (e.g. while
++ * onboarding players who haven't set up a key yet) without deleting anyone's registered key.
++ * Backed by a single marker file rather than an in-memory flag so the setting survives a server
++ * restart, same file-per-fact convention as [PgpKeyRegistry].
++ */
++object PgpSettings {
++    private val disabledMarker: File by lazy { File(PgpPaths.let { it.keysDir.parentFile }, "disabled") }
++
++    var enabled: Boolean
++        get() = !disabledMarker.isFile
++        set(value) {
++            if (value) disabledMarker.delete() else disabledMarker.createNewFile()
++        }
++}
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioRelay.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioRelay.kt
+index 297a633..55b0b34 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioRelay.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioRelay.kt
+@@ -1,9 +1,9 @@
+ package io.github.jwyoon1220.dncity.voice
+ 
+ import io.github.jwyoon1220.dncity.block.RadioStationBlockEntity
+-import io.github.jwyoon1220.dncity.network.RadioAudioRelayPayload
+ import io.github.jwyoon1220.dncity.network.RadioRangeInfo
+ import io.github.jwyoon1220.dncity.network.RadioSenderPosition
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer
+ import io.github.jwyoon1220.dncity.radio.RadioActions
+ import io.github.jwyoon1220.dncity.radio.RadioBand
+ import io.github.jwyoon1220.dncity.radio.RadioStationRegistry
+@@ -16,7 +16,6 @@ import net.minecraft.world.level.levelgen.Heightmap
+ import net.minecraft.world.phys.HitResult
+ import net.minecraft.world.phys.Vec3
+ import net.minecraft.world.phys.shapes.CollisionContext
+-import net.neoforged.neoforge.network.PacketDistributor
+ import kotlin.math.abs
+ 
+ /**
+@@ -186,12 +185,11 @@ object RadioRelay {
+             val competitorReceived = strongestCompetitorPower(level, band, frequencyKhz, senderEntityId, nowTick, listenerPos, listenerEye)
+             if (competitorReceived > 0.0 && RadioVoice.isDrownedOutBy(ownReceived, competitorReceived)) continue
+ 
+-            val payload = RadioAudioRelayPayload(
+-                senderEntityId, audioData, frequencyKhz, modeName,
++            VoiceKcpServer.sendRadioRelay(
++                listener.uuid, senderEntityId, audioData, frequencyKhz, modeName,
+                 RadioSenderPosition(originPos.x, originPos.y, originPos.z),
+                 RadioRangeInfo.of(effectiveRange, obstructed, stormNoise),
+             )
+-            PacketDistributor.sendToPlayer(listener, payload)
+         }
+     }
+ 
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioTransmitter.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioTransmitter.kt
+index 9820daf..ff8d9b5 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioTransmitter.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/RadioTransmitter.kt
+@@ -1,13 +1,12 @@
+ package io.github.jwyoon1220.dncity.voice
+ 
+ import com.plasmoverse.opus.OpusEncoder
+-import io.github.jwyoon1220.dncity.network.RadioAudioPayload
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
+ import io.github.jwyoon1220.dncity.radio.RadioActions
+ import io.github.jwyoon1220.dncity.radio.RadioBand
+ import io.github.jwyoon1220.dncity.radio.RadioMode
+ import io.github.jwyoon1220.dncity.radio.VoiceCodec
+ import net.minecraft.client.Minecraft
+-import net.neoforged.neoforge.network.PacketDistributor
+ 
+ /**
+  * Client-side TX pump for the radio-voice tier, driven by [VoiceClientLoop] while
+@@ -68,7 +67,7 @@ object RadioTransmitter {
+ 
+     private fun submitOpus(frame48k: ShortArray) {
+         val enc = opusEncoder ?: OpusCodec.createEncoder().also { opusEncoder = it }
+-        PacketDistributor.sendToServer(RadioAudioPayload(enc.encode(frame48k)))
++        VoiceKcpClient.sendRadioAudio(enc.encode(frame48k))
+     }
+ 
+     private fun submitCodec2(frame48k: ShortArray, band: RadioBand) {
+@@ -89,7 +88,7 @@ object RadioTransmitter {
+             accumFill = remainder
+ 
+             val samples8k = downsampler!!.downsample(chunk)
+-            PacketDistributor.sendToServer(RadioAudioPayload(enc.encode(samples8k)))
++            VoiceKcpClient.sendRadioAudio(enc.encode(samples8k))
+         }
+     }
+ 
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceClientLoop.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceClientLoop.kt
+index bd6aac7..1b48a7a 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceClientLoop.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceClientLoop.kt
+@@ -6,9 +6,8 @@ import io.github.jwyoon1220.dncity.audio.NativeAudio
+ import io.github.jwyoon1220.dncity.client.ModKeyMappings
+ import io.github.jwyoon1220.dncity.client.phone.PhoneCallManager
+ import io.github.jwyoon1220.dncity.client.phone.PhoneCallTransmitter
+-import io.github.jwyoon1220.dncity.network.VoiceAudioPayload
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpClient
+ import io.github.jwyoon1220.dncity.phone.PhoneCallState
+-import net.neoforged.neoforge.network.PacketDistributor
+ import org.apache.logging.log4j.Level
+ 
+ /**
+@@ -92,6 +91,7 @@ object VoiceClientLoop {
+         PhoneCallTransmitter.shutdown()
+         ClientVoiceReceiver.releaseAll()
+         ClientRadioReceiver.releaseAll()
++        VoiceKcpClient.disconnect()
+         captureFill = 0
+         running = false
+     }
+@@ -153,7 +153,7 @@ object VoiceClientLoop {
+         // Auto-VAD in place of PTT: only spend bandwidth on frames the native noise gate
+         // considers actual speech, not the constant background noise floor.
+         val encoded = enc.encode(captureFrame)
+-        PacketDistributor.sendToServer(VoiceAudioPayload(encoded))
++        VoiceKcpClient.sendVoiceAudio(encoded)
+     }
+ 
+     private fun pumpPlayback() {
+diff --git a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceRelay.kt b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceRelay.kt
+index 3f839c8..3570b9c 100644
+--- a/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceRelay.kt
++++ b/src/main/kotlin/io/github/jwyoon1220/dncity/voice/VoiceRelay.kt
+@@ -1,8 +1,7 @@
+ package io.github.jwyoon1220.dncity.voice
+ 
+-import io.github.jwyoon1220.dncity.network.VoiceAudioRelayPayload
++import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServer
+ import net.minecraft.server.level.ServerPlayer
+-import net.neoforged.neoforge.network.PacketDistributor
+ 
+ /**
+  * Server-side fan-out for close-range voice frames: who's in range is decided here, once, per
+@@ -10,7 +9,6 @@ import net.neoforged.neoforge.network.PacketDistributor
+  */
+ object VoiceRelay {
+     fun relay(sender: ServerPlayer, opusData: ByteArray) {
+-        val payload = VoiceAudioRelayPayload(sender.id, opusData)
+         val senderPos = sender.position()
+         // .players() is scoped to this ServerLevel already, so cross-dimension listeners are
+         // never considered -- no separate dimension check needed.
+@@ -18,7 +16,7 @@ object VoiceRelay {
+             if (listener === sender) continue
+             val distance = listener.position().distanceTo(senderPos)
+             if (CloseRangeVoice.isInRange(distance)) {
+-                PacketDistributor.sendToPlayer(listener, payload)
++                VoiceKcpServer.sendVoiceRelay(listener.uuid, sender.id, opusData)
+             }
+         }
+     }
