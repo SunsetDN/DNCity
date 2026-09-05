@@ -1,6 +1,24 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents (Claude Code, Codex/ChatGPT, and others) when
+working with code in this repository.
+
+## Agent completion markers
+
+When an agent fully implements a file (not a stub/skeleton — a real, working implementation), it
+adds a one-line marker comment as the very **first line** of the file, in that language's comment
+syntax, naming the agent and a short label for the unit of work, e.g.:
+
+- Kotlin/Java: `// AGENT-DONE(claude): fsr2-scaffold`
+- Properties/`.txt`/shader source: `# AGENT-DONE(claude): fsr2-scaffold` (or `//` if the format
+  uses C-style comments)
+
+The label after the colon should match across every file that's part of the same logical unit of
+work, so another agent can grep for it to see the whole set. A file with **no** marker is either
+untouched or a deliberate stub (signatures/structure only, `TODO()` bodies) left for another agent
+to finish — treat the absence of a marker as "needs work," not "nobody looked at this." An agent
+picking up work should grep for existing `AGENT-DONE` markers first and skip those files rather
+than redoing them, unless the user explicitly asks for a revision.
 
 ## Overview
 
@@ -12,9 +30,14 @@ half-duplex, frequency/range-gated — see "Architecture: the radio system"). Tw
 (TACZ, First Aid) are vendored as composite-build submodules the project depends on; TACZ (a gun
 mod) plays its weapon sounds through DNCity's own bundled FMOD Studio banks
 (`src/main/resources/fmod/*.bank`) rather than TACZ's normal vanilla-sound-engine OGG files — see
-"Composite builds / submodules" below. Two native modules exist under `engine/`: `engine/audio`
-(miniaudio capture/playback + the codec2 JNI bridge) and `engine/fmod` (FMOD Studio Panama FFI
-bindings) are both wired into the main build.
+"Composite builds / submodules" below. Beyond TACZ/First Aid, a growing pile of other mods
+(Automobility, SuperbWarfare, ModernUI-MC, Sodium, Iris, VoxelMap, Sound Physics Remastered,
+Distant Horizons) are vendored the same way, mostly as gameplay/rendering content rather than
+things DNCity's own code calls into — see "Composite builds / submodules" below. Native modules
+exist under `engine/`: `engine/audio` (miniaudio capture/playback + the codec2 JNI bridge),
+`engine/fmod` (hand-written JNI FMOD Studio bindings), `engine/window` (Win32 child-window/JCEF
+overlay bridge), and `engine/browserhost` (a standalone JCEF host process, not JNI) are all wired
+into the main build.
 
 ## Build & run commands
 
@@ -152,6 +175,73 @@ reuse the root project's Gradle wrapper distribution; neither has its own `gradl
     a codec2 encode/decode.
 
 Large binary audio assets (`*.bank`) are tracked via Git LFS (see `.gitattributes`).
+
+Beyond TACZ/First Aid/the `engine/*` modules above, `settings.gradle.kts` vendors a growing list
+of other mods the same composite-build way, each with its own detailed comment there explaining
+*why* it's wired the way it is (jar variant to use, whether a `dependencySubstitution` is safe,
+version-pinning reasons) — read that file directly rather than this one for the full story on any
+of these; only the load-bearing gotchas are repeated here:
+
+- **Automobility**, **SuperbWarfare** — gameplay content mods, substituted normally (their
+  `neoforge`/root project's own jar is the real one).
+- **ModernUI-MC**, **VoxelMap**, **Sound Physics Remastered** — included *without* a
+  `dependencySubstitution` (each builds with a different toolchain than this repo's own, so a
+  plain project substitution would grab the wrong jar variant) and consumed instead as a plain
+  file dependency on their specific built jar, kept up to date by an explicit task dependency
+  (`build.gradle.kts`'s `listOf("compileJava", "compileKotlin", "runClient", ...).forEach { ... }`
+  block). ModernUI-MC backs the phone screen's Fragment/View host
+  (`client/phone/PhoneFragment`); VoxelMap backs the phone's Map app.
+- **Sodium**, **Iris** — both **pinned to old commits, not their branch tips** (SunsetDN forks
+  `mods/sodium` @ tag `mc1.21.1-0.6.13-neoforge`, `mods/Iris` @ commit `b4b2c22c1`), because
+  TACZ/SuperbWarfare's own compat mixins target that exact Sodium API generation and the branch
+  tips moved to an incompatible Sodium 0.8 rewrite — see `settings.gradle.kts`'s long comment
+  above these two `includeBuild` calls before ever bumping either one.
+- **Distant Horizons** (`mods/distant-horizons`, far-terrain LOD rendering) — unlike every other
+  submodule above, this is a straight mirror of upstream (`SunsetDN/distant-horizons`, itself just
+  a fork of `jeseibel/distant-horizons`), tracking the actively-maintained `main` branch rather
+  than a pre-flattened single-version branch, because no such branch exists here. Upstream is one
+  multiversion Gradle project selected at configure time by the `mcVer` project property (see
+  `mods/distant-horizons/settings.gradle`'s `loadVersionProperties()`, reading
+  `versionProperties/<version>.properties`) — **pinned to `mcVer=1.21.1` directly in
+  `mods/distant-horizons/gradle.properties`** (not passable through DNCity's own composite build
+  config) and to `builds_for=neoforge` only in `versionProperties/1.21.1.properties` (upstream
+  defaults to `fabric,neoforge`; the fabric loader there needs fabric-loom 1.10, which requires
+  Gradle 8.12+, one minor version ahead of this repo's Gradle 8.11 — dropping it avoids bumping
+  the whole repo's Gradle version for a loader DNCity never uses). DH's own core logic lives in a
+  **second, GitLab-hosted submodule** nested inside it
+  (`mods/distant-horizons/coreSubProjects` → `gitlab.com/jeseibel/distant-horizons-core`, LGPL) —
+  `git submodule update --init --recursive` is required, same as this repo's own top-level
+  submodules. The vendored commit is pinned to a specific SHA from *before* upstream's own
+  Gradle-9 migration (composite builds run every included build under the root's Gradle version,
+  8.11 here, and a newer DH commit's `buildSrc` calls a Gradle-9-only API) — don't blindly update
+  this submodule to a newer commit without re-verifying the whole repo still builds under Gradle
+  8.11. A few local patches on top of that pinned commit (in both `mods/distant-horizons` and its
+  nested `coreSubProjects`) fix build breakage that's otherwise unrelated to DNCity specifically:
+  a dead `maven.vram.io` repo (swapped for the real `maven.su5ed.dev`, needed to resolve
+  `org.sinytra.forgified-fabric-api` once DNCity's own Sodium/Iris `dependencySubstitution`
+  redirects DH's `maven.modrinth:iris:...` request to the local `mods/Iris` build), a nonexistent
+  fossil dependency `com.google.common:google-collect:0.5` (dropped; superseded by the
+  `com.google.guava:guava` dependency declared right next to it), and a duplicate-condition
+  preprocessor bug in `common/.../ChunkFileReader.java` (two `#elif MC_VER <= MC_1_21_3` branches
+  with the same condition — the first, wrong one always shadowed the corrected second one,
+  breaking the `ChunkStatus` import for MC 1.21.1 specifically). Included in the composite
+  *without* a `dependencySubstitution` (same reasoning as ModernUI-MC/VoxelMap/Sound Physics
+  Remastered above — its `neoforge` subproject's `shadowJar` produces a `-all.jar` alongside
+  plain/dev/sources variants), consumed as a plain file dependency on that `-all.jar` and kept
+  built via the same task-dependency pattern. Iris shader-pack compatibility: DH's own
+  `RenderBufferHandler.buildRenderList` (in `coreSubProjects/core`) already detects
+  `IrisApi.isRenderingShadowPass()`, but upstream always submits LOD geometry to the shadow pass
+  when a shader pack is active — DNCity added a new config entry,
+  `Config.Client.Advanced.Graphics.Culling.renderLodsInShadowPass` (default `false`, not present
+  upstream), that skips the shadow pass entirely while leaving the normal lighting/gbuffer pass
+  untouched, so distant terrain is lit correctly under a shader pack without casting/receiving
+  shadows. Default performance settings are also tuned down from upstream for this specific pack
+  (`Config.java`): `qualityPresetSetting` MEDIUM→LOW, `threadPresetSetting` BALANCED→LOW_IMPACT
+  (25% of logical cores instead of 50%, via `ThreadPresetConfigEventHandler`'s shared
+  `numberOfThreads` budget — see `util/threading/ThreadPoolUtil.java`/`PriorityTaskPicker.java`),
+  and `lodChunkRenderDistanceRadius` 256→128 chunks — because Sodium/Iris/Flywheel/Veil are
+  already competing for the same GPU/CPU budget DH's LOD terrain adds on top of. All three remain
+  adjustable per-player in DH's own GUI/config file; only the shipped defaults changed.
 
 ## Architecture: the radio system
 
@@ -396,6 +486,89 @@ fix needs `WM_SETFOCUS`/`WM_KILLFOCUS` forwarding from the child window, not for
 polling; left as documented future work rather than shipped half-working. The entity-culling
 Mixin above has the shadow-pass caveat noted there, and (like the rest of this section) is only
 exercised by the debug commands today, not a real consumer feature.
+
+## Architecture: FSR2 temporal upscaling (scaffold only — not functional yet)
+
+AMD FSR2-equivalent temporal upscaling (jittered rendering + history accumulation + real
+per-object motion-vector-guided reprojection + upscale; FSR3 frame generation is explicitly out
+of scope). **Status: scaffolding only** — every file below is either a signature-only stub
+(`TODO()`/`throw new UnsupportedOperationException(...)` bodies) or, where noted, real
+pure-data/UI code with no working rendering effect yet. None of it is wired into the actual
+render loop. No `AGENT-DONE` marker (see this file's "Agent completion markers" section above)
+appears on any of these files — they are all open for an agent to pick up and finish.
+
+- **Sodium needs no chunk-mesh/vertex-format changes.** Sodium only gates block-entity
+  visibility, not geometry generation; actual entity/block-entity drawing goes through vanilla's
+  dispatchers, which Iris wraps. Terrain motion vectors are fully derivable from depth + Iris's
+  existing previous-camera-matrix uniforms (`gbufferPreviousModelView/Projection`) — no Sodium
+  data needed. The one open Sodium question (whether its frustum culling reads a jittered or
+  unjittered projection matrix) is flagged as a TODO in `mods/Iris/.../mixin/MixinFsr2Jitter.java`,
+  not resolved — locate Sodium's actual frustum-build call site before implementing jitter.
+- **Iris side** (`mods/Iris/common/src/main/java/net/irisshaders/iris/`):
+  - `targets/RenderTargets.java` — `motionVectors`/`motionVectorsFb` fields and
+    `getMotionVectorsTexture()` added as `TODO(FSR2)`-marked additions to the real, working file
+    (not replaced) — a new engine-owned RG16F G-buffer target for per-object screen-space
+    velocity, allocated regardless of what the active shaderpack declares.
+  - `uniforms/PreviousObjectTransforms.java` (new file) — per-object (`Entity`/`BlockEntity`,
+    identity-keyed) last-frame model-matrix cache; the actual motion-vector math's data source.
+  - `uniforms/CapturedRenderingState.java` — real (not stubbed) plain data fields/accessors added
+    for the current entity's previous model matrix and this/last frame's jitter offset; nothing
+    sets or reads them yet.
+  - `uniforms/MatrixUniforms.java` — TODO noting that `gbufferPreviousModelView/Projection`
+    already exist as GLSL uniforms (reusable for terrain reprojection) but the actual Java-side
+    matrix values aren't exposed outside this file yet; needs a small accessor added.
+  - `pipeline/transform/transformer/EntityPatcher.java` — `patchMotionVectors(...)` stub, same
+    AST-injection shape as the existing `patchOverlayColor`/`patchEntityId`, for injecting a fixed
+    motion-vector fragment output into `gbuffers_entities`/`gbuffers_block`/`gbuffers_hand*`
+    programs regardless of shaderpack. Not called from anywhere yet.
+  - `mixin/entity_render_context/MixinEntityRenderDispatcher.java` — TODO comment at the existing,
+    real injection point describing the previous-transform cache lookup/update that needs to
+    happen there; not implemented, to avoid touching this mixin's currently-working logic.
+  - `mixin/MixinFsr2Jitter.java` (new file) — sub-pixel jitter injection into
+    `GameRenderer.getProjectionMatrix`, via a plain `@Inject`/`CallbackInfoReturnable` (not
+    MixinExtras' `@ModifyReturnValue`, unused elsewhere in this fork). **Deliberately not
+    registered in Iris's mixin config** — implementing this is the highest-risk single piece of
+    this whole feature, since `GameRenderer` is also mixed into by Iris's own
+    `MixinGameRenderer`, TACZ's `GameRendererMixin`, and SuperbWarfare's `GameRendererMixin`
+    (mixin-ordering conflicts with their FOV/recoil adjustments are a real risk, not
+    hypothetical) — see the class's own doc comment.
+  - `pipeline/Fsr2PassthroughPipelineLoader.java` (new file) — describes, but does not implement,
+    a bundled no-op Iris shaderpack DNCity force-loads when FSR2 is enabled and the user has no
+    real shaderpack active (confirmed requirement: FSR2 must work with bare Iris, not only with a
+    shaderpack loaded, since Iris's gbuffer/composite pipeline — and therefore all of the above —
+    only exists while some pipeline is active).
+  - `pipeline/FinalPassRenderer.java` — TODO comment at the real `main.bindWrite(true)` call site
+    identifying it as the injection point for DNCity's FSR2 pass driver.
+- **DNCity side** (`src/main/kotlin/io/github/jwyoon1220/dncity/client/render/fsr/`, new package):
+  - `FsrConfig.kt` — quality-tier enum (`FsrQuality`: Ultra Quality/Quality/Balanced/Performance,
+    AMD's own preset scale factors 1.3x/1.5x/1.7x/2.0x) plus enabled/sharpness flags. **Fully
+    implemented**, not a stub — pure data, no rendering-API dependency.
+  - `FsrSettingsScreen.kt` — options screen, structurally mirroring `VoiceSettingsScreen`. Widget
+    layout/state-cycling is real; downstream effects (forcing a resize, invalidating history,
+    loading the passthrough pipeline) are marked `TODO(FSR2)` at each call site since the classes
+    they'd call are themselves still stubs.
+  - `FsrRenderTargets.kt` — persistent ping-ponged history buffer(s) at output resolution; all
+    methods stubbed.
+  - `FsrPassDriver.kt` — the actual per-frame FSR2 invocation (reconstruction/upscale + sharpen),
+    driven by a manually-managed `ShaderInstance` rather than vanilla's `PostChain` (FSR2 mixes
+    internal-render-resolution and output-resolution buffers within one pass, which `PostChain`'s
+    single-shared-resolution model can't express); stubbed, and not yet called from anywhere.
+  - `assets/dncity/shaders/fsr2/` — placeholder `fsr2_reconstruct.{vsh,fsh}` and
+    `fsr2_sharpen.{vsh,fsh}` (no real shader math yet, just full-screen-triangle boilerplate and
+    a documented uniform contract) plus `FSR2-LICENSE.txt` (real, verbatim AMD MIT license text —
+    this port is a hand-restructure from AMD's HLSL FSR2 reference into GLSL, not a file-for-file
+    copy; fill in the exact upstream commit ported from once the real port is written).
+
+**Required before this is functional, not yet done**: wiring `EntityPatcher.patchMotionVectors`
+into the actual per-shader-stage dispatch path, wiring the `MixinEntityRenderDispatcher`/
+`MixinBlockEntityRenderDispatcher` previous-transform-cache calls, registering (and finishing)
+`MixinFsr2Jitter` in Iris's mixin config, resolving the open Sodium frustum-culling question,
+locating/using the real Iris API for force-selecting a shaderpack (`Fsr2PassthroughPipelineLoader`),
+and wiring `FsrPassDriver.runFsr2Pass()` into `FinalPassRenderer.renderFinalPass()`'s injection
+point. **Mandatory before merging any of this as real, working code**: verify TACZ's guns
+(fire/ADS/hip-fire, FMOD sound) and SuperbWarfare's vehicles still render and behave correctly
+with FSR2 enabled, given the shared `GameRenderer`/`EntityRenderDispatcher` mixin targets — this
+is the single biggest compatibility risk in the whole feature, not a generic "run the game" check.
 
 ## Editing the mod metadata template
 

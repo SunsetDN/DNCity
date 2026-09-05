@@ -38,7 +38,7 @@ final class NativeWindowLibrary {
         String osName = System.getProperty("os.name").toLowerCase();
         if (!osName.contains("win")) {
             throw new UnsupportedOperationException(
-                "engine/window is Windows-only today (os.name=" + osName + ") -- see CLAUDE.md's "
+                "engine/window is Windows-only today (os.name=" + osName + ") -- see AGENTS.md's "
                     + "\"Architecture: window overlay\" section.");
         }
         String platform = "windows";

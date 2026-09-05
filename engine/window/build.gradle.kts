@@ -2,7 +2,7 @@
 // window, either handed back raw (for external native rendering) or reparented with an AWT
 // Frame/JFrame embedded inside it (found via a unique-title FindWindowW lookup, not JDK internal
 // --add-opens hacks) so Swing content -- including a JCEF browser's UI component -- can be added.
-// See CLAUDE.md's "Architecture: window overlay" section.
+// See AGENTS.md's "Architecture: window overlay" section.
 //
 // Windows-only for now, same as engine/fmod: plain Win32 windowing APIs need nothing beyond the
 // default MSVC toolchain (no C99 `_Complex`-style constraint like engine/audio's codec2 has), so

@@ -9,7 +9,7 @@ import java.util.UUID
  * across sessions without needing any registration step. [PhoneCallSession] looks numbers up via
  * [lookup] when a call is placed. Deliberately not persisted: the cache repopulates itself
  * on-demand (same derivation every time), and this mod has no config/save system anyway (see
- * CLAUDE.md's `VoiceSettingsScreen` precedent).
+ * AGENTS.md's `VoiceSettingsScreen` precedent).
  */
 object PhoneDirectory {
     private const val DIGITS = 8

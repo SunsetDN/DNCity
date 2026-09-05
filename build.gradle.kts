@@ -182,7 +182,7 @@ neoForge {
             // bundled Groovy runtime no longer provides that way -- a NoSuchMethodError during
             // IntelliJ sync (ModDevGradle 2.0.144 only officially supports Gradle 8.8). Disabled
             // here since these runs are launched via ./gradlew runClient/runServer/etc. anyway
-            // (see CLAUDE.md), not via IDE-generated run configurations.
+            // (see AGENTS.md), not via IDE-generated run configurations.
             disableIdeRun()
             client()
             jvmArgument("-Xmx4G")
@@ -259,7 +259,7 @@ neoForge {
             // dev machine's Application Control policy (AppLocker/WDAC) silently blocks that
             // (UnsatisfiedLinkError on OpusEncoder.createNative even though extraction/System.load
             // themselves report no error), the same class of problem already documented in
-            // CLAUDE.md for engine/fmod's FModLoad and engine/audio's NativeLibrary -- except here
+            // AGENTS.md for engine/fmod's FModLoad and engine/audio's NativeLibrary -- except here
             // the fix can't be "extract to the temp root, not a subdirectory" since it's
             // opus-jni-rust's own code doing the extracting, not ours. Must be a real `-D` JVM
             // argument (not a post-launch System.setProperty) so it's in effect before the JVM's
@@ -393,7 +393,7 @@ dependencies {
     implementation("com.plasmoverse:opus-jni-rust:1.0.4")
     jarJar("com.plasmoverse:opus-jni-rust:1.0.4")
 
-    // engine/fmod (hand-written JNI FMOD bindings, see CLAUDE.md) -- was already an indirect
+    // engine/fmod (hand-written JNI FMOD bindings, see AGENTS.md) -- was already an indirect
     // dependency via TACZ's own jarJar, but that's TACZ's private copy; depending on it directly
     // here gives DNCity its own FMODCoreSystem instance (io.github.jwyoon1220.dncity.music.
     // AudioPlayer) for direct OGG/FLAC/MP3/Opus file playback, independent of TACZ being
@@ -404,7 +404,7 @@ dependencies {
     jarJar("engine:fmod:1.0")
 
     // engine/window (Win32 child-window/AWT-reparenting JNI bridge, see
-    // io.github.jwyoon1220.dncity.client.window and CLAUDE.md). Same jarJar +
+    // io.github.jwyoon1220.dncity.client.window and AGENTS.md). Same jarJar +
     // additionalRuntimeClasspath requirement as engine:audio above -- see that entry's comment
     // (also plain Java, no external dependencies of its own).
     implementation("engine:window:1.0")
@@ -452,7 +452,7 @@ dependencies {
     // NanoVG (phone screen's chrome/keypad rendering, see
     // io.github.jwyoon1220.dncity.client.phone.nanovg) -- LWJGL's own prebuilt bindings, classic
     // JNI like the rest of LWJGL 3.3.x (no java.lang.foreign/Panama, so no Java-24-floor risk --
-    // see CLAUDE.md's "Toolchain" section). Pinned to exactly 3.3.3 since Minecraft 1.21.1's own
+    // see AGENTS.md's "Toolchain" section). Pinned to exactly 3.3.3 since Minecraft 1.21.1's own
     // dependency management pins org.lwjgl:lwjgl itself to `strictly 3.3.3`; lwjgl-nanovg:3.3.3's
     // own POM depends on org.lwjgl:lwjgl:3.3.3, which satisfies that constraint exactly, so no
     // resolutionStrategy.force is needed here (unlike the commons-io force above). natives-windows
@@ -555,7 +555,7 @@ idea {
 }
 
 // Distributing this mod means handing out DNCity's own jar, the TACZ/First Aid submodule jars
-// (see CLAUDE.md's "Composite builds / submodules" -- they're separate mods, not merged into this
+// (see AGENTS.md's "Composite builds / submodules" -- they're separate mods, not merged into this
 // one), and Sodium/Iris (TACZ is built against them, and this pack is meant to be played with
 // them, both now built from source -- see mods/sodium, mods/Iris) together, which by default land
 // in several different build/libs directories (each submodule is its own included build). Copy

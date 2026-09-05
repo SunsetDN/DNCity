@@ -4,7 +4,7 @@ import io.github.jwyoon1220.dncity.audio.Codec2
 import io.github.jwyoon1220.dncity.radio.RadioBand
 
 /**
- * codec2 (engine/audio's `Codec2` JNI bridge, see CLAUDE.md/engine/audio/CMakeLists.txt for the
+ * codec2 (engine/audio's `Codec2` JNI bridge, see AGENTS.md/engine/audio/CMakeLists.txt for the
  * clang+MinGW toolchain that build requires) for the radio-voice tiers -- unlike close-range
  * voice's Opus ([OpusCodec]), which stays a full-quality wideband codec. Fixed at [SAMPLE_RATE]
  * (8kHz) regardless of mode; callers resample to/from the rest of the mod's 48kHz pipeline via

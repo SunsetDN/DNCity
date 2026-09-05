@@ -24,7 +24,7 @@ data class Rect(val x: Int, val y: Int, val width: Int, val height: Int) {
  *
  * [shouldCull] is a single-point (entity origin) approximation of "is this entity behind the
  * overlay", not true per-entity bounding-box coverage -- an entity whose model extends outside
- * the overlay while its origin sits inside it is still culled. See CLAUDE.md's "window overlay"
+ * the overlay while its origin sits inside it is still culled. See AGENTS.md's "window overlay"
  * section for this and other documented limitations (e.g. this has no special handling for
  * Iris's shadow-map render pass, which uses a different camera and should not be culled by a
  * screen-space rectangle meant for the main view).

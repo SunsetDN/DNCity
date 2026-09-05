@@ -13,7 +13,7 @@ import com.plasmoverse.opus.OpusMode
  * radio tiers' CODEC2 codec which has no equivalent off-the-shelf JNI library.
  *
  * Fixed format: mono, 48kHz, [FRAME_SIZE]-sample (20ms) frames -- matches engine/audio's
- * `NativeAudio` capture/playback format (not yet a dependency of this module -- see CLAUDE.md),
+ * `NativeAudio` capture/playback format (not yet a dependency of this module -- see AGENTS.md),
  * so PCM read via that module's `readCapture` can be handed to [createEncoder] directly with no
  * resampling once it's wired in.
  */

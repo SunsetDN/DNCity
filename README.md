@@ -2,12 +2,12 @@
 
 NeoForge (Minecraft 1.21.1) mod written in Kotlin. Voice chat (close-range Opus + PTT radio on
 codec2), TACZ weapon sounds through a bundled FMOD Studio bank, server-pushed `/music` playback,
-and an experimental native window/JCEF browser overlay. See `CLAUDE.md` for the full architecture
+and an experimental native window/JCEF browser overlay. See `AGENTS.md` for the full architecture
 writeup — this file only covers getting a dev environment running.
 
 ## Requirements
 
-- **JDK 21** (exactly this major version — see `CLAUDE.md`'s "Toolchain" section for why the repo
+- **JDK 21** (exactly this major version — see `AGENTS.md`'s "Toolchain" section for why the repo
   used to require JDK 25 and no longer does). Point `JAVA_HOME` at a JDK 21 install, or let the
   Gradle toolchain resolver (`org.gradle.toolchains.foojay-resolver-convention`) download one.
 - **Git LFS** — `*.bank` files (FMOD Studio banks) are tracked via LFS (`.gitattributes`). Install
@@ -21,7 +21,7 @@ writeup — this file only covers getting a dev environment running.
     MinGW-w64 sysroot on `PATH`.
   - `engine/fmod` and `engine/window` build with plain **MSVC** (Visual Studio Build Tools) via
     `cmake` — no special toolchain needed.
-  - See each module's `CLAUDE.md` section / `CMakeLists.txt` comments for exact flags if a build
+  - See each module's `AGENTS.md` section / `CMakeLists.txt` comments for exact flags if a build
     fails.
 - **Windows** is the only platform the native modules currently support (`engine/window` is
   Win32-only; `engine/fmod`/`engine/audio` are Windows-focused too). Linux/macOS are not set up.

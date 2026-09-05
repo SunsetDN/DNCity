@@ -17,7 +17,7 @@ find_package(JNI REQUIRED)
 # is portable C/C++ that doesn't care which ABI it's built for. See build.gradle.kts for the
 # toolchain flags (sysroot/gcc-lib paths, `-fuse-ld=lld`) that make this work with only clang.exe
 # and LLVM's own ld.lld.exe -- no invocation of any MinGW-w64-provided binary (blocked by this
-# dev machine's Application Control policy, see CLAUDE.md) is required, since clang/lld only ever
+# dev machine's Application Control policy, see AGENTS.md) is required, since clang/lld only ever
 # *read* the MinGW sysroot's headers/import libraries, never execute anything from it.
 if(WIN32)
     # codec2's CMakeLists.txt unconditionally links several targets (generate_codebook, several

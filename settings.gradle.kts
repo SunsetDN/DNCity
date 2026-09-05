@@ -22,7 +22,7 @@ includeBuild("mods/First-Aid-New") {
     }
 }
 
-// engine/audio (miniaudio JNI bridge -- see CLAUDE.md) is a standalone Gradle project, wired in
+// engine/audio (miniaudio JNI bridge -- see AGENTS.md) is a standalone Gradle project, wired in
 // here the same way as the TACZ/First Aid submodules above so its NativeAudio class and native
 // library resource land on the main mod's classpath.
 includeBuild("engine/audio") {
@@ -31,7 +31,7 @@ includeBuild("engine/audio") {
     }
 }
 
-// engine/fmod (hand-written JNI FMOD bindings -- see CLAUDE.md) was previously only reachable
+// engine/fmod (hand-written JNI FMOD bindings -- see AGENTS.md) was previously only reachable
 // via TACZ's own includeBuild (mods/TACZ-1.21.1/settings.gradle.kts) -- included here too so the
 // root project can depend on it directly, for FMODCoreSystem-based direct audio-file playback
 // (io.github.jwyoon1220.dncity.music.AudioPlayer) independent of TACZ's own Studio system.
@@ -44,7 +44,7 @@ includeBuild("engine/fmod") {
     }
 }
 
-// engine/window (Win32 child-window/AWT-reparenting JNI bridge -- see CLAUDE.md) follows the
+// engine/window (Win32 child-window/AWT-reparenting JNI bridge -- see AGENTS.md) follows the
 // same standalone-composite-build pattern as engine/audio/engine/fmod.
 includeBuild("engine/window") {
     dependencySubstitution {
@@ -53,7 +53,7 @@ includeBuild("engine/window") {
 }
 
 // engine/browserhost (standalone JCEF/AWT child-process host -- see its own build.gradle.kts doc
-// and CLAUDE.md's "Architecture: window overlay" section) is included WITHOUT a
+// and AGENTS.md's "Architecture: window overlay" section) is included WITHOUT a
 // dependencySubstitution, same reasoning as mods/ModernUI-MC below: it's never consumed as a
 // library dependency of the root project (it only ever runs as an independent `java -jar`
 // process with its own self-contained shadow jar) -- this include exists purely so the root
@@ -166,7 +166,7 @@ includeBuild("mods/VoxelMap")
 // wants, the exact class of bug already documented for Sodium/Iris above. Its `voicechat`
 // (Simple Voice Chat) and `cloth_config` mod dependencies are both declared `optional` in its
 // own neoforge.mods.toml, so it loads fine standalone without either present -- no conflict with
-// this repo having replaced Simple Voice Chat with its own voice/radio system (see CLAUDE.md's
+// this repo having replaced Simple Voice Chat with its own voice/radio system (see AGENTS.md's
 // "Architecture: the radio system"); its `implementation "de.maxhenkel.voicechat:voicechat-api"`
 // dependency only affects this submodule's OWN isolated build environment (needed to compile
 // against SVC's API for its optional integration), not this repo's runtime dependencies, since

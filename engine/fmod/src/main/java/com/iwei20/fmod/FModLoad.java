@@ -160,7 +160,7 @@ public class FModLoad {
         // into libDir alongside fmod.dll/fmodstudio.dll (unlike everything above): on this dev
         // machine, extracting an unsigned, freshly-built DLL into a *subdirectory* of the temp
         // root got silently blocked by the machine's Application Control policy
-        // (AppLocker/WDAC -- same class of restriction documented in CLAUDE.md for engine/audio's
+        // (AppLocker/WDAC -- same class of restriction documented in AGENTS.md for engine/audio's
         // toolchain), while a temp-root-level file did not; matches the exact extraction pattern
         // engine/audio's NativeLibrary.java already uses successfully for its own unsigned DLL.
         // Placing it outside libDir doesn't break the fmod.dll/fmodstudio.dll dependency lookup
