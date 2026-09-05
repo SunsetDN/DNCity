@@ -22,6 +22,17 @@
         </processorPath>
         <module name="VoxelMap.common.main" />
       </profile>
+      <profile name="Gradle Imported" enabled="true">
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/systems.manifold/manifold-preprocessor/2025.1.27/d2bb5c1d6afd343b4e3adb05d074c36cc5ae2160/manifold-preprocessor-2025.1.27.jar" />
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/systems.manifold/manifold/2025.1.27/f8313e4c2ed94eef56558a354c4b3732de744712/manifold-2025.1.27.jar" />
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/systems.manifold/manifold-rt/2025.1.27/e249d6bc9598964292fe745da8b1683cd2bbd7af/manifold-rt-2025.1.27.jar" />
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/systems.manifold/manifold-util/2025.1.27/9ed7a2d67865e54d21d8221dc9dd2279a2b138d4/manifold-util-2025.1.27.jar" />
+        </processorPath>
+        <module name="distant-horizons.common.main" />
+        <module name="distant-horizons.neoforge.main" />
+      </profile>
     </annotationProcessing>
     <bytecodeTargetLevel target="21" />
   </component>
@@ -40,6 +51,15 @@
       <module name="VoxelMap.fabric" options="-AoutRefMapFile=C:\Users\user\IdeaProjects\DNCity\mods\VoxelMap\fabric\build\classes\java\main\voxelmap.fabric.refmap.json -AdefaultObfuscationEnv=named:intermediary -Aquiet=true -AoutMapFileNamedIntermediary=C:\Users\user\IdeaProjects\DNCity\mods\VoxelMap\fabric\build\loom-cache\mixin-map-loom.mappings.1_21_1.layered+hash.2198-v2.main.tiny -AinMapFileNamedIntermediary=C:\Users\user\.gradle\caches\fabric-loom\1.21.1\loom.mappings.1_21_1.layered+hash.2198-v2\mappings.tiny" />
       <module name="VoxelMap.fabric.main" options="-AoutRefMapFile=C:\Users\user\IdeaProjects\DNCity\mods\VoxelMap\fabric\build\classes\java\main\voxelmap.fabric.refmap.json -AdefaultObfuscationEnv=named:intermediary -Aquiet=true -AoutMapFileNamedIntermediary=C:\Users\user\IdeaProjects\DNCity\mods\VoxelMap\fabric\build\loom-cache\mixin-map-loom.mappings.1_21_1.layered+hash.2198-v2.main.tiny -AinMapFileNamedIntermediary=C:\Users\user\.gradle\caches\fabric-loom\1.21.1\loom.mappings.1_21_1.layered+hash.2198-v2\mappings.tiny" />
       <module name="VoxelMap.fabric.test" options="-AoutRefMapFile=C:\Users\user\IdeaProjects\DNCity\mods\VoxelMap\fabric\build\classes\java\test\test-voxelmap.fabric.refmap.json -AdefaultObfuscationEnv=named:intermediary -Aquiet=true -AoutMapFileNamedIntermediary=C:\Users\user\IdeaProjects\DNCity\mods\VoxelMap\fabric\build\loom-cache\mixin-map-loom.mappings.1_21_1.layered+hash.2198-v2.test.tiny -AinMapFileNamedIntermediary=C:\Users\user\.gradle\caches\fabric-loom\1.21.1\loom.mappings.1_21_1.layered+hash.2198-v2\mappings.tiny" />
+      <module name="distant-horizons" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.common" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.common.main" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.common.test" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.main" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.neoforge" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.neoforge.main" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.neoforge.test" options="-Xplugin:Manifold" />
+      <module name="distant-horizons.test" options="-Xplugin:Manifold" />
     </option>
   </component>
 </project>

@@ -21,6 +21,15 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/VoxelMap/common/VoxelMap.common.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/VoxelMap/neoforge/VoxelMap.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/VoxelMap/neoforge/VoxelMap.neoforge.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/distant-horizons/common/distant-horizons.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/distant-horizons/common/distant-horizons.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/distant-horizons/common/distant-horizons.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/distant-horizons/common/distant-horizons.common.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/distant-horizons/neoforge/distant-horizons.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/distant-horizons/neoforge/distant-horizons.neoforge.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/distant-horizons/neoforge/distant-horizons.neoforge.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/distant-horizons/neoforge/distant-horizons.neoforge.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/lithium/common/lithium.common.api.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/lithium/common/lithium.common.api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/lithium/common/lithium.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/lithium/common/lithium.common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/lithium/common/lithium.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/lithium/common/lithium.common.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/lithium/neoforge/lithium.neoforge.gametest.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/lithium/neoforge/lithium.neoforge.gametest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/lithium/neoforge/lithium.neoforge.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/lithium/neoforge/lithium.neoforge.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.api.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.api.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.test.iml" filepath="$PROJECT_DIR$/.idea/modules/mods/sodium/common/sodium.common.test.iml" />
