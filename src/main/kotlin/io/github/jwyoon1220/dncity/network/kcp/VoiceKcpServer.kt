@@ -47,7 +47,7 @@ object VoiceKcpServer {
         var remote: InetSocketAddress? = null
         var authenticated = false
         var lastActivityMs = System.currentTimeMillis()
-        lateinit var kcp: Kcp
+        lateinit var kcp: NativeKcpSession
     }
 
     private var group: NioEventLoopGroup? = null
@@ -103,6 +103,7 @@ object VoiceKcpServer {
         group = null
         mcServer = null
         pendingByConv.clear()
+        sessionsByConv.values.forEach { it.kcp.close() }
         sessionsByConv.clear()
         sessionsByPlayer.clear()
     }
@@ -120,7 +121,10 @@ object VoiceKcpServer {
     }
 
     fun endSession(playerUuid: UUID) {
-        sessionsByPlayer.remove(playerUuid)?.let { sessionsByConv.remove(it.conv) }
+        sessionsByPlayer.remove(playerUuid)?.let {
+            sessionsByConv.remove(it.conv)
+            it.kcp.close()
+        }
         pendingByConv.entries.removeIf { it.value.playerUuid == playerUuid }
     }
 
@@ -146,6 +150,18 @@ object VoiceKcpServer {
         authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY, opusData))
     }
 
+    /** Sends an opaque bulk payload (e.g. Distant Horizons LOD/terrain data) to one player over
+     * the same unified KCP channel voice/radio/phone audio already use -- see
+     * [VoiceKcpProtocol.TYPE_LOD_DATA]. No-op if the player has no authenticated session. */
+    fun sendLodData(playerUuid: UUID, payload: ByteArray) {
+        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeLodData(payload))
+    }
+
+    /** Set by whichever feature wants to receive [TYPE_LOD_DATA][VoiceKcpProtocol.TYPE_LOD_DATA]
+     * messages sent by a client (e.g. a future Distant Horizons request payload) -- invoked on the
+     * server's main thread, same as every other message handler here. */
+    var onLodDataReceived: ((java.util.UUID, ByteArray) -> Unit)? = null
+
     private fun authenticatedSession(playerUuid: UUID): ServerSession? =
         sessionsByPlayer[playerUuid]?.takeIf { it.authenticated }
 
@@ -158,7 +174,7 @@ object VoiceKcpServer {
         if (session == null) {
             val pending = pendingByConv[conv] ?: return // unknown conv -- drop (no session was ever allocated for it)
             val newSession = ServerSession(conv, pending.playerUuid, pending.secret)
-            newSession.kcp = Kcp(conv) { out -> channel?.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), newSession.remote ?: sender)) }
+            newSession.kcp = NativeKcpSession(conv) { out -> channel?.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), newSession.remote ?: sender)) }
             session = newSession
             sessionsByConv[conv] = session
         }
@@ -174,14 +190,25 @@ object VoiceKcpServer {
 
     private fun handleMessage(session: ServerSession, msg: ByteArray) {
         if (msg.isEmpty()) return
+        try {
+            handleMessageChecked(session, msg)
+        } catch (e: Exception) {
+            // A malformed/truncated/spoofed message (bad length, out-of-range field) must not kill
+            // this session's I/O thread -- see VoiceKcpProtocol's requireRemaining/readBoundedPayload.
+            Dncity.LOGGER.warn("VoiceKcpServer: dropping malformed message (type {}) from conv {}", msg[0], session.conv, e)
+        }
+    }
+
+    private fun handleMessageChecked(session: ServerSession, msg: ByteArray) {
         if (msg[0] == VoiceKcpProtocol.TYPE_HELLO) {
             val hello = VoiceKcpProtocol.decodeHello(msg)
             if (hello.conv == session.conv && hello.secret == session.secret) {
                 pendingByConv.remove(session.conv)
-                sessionsByPlayer.put(session.playerUuid, session)?.takeIf { it !== session }?.let { old -> sessionsByConv.remove(old.conv) }
+                sessionsByPlayer.put(session.playerUuid, session)?.takeIf { it !== session }?.let { old -> sessionsByConv.remove(old.conv); old.kcp.close() }
                 session.authenticated = true
             } else {
                 sessionsByConv.remove(session.conv) // bad secret -- reject, don't trust this conv going forward
+                session.kcp.close()
             }
             return
         }
@@ -194,19 +221,26 @@ object VoiceKcpServer {
         // UDP channel's own Netty event loop, see start()).
         server.execute {
             val player = server.playerList.getPlayer(session.playerUuid) ?: return@execute
-            when (msg[0]) {
-                VoiceKcpProtocol.TYPE_VOICE_AUDIO -> {
-                    val audio = VoiceKcpProtocol.decodeAudio(msg)
-                    if (!audio.isStale) VoiceRelay.relay(player, audio.audio)
+            try {
+                when (msg[0]) {
+                    VoiceKcpProtocol.TYPE_VOICE_AUDIO -> {
+                        val audio = VoiceKcpProtocol.decodeAudio(msg)
+                        if (!audio.isStale) VoiceRelay.relay(player, audio.audio)
+                    }
+                    VoiceKcpProtocol.TYPE_RADIO_AUDIO -> {
+                        val audio = VoiceKcpProtocol.decodeAudio(msg)
+                        if (!audio.isStale) RadioRelay.relay(player, audio.audio)
+                    }
+                    VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO -> {
+                        val audio = VoiceKcpProtocol.decodeAudio(msg)
+                        if (!audio.isStale) PhoneCallSession.relayAudio(player, audio.audio)
+                    }
+                    VoiceKcpProtocol.TYPE_LOD_DATA -> {
+                        onLodDataReceived?.invoke(session.playerUuid, VoiceKcpProtocol.decodeLodData(msg))
+                    }
                 }
-                VoiceKcpProtocol.TYPE_RADIO_AUDIO -> {
-                    val audio = VoiceKcpProtocol.decodeAudio(msg)
-                    if (!audio.isStale) RadioRelay.relay(player, audio.audio)
-                }
-                VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO -> {
-                    val audio = VoiceKcpProtocol.decodeAudio(msg)
-                    if (!audio.isStale) PhoneCallSession.relayAudio(player, audio.audio)
-                }
+            } catch (e: Exception) {
+                Dncity.LOGGER.warn("VoiceKcpServer: dropping malformed message (type {}) from {}", msg[0], player.gameProfile.name, e)
             }
         }
     }
@@ -219,6 +253,7 @@ object VoiceKcpServer {
             if (now - session.lastActivityMs > SESSION_IDLE_TIMEOUT_MS) {
                 it.remove()
                 sessionsByPlayer.remove(session.playerUuid, session)
+                session.kcp.close()
                 continue
             }
             session.kcp.update(now)

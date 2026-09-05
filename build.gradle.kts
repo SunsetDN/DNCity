@@ -293,6 +293,7 @@ neoForge {
             // than the copy already on the main classpath. See engine/audio/build.gradle.kts.)
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:audio:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:window:1.0")
+            project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "engine:kcp:1.0")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "com.plasmoverse:opus-jni-rust:1.0.4")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcpg-jdk18on:1.78.1")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.bouncycastle:bcprov-jdk18on:1.78.1")
@@ -409,6 +410,13 @@ dependencies {
     // (also plain Java, no external dependencies of its own).
     implementation("engine:window:1.0")
     jarJar("engine:window:1.0")
+
+    // engine/kcp (C++/JNI port of this mod's KCP-over-UDP transport, see
+    // io.github.jwyoon1220.dncity.network.kcp.NativeKcpSession and AGENTS.md). Same jarJar +
+    // additionalRuntimeClasspath requirement as engine:audio/engine:window above -- see that
+    // entry's comment (also plain Java, no external dependencies of its own).
+    implementation("engine:kcp:1.0")
+    jarJar("engine:kcp:1.0")
 
     // ModernUI-MC (mods/ModernUI-MC), for the phone screen's Fragment/View host (see
     // io.github.jwyoon1220.dncity.client.phone.PhoneFragment). Not a dependencySubstitution like TACZ/First

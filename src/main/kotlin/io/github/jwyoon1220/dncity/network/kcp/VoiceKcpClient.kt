@@ -29,7 +29,7 @@ object VoiceKcpClient {
 
     private var group: NioEventLoopGroup? = null
     private var channel: Channel? = null
-    private var kcp: Kcp? = null
+    private var kcp: NativeKcpSession? = null
 
     fun connect(host: String, port: Int, conv: Int, secret: Long) {
         disconnect()
@@ -52,13 +52,21 @@ object VoiceKcpClient {
                         })
                     }
                 })
-            val ch = bootstrap.bind(0).sync().channel()
+            // connect(), not bind(0) -- an unconnected socket accepts a datagram claiming to be
+            // from anyone, so anyone who learns this ephemeral port and the plaintext conv id could
+            // inject forged KCP segments straight into decode without ever touching the real
+            // server. A connected UDP socket has the OS itself drop anything not from `remote`.
+            val ch = bootstrap.connect(remote).sync().channel()
             channel = ch
-            val session = Kcp(conv) { out -> ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), remote)) }
+            val session = NativeKcpSession(conv) { out -> ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), remote)) }
             kcp = session
             session.send(VoiceKcpProtocol.encodeHello(conv, secret))
             eventLoopGroup.next().scheduleAtFixedRate({ tick() }, 0, TICK_INTERVAL_MS, TimeUnit.MILLISECONDS)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable, not Exception -- NativeKcpSession's construction can throw
+            // UnsatisfiedLinkError/ExceptionInInitializerError (both Error, not Exception) if the
+            // native library fails to load, and that must degrade to "disabled this session" too,
+            // same as every other native-loader failure in this repo (see engine/audio, engine/fmod).
             Dncity.LOGGER.error("VoiceKcpClient failed to connect to {}:{} -- voice/radio/phone audio disabled this session", host, port, e)
             disconnect()
         }
@@ -69,6 +77,7 @@ object VoiceKcpClient {
         group?.shutdownGracefully(0, 500, TimeUnit.MILLISECONDS)
         channel = null
         group = null
+        kcp?.close()
         kcp = null
     }
 
@@ -93,6 +102,18 @@ object VoiceKcpClient {
         kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO, opusData))
     }
 
+    /** Sends an opaque bulk payload (e.g. a Distant Horizons LOD/terrain request) to the server
+     * over the same unified KCP channel voice/radio/phone audio already use -- see
+     * [VoiceKcpProtocol.TYPE_LOD_DATA]. No-op if not currently connected. */
+    fun sendLodData(payload: ByteArray) {
+        kcp?.send(VoiceKcpProtocol.encodeLodData(payload))
+    }
+
+    /** Set by whichever feature wants to receive [TYPE_LOD_DATA][VoiceKcpProtocol.TYPE_LOD_DATA]
+     * messages sent by the server (e.g. a future Distant Horizons LOD response) -- invoked on the
+     * render/client thread, same as every other message handler here. */
+    var onLodDataReceived: ((ByteArray) -> Unit)? = null
+
     private fun tick() {
         kcp?.update(System.currentTimeMillis())
         drainReceived()
@@ -113,24 +134,33 @@ object VoiceKcpClient {
         // IPayloadHandler.enqueueWork bodies this replaced, they're not meant to run on an
         // arbitrary I/O thread (this UDP channel's own Netty event loop, see connect()).
         Minecraft.getInstance().execute {
-            when (msg[0]) {
-                VoiceKcpProtocol.TYPE_VOICE_AUDIO_RELAY -> {
-                    val relay = VoiceKcpProtocol.decodeVoiceRelay(msg)
-                    if (!relay.isStale) ClientVoiceReceiver.handleRelayedFrame(relay.senderEntityId, relay.audio)
-                }
-                VoiceKcpProtocol.TYPE_RADIO_AUDIO_RELAY -> {
-                    val relay = VoiceKcpProtocol.decodeRadioRelay(msg)
-                    if (!relay.isStale) {
-                        ClientRadioReceiver.handleRelayedFrame(
-                            relay.senderEntityId, relay.audio, relay.frequencyKhz, relay.modeName,
-                            relay.senderPosition, relay.rangeInfo.effectiveMaxRangeBlocks, relay.rangeInfo.obstructed, relay.rangeInfo.stormNoise,
-                        )
+            try {
+                when (msg[0]) {
+                    VoiceKcpProtocol.TYPE_VOICE_AUDIO_RELAY -> {
+                        val relay = VoiceKcpProtocol.decodeVoiceRelay(msg)
+                        if (!relay.isStale) ClientVoiceReceiver.handleRelayedFrame(relay.senderEntityId, relay.audio)
+                    }
+                    VoiceKcpProtocol.TYPE_RADIO_AUDIO_RELAY -> {
+                        val relay = VoiceKcpProtocol.decodeRadioRelay(msg)
+                        if (!relay.isStale) {
+                            ClientRadioReceiver.handleRelayedFrame(
+                                relay.senderEntityId, relay.audio, relay.frequencyKhz, relay.modeName,
+                                relay.senderPosition, relay.rangeInfo.effectiveMaxRangeBlocks, relay.rangeInfo.obstructed, relay.rangeInfo.stormNoise,
+                            )
+                        }
+                    }
+                    VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY -> {
+                        val audio = VoiceKcpProtocol.decodeAudio(msg)
+                        if (!audio.isStale) PhoneCallReceiver.handleFrame(audio.audio)
+                    }
+                    VoiceKcpProtocol.TYPE_LOD_DATA -> {
+                        onLodDataReceived?.invoke(VoiceKcpProtocol.decodeLodData(msg))
                     }
                 }
-                VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY -> {
-                    val audio = VoiceKcpProtocol.decodeAudio(msg)
-                    if (!audio.isStale) PhoneCallReceiver.handleFrame(audio.audio)
-                }
+            } catch (e: Exception) {
+                // A malformed/truncated message (bad length, out-of-range field) must not kill the
+                // render thread -- see VoiceKcpProtocol's requireRemaining/readBoundedPayload.
+                Dncity.LOGGER.warn("VoiceKcpClient: dropping malformed message (type {})", msg[0], e)
             }
         }
     }

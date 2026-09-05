@@ -25,7 +25,38 @@ object VoiceKcpProtocol {
     const val TYPE_PHONE_CALL_AUDIO: Byte = 5
     const val TYPE_PHONE_CALL_AUDIO_RELAY: Byte = 6
 
+    /** Opaque bulk data (e.g. Distant Horizons LOD/terrain streaming payloads) riding the same
+     * per-player [NativeKcpSession] as voice/radio/phone audio, demuxed by this same leading
+     * type-tag byte -- see [VoiceKcpServer.sendLodData]/[VoiceKcpClient.sendLodData]. Unlike the
+     * audio types above this carries no send timestamp: LOD data isn't perishable the way a stale
+     * audio frame is, so there's nothing to drop on a late/retransmitted arrival. */
+    const val TYPE_LOD_DATA: Byte = 7
+
     const val STALE_MS = 250L
+
+    /** Same cap the old [net.minecraft.network.codec.StreamCodec]-based payloads enforced (see git
+     * history's `VoicePayloads`/`RadioVoicePayloads`/`PhonePayloads`) -- without it, a message
+     * claiming a huge `buf.remaining()` would force an unbounded server- or client-side allocation
+     * per packet. */
+    private const val MAX_AUDIO_FRAME_BYTES = 2048
+
+    /** Distant Horizons LOD/terrain payloads are legitimately much larger than an audio frame, but
+     * still need *some* cap so a malformed/hostile message can't force an unbounded allocation. */
+    private const val MAX_LOD_PAYLOAD_BYTES = 1 shl 20
+
+    private class MalformedMessageException(message: String) : Exception(message)
+
+    private fun requireRemaining(buf: ByteBuffer, bytes: Int, what: String) {
+        if (buf.remaining() < bytes) throw MalformedMessageException("truncated $what: need $bytes more bytes, have ${buf.remaining()}")
+    }
+
+    private fun readBoundedPayload(buf: ByteBuffer, max: Int, what: String): ByteArray {
+        val size = buf.remaining()
+        if (size > max) throw MalformedMessageException("$what too large: $size > $max bytes")
+        val payload = ByteArray(size)
+        buf.get(payload)
+        return payload
+    }
 
     // ---- HELLO: the first message a client sends on a fresh UDP session, proving it holds the
     // secret the server handed it over Minecraft's own (already encrypted/authenticated) channel
@@ -39,6 +70,7 @@ object VoiceKcpProtocol {
     fun decodeHello(data: ByteArray): Hello {
         val buf = ByteBuffer.wrap(data)
         buf.get() // type tag, already dispatched on
+        requireRemaining(buf, 4 + 8, "HELLO")
         return Hello(buf.int, buf.long)
     }
 
@@ -55,10 +87,23 @@ object VoiceKcpProtocol {
     fun decodeAudio(data: ByteArray): TimedAudio {
         val buf = ByteBuffer.wrap(data)
         buf.get()
+        requireRemaining(buf, 8, "audio frame")
         val sentAt = buf.long
-        val audio = ByteArray(buf.remaining())
-        buf.get(audio)
+        val audio = readBoundedPayload(buf, MAX_AUDIO_FRAME_BYTES, "audio frame")
         return TimedAudio(sentAt, audio)
+    }
+
+    // ---- LOD/terrain data (opaque bulk payload, either direction -- see TYPE_LOD_DATA's doc
+    // comment). No addressing or timestamp: the payload's own format (e.g. Distant Horizons'
+    // already-compressed FullDataPayload bytes) is meaningless to this transport layer. ----
+
+    fun encodeLodData(payload: ByteArray): ByteArray =
+        ByteBuffer.allocate(1 + payload.size).put(TYPE_LOD_DATA).put(payload).array()
+
+    fun decodeLodData(data: ByteArray): ByteArray {
+        val buf = ByteBuffer.wrap(data)
+        buf.get()
+        return readBoundedPayload(buf, MAX_LOD_PAYLOAD_BYTES, "LOD payload")
     }
 
     // ---- Close-range voice relay (server -> one in-range listener): needs the speaker's entity
@@ -76,10 +121,10 @@ object VoiceKcpProtocol {
     fun decodeVoiceRelay(data: ByteArray): VoiceRelay {
         val buf = ByteBuffer.wrap(data)
         buf.get()
+        requireRemaining(buf, 8 + 4, "voice relay")
         val sentAt = buf.long
         val senderEntityId = buf.int
-        val audio = ByteArray(buf.remaining())
-        buf.get(audio)
+        val audio = readBoundedPayload(buf, MAX_AUDIO_FRAME_BYTES, "voice relay")
         return VoiceRelay(sentAt, senderEntityId, audio)
     }
 
@@ -125,6 +170,7 @@ object VoiceKcpProtocol {
     fun decodeRadioRelay(data: ByteArray): RadioRelay {
         val buf = ByteBuffer.wrap(data)
         buf.get()
+        requireRemaining(buf, 8 + 4 + 8 + 1 + 8 + 8 + 8 + 8 + 1, "radio relay")
         val sentAt = buf.long
         val senderEntityId = buf.int
         val frequencyKhz = buf.double
@@ -132,10 +178,11 @@ object VoiceKcpProtocol {
         val x = buf.double; val y = buf.double; val z = buf.double
         val effectiveMaxRangeBlocks = buf.double
         val flags = buf.get().toInt()
-        val audio = ByteArray(buf.remaining())
-        buf.get(audio)
+        val audio = readBoundedPayload(buf, MAX_AUDIO_FRAME_BYTES, "radio relay")
+        val mode = RadioMode.entries.getOrNull(modeCode)
+            ?: throw MalformedMessageException("radio relay: mode code $modeCode out of range")
         return RadioRelay(
-            sentAt, senderEntityId, audio, frequencyKhz, RadioMode.entries[modeCode].name,
+            sentAt, senderEntityId, audio, frequencyKhz, mode.name,
             RadioSenderPosition(x, y, z),
             RadioRangeInfo.of(effectiveMaxRangeBlocks, (flags and 1) != 0, (flags and 2) != 0),
         )

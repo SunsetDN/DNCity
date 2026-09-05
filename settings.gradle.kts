@@ -53,6 +53,15 @@ includeBuild("engine/window") {
 }
 
 // engine/browserhost (standalone JCEF/AWT child-process host -- see its own build.gradle.kts doc
+// engine/kcp (C++/JNI port of this mod's KCP-over-UDP transport -- see AGENTS.md and this
+// module's own build.gradle.kts doc comment) follows the same standalone-composite-build pattern
+// as engine/audio/engine/fmod/engine/window.
+includeBuild("engine/kcp") {
+    dependencySubstitution {
+        substitute(module("engine:kcp")).using(project(":"))
+    }
+}
+
 // and AGENTS.md's "Architecture: window overlay" section) is included WITHOUT a
 // dependencySubstitution, same reasoning as mods/ModernUI-MC below: it's never consumed as a
 // library dependency of the root project (it only ever runs as an independent `java -jar`
