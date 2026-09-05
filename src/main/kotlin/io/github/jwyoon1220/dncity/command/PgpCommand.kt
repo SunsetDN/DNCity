@@ -22,7 +22,9 @@ import java.util.UUID
  * Kleopatra and sends it to an operator by any channel, the operator drops the file at
  * `config/dncity/security/pgp/incoming/<playername>.asc`, then runs `/pgp register <playername>`
  * to move it into the real registry. `/pgp enable`/`/pgp disable` toggle the whole login gate
- * ([io.github.jwyoon1220.dncity.security.PgpSettings]) without touching anyone's registered key.
+ * ([io.github.jwyoon1220.dncity.security.PgpSettings]) without touching anyone's registered key;
+ * `/pgp trustloopback on`/`off` toggles whether a loopback connection is exempted from it (off by
+ * default -- see [io.github.jwyoon1220.dncity.security.PgpSettings.exemptLoopback]'s doc comment).
  */
 object PgpCommand {
     fun onRegisterCommands(event: RegisterCommandsEvent) {
@@ -93,6 +95,26 @@ object PgpCommand {
                         ctx.source.sendSuccess({ Component.literal("PGP login gate disabled") }, true)
                         1
                     },
+                )
+                .then(
+                    Commands.literal("trustloopback")
+                        .then(
+                            Commands.literal("on").executes { ctx ->
+                                PgpSettings.exemptLoopback = true
+                                ctx.source.sendSuccess(
+                                    { Component.literal("Loopback connections now exempt from the PGP gate -- WARNING: a same-host proxy (Velocity/BungeeCord) makes every real player look like loopback too") },
+                                    true,
+                                )
+                                1
+                            },
+                        )
+                        .then(
+                            Commands.literal("off").executes { ctx ->
+                                PgpSettings.exemptLoopback = false
+                                ctx.source.sendSuccess({ Component.literal("Loopback connections are no longer exempt from the PGP gate") }, true)
+                                1
+                            },
+                        ),
                 ),
         )
     }
