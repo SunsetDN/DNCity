@@ -457,6 +457,29 @@ dependencies {
         include("*.jar")
     })
 
+    // Distant Horizons (mods/distant-horizons) -- distant-terrain LOD rendering, not referenced by
+    // this repo's own code (same as Sound Physics Remastered above), just a standalone mod that
+    // needs to be on the dev runtime's classpath for runClient/runClient2/runServer to load it, and
+    // built for collectDistributionJars to pick up. Its "neoforge" subproject's shadowJar task
+    // produces a "-all.jar" (the shaded, distributable jar with dependencies bundled in) alongside
+    // plain/dev/sources variants (see mods/distant-horizons/neoforge/build.gradle) -- only the
+    // "-all" one is wanted, same reasoning as ModernUI-MC/VoxelMap above for avoiding a plain
+    // project substitution.
+    implementation(fileTree("mods/distant-horizons/neoforge/build/libs") {
+        include("*-all.jar")
+    })
+
+    // Lithium (mods/lithium) -- general server/client performance optimizations, not referenced by
+    // this repo's own code (same as Sound Physics Remastered/Distant Horizons above), just a
+    // standalone mod that needs to be on the dev runtime's classpath for
+    // runClient/runClient2/runServer to load it, and built for collectDistributionJars to pick up.
+    // Its "neoforge" subproject's plain "jar" task is its full distributable jar (already bundles
+    // ":common" -- see settings.gradle.kts's comment on this includeBuild), same shape as
+    // Sodium/Iris/VoxelMap above.
+    implementation(fileTree("mods/lithium/build/libs") {
+        include("*.jar")
+    })
+
     // NanoVG (phone screen's chrome/keypad rendering, see
     // io.github.jwyoon1220.dncity.client.phone.nanovg) -- LWJGL's own prebuilt bindings, classic
     // JNI like the rest of LWJGL 3.3.x (no java.lang.foreign/Panama, so no Java-24-floor risk --
@@ -490,6 +513,8 @@ listOf("compileJava", "compileKotlin", "runClient", "runClient2", "runServer", "
         dependsOn(gradle.includedBuild("ModernUI-MC").task(":ModernUI-NeoForge:remapJar"))
         dependsOn(gradle.includedBuild("VoxelMap").task(":neoforge:jar"))
         dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
+        dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:shadowJar"))
+        dependsOn(gradle.includedBuild("lithium").task(":neoforge:jar"))
     }
 }
 
@@ -577,7 +602,7 @@ idea {
 // this run's `from(...)` set.
 val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     group = "distribution"
-    description = "Copies this project's jar, the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
+    description = "Copies this project's jar, the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered/Distant Horizons/Lithium submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
 
     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
@@ -605,6 +630,12 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     // Sound Physics Remastered's "neoforge" subproject's shadowJar is its distributable jar --
     // see the fileTree dependency above's comment.
     dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
+    // Distant Horizons's "neoforge" subproject's shadowJar produces the shaded "-all.jar" this
+    // repo wants to distribute -- see the fileTree dependency above's comment.
+    dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:shadowJar"))
+    // Lithium's "neoforge" subproject's plain "jar" task is its full distributable jar -- see the
+    // fileTree dependency above's comment.
+    dependsOn(gradle.includedBuild("lithium").task(":neoforge:jar"))
 
     // Excludes sources/javadoc jars in case either submodule's build ever starts producing them
     // (neither does today) -- only the runtime mod jar belongs in a distribution folder.
@@ -656,6 +687,19 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     from(file("mods/sound-physics-remastered/neoforge/build/libs")) {
         include("*.jar")
         exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // Lithium's "neoforge" subproject's own "build" dir (its rootProject, i.e. mods/lithium/build,
+    // not the neoforge subproject's) -- its jar task's destinationDirectory is set explicitly to
+    // "<lithium root>/build/libs" (mods/lithium/neoforge/build.gradle.kts), same as Iris/VoxelMap.
+    from(file("mods/lithium/build/libs")) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-javadoc.jar")
+    }
+    // Distant Horizons's "neoforge" subproject's own build/libs -- only the shaded "-all.jar",
+    // same reasoning as the fileTree dependency above (the plain/dev/sources variants alongside it
+    // aren't meant to be distributed standalone).
+    from(file("mods/distant-horizons/neoforge/build/libs")) {
+        include("*-all.jar")
     }
     // SuperbWarfare's own externally-published (Create/Create: Aeronautics/Sable) runtime
     // dependencies -- see this file's `bundledExternalMods` configuration declaration above for why.

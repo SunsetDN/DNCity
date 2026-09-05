@@ -35,3 +35,10 @@
 	path = mods/sound-physics-remastered
 	url = https://github.com/SunsetDN/sound-physics-remastered
 	branch = 1.21.1
+[submodule "mods/distant-horizons"]
+	path = mods/distant-horizons
+	url = https://github.com/SunsetDN/distant-horizons.git
+	branch = main
+[submodule "mods/lithium"]
+	path = mods/lithium
+	url = https://github.com/SunsetDN/lithium.git

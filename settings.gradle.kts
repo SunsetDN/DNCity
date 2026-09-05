@@ -4,6 +4,7 @@ pluginManagement {
         gradlePluginPortal()
         maven { url = uri("https://maven.neoforged.net/releases") }
     }
+
 }
 
 plugins {
@@ -52,7 +53,6 @@ includeBuild("engine/window") {
     }
 }
 
-// engine/browserhost (standalone JCEF/AWT child-process host -- see its own build.gradle.kts doc
 // engine/kcp (C++/JNI port of this mod's KCP-over-UDP transport -- see AGENTS.md and this
 // module's own build.gradle.kts doc comment) follows the same standalone-composite-build pattern
 // as engine/audio/engine/fmod/engine/window.
@@ -62,6 +62,7 @@ includeBuild("engine/kcp") {
     }
 }
 
+// engine/browserhost (standalone JCEF/AWT child-process host -- see its own build.gradle.kts doc
 // and AGENTS.md's "Architecture: window overlay" section) is included WITHOUT a
 // dependencySubstitution, same reasoning as mods/ModernUI-MC below: it's never consumed as a
 // library dependency of the root project (it only ever runs as an independent `java -jar`
@@ -181,3 +182,21 @@ includeBuild("mods/VoxelMap")
 // against SVC's API for its optional integration), not this repo's runtime dependencies, since
 // it's pulled in via a plain file dependency below rather than a project dependency.
 includeBuild("mods/sound-physics-remastered")
+
+// Distant Horizons (mods/distant-horizons, SunsetDN mirror of upstream jeseibel/distant-horizons
+includeBuild("mods/distant-horizons")
+
+// Lithium (mods/lithium, SunsetDN fork, "1.21.1" branch) -- general server/client performance
+// optimizations (game logic, not rendering, so it's complementary to Sodium/Iris/Distant Horizons
+// above rather than overlapping with them). Included WITHOUT a dependencySubstitution, same
+// reasoning as VoxelMap/Sound Physics Remastered above: nothing in this repo declares a
+// "maven.modrinth:lithium"/similar coordinate to intercept, and its "neoforge" subproject's own
+// `tasks.jar` (mods/lithium/neoforge/build.gradle.kts) already bundles ":common"'s compiled
+// classes directly into one self-contained jar with its own explicit
+// `destinationDirectory = rootDir.resolve("build").resolve("libs")`, same shape as Sodium's own
+// neoforge subproject -- so it's just included as a composite build (for its own build/run tasks
+// and IDE integration) and that plain jar copied by collectDistributionJars in the root
+// build.gradle.kts. Also brings in its own nested (non-submodule, checked directly into the fork)
+// "components/mixin-config-plugin" included build, used only by Lithium's own neoforge subproject
+// to auto-generate its mixin config at build time -- no action needed here, it resolves on its own.
+includeBuild("mods/lithium")
