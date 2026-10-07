@@ -52,8 +52,11 @@ data class FuzeState(val phase: FuzePhase, val travelledM: Double, val delayRema
  * It refers to its definition by id ([definitionId]), not by object, so it stays valid and saveable across data reloads;
  * whoever needs the fixed data resolves it once (see [ImpactContext]).
  *
- * @property axis unit vector along the projectile's body. For a stable flight it equals the velocity direction; after an
- *   oblique impact a long penetrator tumbles and the two differ ([yawRad]), which long-rod models need.
+ * @property axis **unit** vector along the projectile's body (enforced, never zero). For a stable flight it equals the velocity
+ *   direction; after an oblique impact a long penetrator tumbles and the two differ ([yawRad]), which long-rod models need.
+ *
+ * A projectile at rest (speed 0) is a valid state, it is what lies in the armor after it stopped; it just cannot be the
+ * residual of a perforation or ricochet ([PenetrationResult] requires it to be moving).
  */
 data class ProjectileState(
     val definitionId: Ident,
@@ -65,16 +68,17 @@ data class ProjectileState(
     val penetratorLengthRemainingM: Double?,
     /** 1 = undamaged, 0 = destroyed. Solvers define what falls below which threshold. */
     val integrity: Double,
-    /** 0 = original nose shape, 1 = fully mushroomed or blunted. */
+    /** Normalized: 0 = original nose shape, 1 = fully mushroomed or blunted. Always in 0..1. */
     val deformation: Double,
     val fuze: FuzeState,
 ) {
     init {
         require(position.isFinite && velocity.isFinite && axis.isFinite) { "projectile vectors must be finite" }
+        require(kotlin.math.abs(axis.length() - 1.0) < AXIS_TOL) { "projectile axis must be a unit vector, length ${axis.length()}" }
         require(massRemainingKg >= 0.0) { "mass must not be negative" }
         require(penetratorLengthRemainingM == null || penetratorLengthRemainingM >= 0.0) { "penetrator length must not be negative" }
         require(integrity in 0.0..1.0) { "integrity must be in 0..1" }
-        require(deformation >= 0.0) { "deformation must not be negative" }
+        require(deformation in 0.0..1.0) { "deformation must be in 0..1" }
     }
 
     val speedMps: Double get() = velocity.length()
@@ -96,8 +100,11 @@ data class ProjectileState(
     }
 
     companion object {
+        const val AXIS_TOL = 1e-6
+
         fun launch(definition: ProjectileDefinition, position: V3, direction: V3, speedMps: Double): ProjectileState {
             val dir = direction.normalize()
+            require(dir.lengthSqr() > 0.0) { "launch direction must not be zero" }
             return ProjectileState(
                 definitionId = definition.id,
                 position = position,

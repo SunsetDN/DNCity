@@ -54,12 +54,36 @@ class ImpactContext private constructor(
             )
         }
 
-        /** Mixes a shot's seed with the position in the stack so every layer gets its own, reproducible, stream. */
-        fun seedFor(shotSeed: Long, elementIndex: Int, layerIndex: Int): Long {
-            var h = shotSeed xor (elementIndex.toLong() * -0x61c8864680b583ebL) xor (layerIndex.toLong() * 0x2545F4914F6CDD1DL)
-            h = (h xor (h ushr 30)) * -0x40a7b892e31b1a47L
-            h = (h xor (h ushr 27)) * -0x6b2fb644ecceee15L
-            return h xor (h ushr 31)
+        /**
+         * The seed of one random stream: the shot's seed combined with *what* the stream is for (construction, element, layer and
+         * [SeedDomain]), not with how many calls came before. Adding a phase, a layer or a domain therefore never shifts the streams of
+         * the others, and the same inputs give the same seed on the server and on a client.
+         */
+        fun seedFor(shotSeed: Long, constructionId: Ident, elementIndex: Int, layerIndex: Int, domain: SeedDomain): Long {
+            var h = mix(shotSeed)
+            h = mix(h xor fnv64(constructionId.toString()))
+            h = mix(h xor elementIndex.toLong())
+            h = mix(h xor (layerIndex.toLong() + 0x9E3779B97F4A7C15uL.toLong()))
+            return mix(h xor fnv64(domain.name))
+        }
+
+        private fun fnv64(text: String): Long {
+            var h = -0x340d631b7bdddcdbL // FNV-1a offset basis
+            for (b in text.toByteArray(Charsets.UTF_8)) {
+                h = (h xor (b.toLong() and 0xff)) * 0x100000001b3L
+            }
+            return h
+        }
+
+        /** SplitMix64 finalizer. */
+        private fun mix(value: Long): Long {
+            var z = value + -0x61c8864680b583ebL
+            z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+            z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+            return z xor (z ushr 31)
         }
     }
 }
+
+/** What a random stream is for. Keyed by name, so reordering or extending this list never changes an existing stream. */
+enum class SeedDomain { PENETRATION, EFFECT_BEFORE_PACKAGE, EFFECT_BEFORE_LAYER, EFFECT_AFTER_LAYER, EFFECT_AFTER_PACKAGE, SPALL, FUZE }

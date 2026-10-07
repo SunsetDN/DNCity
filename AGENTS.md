@@ -666,13 +666,20 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
     a `TraversalState` (this passage: accumulated flown distance, deposited energy, spall/blast sources, consumed effects, phase).
     Ends with a `TraversalOutcome`: STOPPED_IN_ARMOR, RICOCHETED, SHATTERED, DEFEATED_BY_EFFECT, EXITED_CONSTRUCTION or
     ENTERED_INTERNAL_SPACE (after which residual tracing, spall, modules, crew and fuze are the post-penetration solver's job).
-    Gap path = distance / cos(angle) and counts towards the traversal distance and the fuze arming distance. Effect hooks:
-    `EffectPhase` BEFORE_PACKAGE, per layer BEFORE_LAYER / (penetration) / AFTER_LAYER (only if perforated), AFTER_PACKAGE; a model is
-    only called for the phases it lists. Models are pure and return data (`PenetrationResult`, `EffectInteractionResult`); the
-    traversal rejects any model that creates energy (`EnergyAccounting`).
+    Gap path = distance / cos(angle) (a gap is air; there is no fill, a medium model would be separate) and counts towards the
+    traversal distance and the fuze arming distance. Contracts the traverser enforces on every model: the traversal owns canonical
+    state (after a perforation the residual is placed at `perforationPoint`, the path must be finite and > 0; `exitDirection` is derived
+    from `residual.velocity`); `ProjectileState.axis` is a unit vector and `deformation` is 0..1; no energy from nowhere
+    (`EnergyBudget`: a penetrator model may only use the projectile's energy, an effect may also release its
+    `ArmorEffectSpec.storedEnergyJ`, and only in the interaction in which it uses itself up; blasts are TNT mass converted by
+    `EnergyAccounting.blastJ`; passive armor has no stored energy); only a `singleUse` effect may report consumption, once; an
+    effect cannot revive a projectile a layer stopped. Effect hooks: `EffectPhase` BEFORE_PACKAGE, per layer BEFORE_LAYER /
+    (penetration) / AFTER_LAYER (called for every solved outcome; after a layer that did not perforate it is observation-only and
+    returns `EffectInteractionResult.observation`, the layer's verdict outranks it) and AFTER_PACKAGE (only if every layer was
+    perforated); a model is only called for the phases it lists. Runtime effect state is just INTACT/SPENT.
   - *Determinism.* Same `ImpactContext` + `ProjectileState` + runtime state + seed = same result. Solvers must not use `Random`, a clock
     or entity/world state; anything stochastic (spall pattern, fuze failure) draws from `ImpactContext.seed`
-    (`ImpactContext.seedFor` gives every layer its own reproducible stream).
+    (`ImpactContext.seedFor(shotSeed, constructionId, elementIndex, layerIndex, SeedDomain)` hashes *what* a stream is for, not call order, so adding a layer, phase or domain never shifts another stream).
   - *Server/client.* The server is authoritative for impact and penetration; the shooter client only sends a `ShotClaim` (inputs, never
     results) and later offloads the heavy spall/BVH ray work at the server's request. Not built yet.
   - *Data.* `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets,armor_effects,armor_constructions}`. Shipped: five

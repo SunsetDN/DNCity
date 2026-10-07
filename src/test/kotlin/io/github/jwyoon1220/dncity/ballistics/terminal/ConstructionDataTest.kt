@@ -50,6 +50,19 @@ class ConstructionDataTest {
     }
 
     @Test
+    fun `a gap fill is not representable, a gap is air`() {
+        assertFailsWith<IllegalArgumentException> { construction(elements(solid, """{ "type": "gap", "distance_mm": 10, "fill": "test:water" }""")) }
+    }
+
+    @Test
+    fun `stored energy needs a single use effect`() {
+        assertFailsWith<IllegalArgumentException> { ArmorEffectSpec(Fx.ERA, Fx.ERA_SOLVER, emptyMap(), singleUse = false, storedEnergyJ = 1.0) }
+        assertFailsWith<IllegalArgumentException> { ArmorEffectSpec(Fx.ERA, Fx.ERA_SOLVER, emptyMap(), singleUse = true, storedEnergyJ = -1.0) }
+        val spec = ArmorEffectSpec.fromJson(Fx.ERA, JsonParser.parseString("""{ "solver": "test:s", "single_use": true, "stored_energy_j": 5.0 }""").asJsonObject)
+        assertEquals(5.0, spec.storedEnergyJ, 0.0)
+    }
+
+    @Test
     fun `an effect package without layers is rejected`() {
         assertFailsWith<IllegalArgumentException> { construction(elements("""{ "type": "effect_package", "effect": "test:era", "layers": [] }""")) }
         assertFailsWith<IllegalArgumentException> { construction(elements("""{ "type": "effect_package", "effect": "test:era" }""")) }
@@ -89,10 +102,9 @@ class ConstructionDataTest {
     fun `unknown ids are found by validation`() {
         val unknownMaterial = construction(elements("""{ "type": "solid", "material": "test:nothing", "thickness_mm": 5 }"""))
         val unknownEffect = construction(elements("""{ "type": "effect_package", "effect": "test:nope", "layers": [ { "material": "test:steel", "thickness_mm": 4 } ] }"""))
-        val unknownFill = construction(elements(solid, """{ "type": "gap", "distance_mm": 10, "fill": "test:nothing" }"""))
-        val problems = BallisticsValidation.validate(view(listOf(unknownMaterial, unknownEffect, unknownFill)))
-        assertEquals(3, problems.size, problems.toString())
-        assertTrue(problems.any { "unknown material" in it } && problems.any { "unknown effect" in it } && problems.any { "gap fill" in it })
+        val problems = BallisticsValidation.validate(view(listOf(unknownMaterial, unknownEffect)))
+        assertEquals(2, problems.size, problems.toString())
+        assertTrue(problems.any { "unknown material" in it } && problems.any { "unknown effect" in it })
     }
 
     @Test

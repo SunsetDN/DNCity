@@ -23,13 +23,20 @@ object Fx {
     )
 
     val steel = ArmorMaterial(STEEL, MaterialClass.METAL, 7850.0, 300.0, emptyMap(), SpallSpec(false, 0.0))
+    /** Passive by default (no stored energy); single use so that consuming is legal. */
     val eraSpec = ArmorEffectSpec(ERA, ERA_SOLVER, emptyMap(), singleUse = true)
 
-    class Catalog(val projectile: ProjectileDefinition = fuzed(null)) : BallisticsCatalog {
+    /** An active armor with a made-up amount of stored energy. */
+    fun activeEra(storedEnergyJ: Double) = ArmorEffectSpec(ERA, ERA_SOLVER, emptyMap(), singleUse = true, storedEnergyJ = storedEnergyJ)
+
+    /** A passive effect that must never consume. */
+    val reusable = ArmorEffectSpec(ERA, ERA_SOLVER, emptyMap(), singleUse = false)
+
+    class Catalog(val projectile: ProjectileDefinition = fuzed(null), val effect: ArmorEffectSpec = eraSpec) : BallisticsCatalog {
         override fun projectile(id: Ident) = projectile
         override fun material(id: Ident) = steel
         override fun preset(id: Ident) = throw UnsupportedOperationException()
-        override fun effect(id: Ident) = eraSpec
+        override fun effect(id: Ident) = effect
         override fun construction(id: Ident) = throw UnsupportedOperationException()
     }
 
@@ -87,11 +94,46 @@ object Fx {
         }
     }
 
+    /** Whatever the test says it does at every layer, for every outcome. Energy is accounted honestly. */
+    class FixedOutcomeModel(val outcome: PenetrationOutcome) : PenetratorModel {
+        override val id = MODEL
+
+        override fun solve(context: ImpactContext, layer: ArmorLayer): PenetrationResult {
+            val p = context.projectile
+            return when (outcome) {
+                PenetrationOutcome.STOPPED -> PenetrationResult.stopped(p.kineticEnergyJ)
+                PenetrationOutcome.PARTIAL -> PenetrationResult.partial(p.kineticEnergyJ)
+                PenetrationOutcome.SHATTERED -> PenetrationResult.shattered(p.kineticEnergyJ)
+                PenetrationOutcome.RICOCHET -> p.copy(velocity = p.velocity.scale(0.5)).let { PenetrationResult.ricochet(it, p.kineticEnergyJ - it.kineticEnergyJ) }
+                PenetrationOutcome.PERFORATED -> {
+                    val out = p.copy(velocity = p.velocity.scale(0.5))
+                    PenetrationResult.perforated(out, p.kineticEnergyJ - out.kineticEnergyJ, p.position + p.velocity.normalize().scale(0.01))
+                }
+            }
+        }
+    }
+
+    /** Perforates [step] metres further along, but writes a residual position that is somewhere else entirely. */
+    class WrongPositionModel(val step: Double, val residualAt: V3) : PenetratorModel {
+        override val id = MODEL
+        val inputs = ArrayList<ProjectileState>()
+
+        override fun solve(context: ImpactContext, layer: ArmorLayer): PenetrationResult {
+            val p = context.projectile
+            inputs += p
+            val point = p.position + p.velocity.normalize().scale(step)
+            val out = p.copy(position = residualAt, velocity = p.velocity.scale(0.5))
+            return PenetrationResult.perforated(out, p.kineticEnergyJ - out.kineticEnergyJ, point)
+        }
+    }
+
     /** Calls are logged in order; [handler] decides what the effect does. */
     class RecordingEffect(
         override val phases: Set<EffectPhase>,
         val log: MutableList<String>,
-        val handler: (EffectInvocation) -> EffectInteractionResult = { EffectInteractionResult(it.context.projectile, consumeRuntimeEffect = false) },
+        val handler: (EffectInvocation) -> EffectInteractionResult = { inv ->
+            if (inv.isObservationOnly) EffectInteractionResult.observation() else EffectInteractionResult(inv.context.projectile, consumeRuntimeEffect = false)
+        },
     ) : ArmorEffectModel {
         override val id = ERA_SOLVER
 
@@ -100,6 +142,8 @@ object Fx {
             return handler(invocation)
         }
     }
+
+    fun spall(energyJ: Double = 10.0, massKg: Double = 0.01) = SpallSource(V3.ZERO, V3(1.0, 0.0, 0.0), 0.3, energyJ, massKg, STEEL)
 
     fun traverser(model: PenetratorModel, effect: ArmorEffectModel? = null, catalog: BallisticsCatalog = Catalog()): ArmorTraverser {
         val pens = ModelRegistry<PenetratorModel>("penetrator") { it.id }.also { it.register(model) }

@@ -76,7 +76,15 @@ data class TraversalResult(
  * Walks a projectile through an [ArmorStack] element by element. It owns no physics: layers go to the [PenetratorModel] named
  * by the projectile, effect packages to their [ArmorEffectModel]; it carries the changed [ProjectileState] from one element
  * to the next, derives the impact angle again at every layer, counts the real flown distance and enforces the rules every
- * model must obey (no energy is created).
+ * model must obey:
+ *
+ * - **Canonical state belongs to the traversal.** After a perforation the residual is placed at `perforationPoint`, whatever
+ *   position the solver wrote into it; the path through the layer (previous position to perforation point) must be finite and
+ *   positive.
+ * - **No energy from nowhere** ([EnergyBudget]): a penetrator model may only use the projectile's energy; an effect model may
+ *   also use its [ArmorEffectSpec.storedEnergyJ], and only in the interaction in which it uses itself up.
+ * - **Consumption is explicit and legal**: only a `singleUse` effect may report consumption, once.
+ * - **A stopped projectile stays stopped**: an effect observing a layer that did not perforate cannot revive it.
  *
  * Pure: it reads the [ArmorRuntimeView] but never changes it. The server decides whether to accept a result and then
  * [ArmorRuntimeState.commit]s it. Same inputs (including [seed]) give the same result.
@@ -131,25 +139,25 @@ class ArmorTraverser(
             PenetrationOutcome.PERFORATED -> null
         }
 
-        fun contextAt(index: Int, seedKey: Int, sub: Int): ImpactContext {
+        fun contextAt(index: Int, layerIndex: Int?, domain: SeedDomain): ImpactContext {
             val normal = stack.surface.normalAt(index, state.position)
-            return ImpactContext.of(state.projectile, catalog, state.position, normal, ImpactContext.seedFor(seed, index, seedKey * 1024 + sub))
+            return ImpactContext.of(state.projectile, catalog, state.position, normal, ImpactContext.seedFor(seed, stack.constructionId, index, layerIndex ?: -1, domain))
         }
 
         fun solveLayer(index: Int, layer: ArmorLayer, layerIndex: Int?): PenetrationResult {
-            val ctx = contextAt(index, 0, (layerIndex ?: -1) + 1)
+            val ctx = contextAt(index, layerIndex, SeedDomain.PENETRATION)
             val model = penetrators.getOrThrow(ctx.definition.terminalModel)
             val result = model.solve(ctx, layer)
-            val before = state.projectile.kineticEnergyJ
-            check(!EnergyAccounting.createsEnergy(before, EnergyAccounting.accountedJ(result))) {
-                "penetrator model ${model.id} created energy: in $before J, out ${EnergyAccounting.accountedJ(result)} J"
-            }
+            val budget = EnergyBudget.ofLayer(state.projectile.kineticEnergyJ, result)
+            check(budget.isSound) { "penetrator model ${model.id} created energy: $budget" }
             lastLayer = result.outcome
             var path = 0.0
             var projectile = state.projectile
             if (result.outcome == PenetrationOutcome.PERFORATED) {
-                path = state.position.distanceTo(result.perforationPoint!!)
-                projectile = result.residual!!.let { it.copy(fuze = it.fuze.flown(path, fuzeSpec)) }
+                val point = result.perforationPoint!!
+                path = state.position.distanceTo(point)
+                check(path.isFinite() && path > 0.0) { "penetrator model ${model.id} returned an impossible path through the layer: $path m" }
+                projectile = result.residual!!.let { it.copy(position = point, fuze = it.fuze.flown(path, fuzeSpec)) }
             } else if (result.outcome == PenetrationOutcome.RICOCHET) {
                 projectile = result.residual!!
             }
@@ -176,6 +184,13 @@ class ArmorTraverser(
             events += TraversalEvent(EventKind.GAP_CROSSED, index, null, null, null, angle, path)
         }
 
+        fun domainOf(phase: EffectPhase) = when (phase) {
+            EffectPhase.BEFORE_PACKAGE -> SeedDomain.EFFECT_BEFORE_PACKAGE
+            EffectPhase.BEFORE_LAYER -> SeedDomain.EFFECT_BEFORE_LAYER
+            EffectPhase.AFTER_LAYER -> SeedDomain.EFFECT_AFTER_LAYER
+            EffectPhase.AFTER_PACKAGE -> SeedDomain.EFFECT_AFTER_PACKAGE
+        }
+
         fun runPackage(index: Int, pack: ArmorElement.EffectPackage): TraversalOutcome? {
             val slot = EffectSlot(stack.constructionId, index)
             val spec = catalog.effect(pack.effectId)
@@ -185,17 +200,31 @@ class ArmorTraverser(
 
             fun hook(phase: EffectPhase, layerIndex: Int?, layerResult: PenetrationResult?): TraversalOutcome? {
                 if (model == null || phase !in model.phases) return null
-                val ctx = contextAt(index, 1 + phase.ordinal, (layerIndex ?: -1) + 1)
-                val before = state.projectile.kineticEnergyJ
-                val r = model.interact(EffectInvocation(phase, ctx, pack, spec, slot, layerIndex, layerResult))
-                check(r.updatedProjectile == null || !EnergyAccounting.createsEnergy(before, r.updatedProjectile.kineticEnergyJ)) {
-                    "effect model ${model.id} created energy: in $before J, out ${r.updatedProjectile!!.kineticEnergyJ} J"
+                val ctx = contextAt(index, layerIndex, domainOf(phase))
+                val invocation = EffectInvocation(phase, ctx, pack, spec, slot, layerIndex, layerResult)
+                val r = model.interact(invocation)
+
+                // contract: consumption is only for single-use effects, once per vehicle slot
+                check(!r.consumeRuntimeEffect || spec.singleUse) { "effect model ${model.id} reported consumption of effect ${spec.id}, which is not single use" }
+                check(!r.consumeRuntimeEffect || slot !in state.consumedEffects) { "effect model ${model.id} consumed $slot twice" }
+                // contract: an effect cannot bring back a projectile the layer stopped
+                check(!invocation.isObservationOnly || r.updatedProjectile == null) { "effect model ${model.id} tried to revive a projectile that ${layerResult!!.outcome} stopped" }
+
+                // energy: the projectile's own (or, when observing a stopped layer, what that layer absorbed and did not already
+                // turn into its own spall) plus what the effect stores and releases by using itself up
+                val inputJ = if (invocation.isObservationOnly) {
+                    maxOf(0.0, layerResult!!.depositedEnergyJ - (layerResult.spall?.energyJ ?: 0.0))
+                } else {
+                    state.projectile.kineticEnergyJ
                 }
+                val budget = EnergyBudget.ofEffect(inputJ, if (r.consumeRuntimeEffect) spec.storedEnergyJ else 0.0, r)
+                check(budget.isSound) { "effect model ${model.id} created energy: $budget" }
+
                 state = state.copy(
                     projectile = r.updatedProjectile ?: state.projectile,
                     spall = state.spall + r.generatedSpall,
                     blasts = if (r.generatedBlast != null) state.blasts + r.generatedBlast else state.blasts,
-                    consumedEffects = if (r.consumeRuntimeEffect && slot !in state.consumedEffects) state.consumedEffects + slot else state.consumedEffects,
+                    consumedEffects = if (r.consumeRuntimeEffect) state.consumedEffects + slot else state.consumedEffects,
                 )
                 events += TraversalEvent(EventKind.EFFECT_CALLED, index, layerIndex, phase, null, ctx.angleFromNormalRad, 0.0)
                 return if (r.continueTraversal) null else TraversalOutcome.DEFEATED_BY_EFFECT
@@ -206,8 +235,9 @@ class ArmorTraverser(
             for ((li, layer) in pack.layers.withIndex()) {
                 hook(EffectPhase.BEFORE_LAYER, li, null)?.let { return it }
                 val r = solveLayer(index, layer, li)
-                terminalOf(r)?.let { return it }
-                hook(EffectPhase.AFTER_LAYER, li, r)?.let { return it }
+                val byEffect = hook(EffectPhase.AFTER_LAYER, li, r) // always: the layer was solved, whatever it did
+                terminalOf(r)?.let { return it } // the layer's own verdict outranks an observer
+                byEffect?.let { return it }
                 last = r
             }
             return hook(EffectPhase.AFTER_PACKAGE, null, last)

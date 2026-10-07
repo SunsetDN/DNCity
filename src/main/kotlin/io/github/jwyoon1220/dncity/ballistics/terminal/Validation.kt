@@ -45,7 +45,7 @@ object BallisticsValidation {
                     e.layers.forEach { checkLayer(c.id, it) }
                     if (e.effectId !in view.effectIds) problems += "${c.id}: unknown effect ${e.effectId}"
                 }
-                is ArmorElement.Gap -> e.fillMaterialId?.let { if (it !in view.materialIds) problems += "${c.id}: unknown gap fill $it" }
+                is ArmorElement.Gap -> Unit
                 is ArmorElement.InternalSpace -> Unit
             }
         }

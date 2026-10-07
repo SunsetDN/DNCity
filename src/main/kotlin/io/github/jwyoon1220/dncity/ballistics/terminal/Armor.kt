@@ -56,15 +56,24 @@ data class ArmorLayer(
  * What an interaction armor does to a penetrator, data for the [ArmorEffectModel] named by [solver]. ERA and NERA are
  * effects; the layers they sit between are ordinary [ArmorLayer]s.
  *
- * @property singleUse a tile that has worked is spent (ERA). Only the *rule* is data here; whether a particular tile on a
- *   particular vehicle is spent is [ArmorRuntimeState].
+ * @property singleUse this effect may use itself up: an interaction may then report `consumeRuntimeEffect`, after which the tile
+ *   is spent on that vehicle ([ArmorRuntimeState]). It does not mean the effect works every time; whether a particular tile on a
+ *   particular vehicle is spent is runtime state, not data. An effect with `singleUse = false` must never report consumption.
+ * @property storedEnergyJ energy the armor itself carries (an ERA tile's explosive), joules. Zero for passive armor, which cannot
+ *   create energy. It becomes available only in the interaction in which the effect uses itself up, so it needs [singleUse].
  */
 data class ArmorEffectSpec(
     val id: Ident,
     val solver: Ident,
     val parameters: Map<String, Double>,
     val singleUse: Boolean,
+    val storedEnergyJ: Double = 0.0,
 ) {
+    init {
+        require(storedEnergyJ.isFinite() && storedEnergyJ >= 0.0) { "stored energy must be finite and not negative" }
+        require(storedEnergyJ == 0.0 || singleUse) { "stored energy is released once, the effect must be single use" }
+    }
+
     companion object {
         fun fromJson(id: Ident, json: JsonObject): ArmorEffectSpec {
             val parameters = HashMap<String, Double>()
@@ -74,6 +83,7 @@ data class ArmorEffectSpec(
                 solver = Ident.parse(json.get("solver")?.asString ?: throw IllegalArgumentException("missing solver")),
                 parameters = parameters,
                 singleUse = json.get("single_use")?.asBoolean ?: false,
+                storedEnergyJ = json.get("stored_energy_j")?.asDouble ?: 0.0,
             )
         }
     }
@@ -85,11 +95,12 @@ sealed interface ArmorElement {
     data class Solid(val layer: ArmorLayer) : ArmorElement
 
     /**
-     * A gap (spaced armor, an engine bay). [distanceM] is the separation measured along the surface normal, a real SI
+     * An air gap (spaced armor, an engine bay). [distanceM] is the separation measured along the surface normal, a real SI
      * distance: the ray crosses it obliquely, so the path it flies is `distanceM / cos(angle)`, and that path counts towards
-     * the traversal distance, the fuze's arming distance and every later effect that depends on flight. [fillMaterialId] null means air.
+     * the traversal distance, the fuze's arming distance and every later effect that depends on flight. Nothing but air: a
+     * water or fuel fill would need a medium model, which does not exist yet, so a fill is not representable.
      */
-    data class Gap(val distanceM: Double, val fillMaterialId: Ident?) : ArmorElement {
+    data class Gap(val distanceM: Double) : ArmorElement {
         init {
             require(distanceM > 0.0 && distanceM.isFinite()) { "gap distance must be positive and finite: $distanceM" }
         }
@@ -133,7 +144,10 @@ data class ArmorConstruction(val id: Ident, val elements: List<ArmorElement>) {
 
         private fun parseElement(json: JsonObject): ArmorElement = when (val type = json.get("type")?.asString) {
             "solid" -> ArmorElement.Solid(ArmorLayer.fromJson(json))
-            "gap" -> ArmorElement.Gap(SiJson.requireLength(json, "distance"), json.get("fill")?.asString?.let { Ident.parse(it) })
+            "gap" -> {
+                require(!json.has("fill")) { "gap fill is not supported: there is no medium model, a gap is air" }
+                ArmorElement.Gap(SiJson.requireLength(json, "distance"))
+            }
             "effect_package" -> ArmorElement.EffectPackage(
                 json.getAsJsonArray("layers")?.map { ArmorLayer.fromJson(it.asJsonObject) } ?: emptyList(),
                 Ident.parse(json.get("effect")?.asString ?: throw IllegalArgumentException("effect_package without effect")),

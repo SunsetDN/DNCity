@@ -38,14 +38,14 @@ class TraversalTest {
     // B. RHA -> gap -> RHA: the gap distance counts
     @Test
     fun `gap distance is part of the accumulated distance`() {
-        val r = run(Fx.ThicknessModel(), Fx.solid(0.05), ArmorElement.Gap(0.3, null), Fx.solid(0.05))
+        val r = run(Fx.ThicknessModel(), Fx.solid(0.05), ArmorElement.Gap(0.3), Fx.solid(0.05))
         assertEquals(0.05 + 0.3 + 0.05, r.state.accumulatedDistanceM, 1e-9)
         assertEquals(listOf(EventKind.LAYER_SOLVED, EventKind.GAP_CROSSED, EventKind.LAYER_SOLVED), r.events.map { it.kind })
     }
 
     @Test
     fun `an oblique ray flies a longer path through layers and gap`() {
-        val r = run(Fx.ThicknessModel(), Fx.solid(0.05), ArmorElement.Gap(0.3, null), Fx.solid(0.05), projectile = Fx.oblique(PI / 3))
+        val r = run(Fx.ThicknessModel(), Fx.solid(0.05), ArmorElement.Gap(0.3), Fx.solid(0.05), projectile = Fx.oblique(PI / 3))
         assertEquals(0.05 / 0.5 + 0.3 / 0.5 + 0.05 / 0.5, r.state.accumulatedDistanceM, 1e-6)
     }
 
@@ -53,7 +53,7 @@ class TraversalTest {
     fun `flying through a gap counts towards the fuze arming distance`() {
         val def = Fx.fuzed(arming = 0.25)
         val r = Fx.traverser(Fx.ThicknessModel(), catalog = Fx.Catalog(def)).traverse(
-            Fx.construction(Fx.solid(0.05), ArmorElement.Gap(0.3, null), Fx.solid(0.05)).stack(Fx.facingMinusX),
+            Fx.construction(Fx.solid(0.05), ArmorElement.Gap(0.3), Fx.solid(0.05)).stack(Fx.facingMinusX),
             Fx.headOn(def = def),
         )
         assertEquals(FuzePhase.ARMED, r.residual!!.fuze.phase)
@@ -69,7 +69,7 @@ class TraversalTest {
         // element 0 faces -x, element 2 is tilted 30 degrees away from that
         val tilted = V3(-Math.cos(PI / 6), Math.sin(PI / 6), 0.0)
         val surface = SurfaceModel { index, _ -> if (index == 0) V3(-1.0, 0.0, 0.0) else tilted }
-        val r = Fx.traverser(m).traverse(Fx.construction(Fx.solid(0.01), ArmorElement.Gap(0.1, null), Fx.solid(0.01)).stack(surface), Fx.headOn())
+        val r = Fx.traverser(m).traverse(Fx.construction(Fx.solid(0.01), ArmorElement.Gap(0.1), Fx.solid(0.01)).stack(surface), Fx.headOn())
         val angles = r.events.filter { it.kind == EventKind.LAYER_SOLVED }.map { it.localAngleRad!! }
         assertEquals(0.0, angles[0], 1e-9)
         assertEquals(PI / 6, angles[1], 1e-6)
@@ -109,11 +109,14 @@ class TraversalTest {
     }
 
     @Test
-    fun `a stopped layer in a package skips the after hooks`() {
+    fun `a stopped layer in a package still gets its after hook, and the rest of the package is skipped`() {
         val log = ArrayList<String>()
         val r = run(Fx.ThicknessModel(log), Fx.pack(0.01, 5.0, 0.01), effect = Fx.RecordingEffect(EffectPhase.entries.toSet(), log))
         assertEquals(TraversalOutcome.STOPPED_IN_ARMOR, r.outcome)
-        assertEquals(listOf("BEFORE_PACKAGE", "BEFORE_LAYER(0)", "layer(0.01)", "AFTER_LAYER(0)", "BEFORE_LAYER(1)", "layer(5.0)"), log)
+        assertEquals(
+            listOf("BEFORE_PACKAGE", "BEFORE_LAYER(0)", "layer(0.01)", "AFTER_LAYER(0)", "BEFORE_LAYER(1)", "layer(5.0)", "AFTER_LAYER(1)"),
+            log, // no AFTER_PACKAGE: the package was not passed
+        )
     }
 
     @Test

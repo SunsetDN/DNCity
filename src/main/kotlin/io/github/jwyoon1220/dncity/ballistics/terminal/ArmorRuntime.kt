@@ -4,7 +4,11 @@ package io.github.jwyoon1220.dncity.ballistics.terminal
 /** One effect package of one armor construction. A vehicle has its own state per slot; the construction does not. */
 data class EffectSlot(val constructionId: Ident, val elementIndex: Int)
 
-enum class EffectRuntimeState { INTACT, TRIGGERED, SPENT }
+/**
+ * Only two states exist: a tile is there, or it has been used up. (A "triggered but not yet spent" state would only matter for
+ * delayed reactions or animation; it is not added until something needs it and its transitions are defined.)
+ */
+enum class EffectRuntimeState { INTACT, SPENT }
 
 /**
  * What the traversal may *read* of a vehicle's armor: which interaction tiles are still there. Two vehicles with the same
