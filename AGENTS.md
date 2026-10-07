@@ -689,7 +689,7 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
     (`ImpactContext.seedFor(shotSeed, constructionId, elementIndex, layerIndex, SeedDomain)` hashes *what* a stream is for, not call order, so adding a layer, phase or domain never shifts another stream).
   - *Server/client.* The server is authoritative for impact and penetration; the shooter client only sends a `ShotClaim` (inputs, never
     results) and later offloads the heavy spall/BVH ray work at the server's request. Not built yet.
-  - *Next step (proposal only, not implemented):* `docs/ballistics/full-caliber-ap-proposal.md` — FullCaliberApModel + RHA baseline. No solver code or calibration numbers exist until it is approved.
+  - *Next step (proposal only, not implemented):* `docs/ballistics/full-caliber-ap-proposal.md` (v2) built on `docs/ballistics/full-caliber-ap-sources.md` (what was actually verified, and what was not) and `docs/ballistics/data/` (MIL-DTL-12560K tables + `analyze_12560k.py`). No solver code or calibration numbers exist until it is approved; never cite a number from a search-engine summary, read the source.
   - *Data.* `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets,armor_effects,armor_constructions}`. Shipped: five
     materials (physical constants) and three empty baseline RHA presets. **No projectile, effect or construction data is shipped and
     none may be invented**: test numbers live only in `src/test` (`Fixtures.kt`).
