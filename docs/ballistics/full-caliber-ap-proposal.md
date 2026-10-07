@@ -40,7 +40,7 @@ V_dM(d, T, m) = C_SI · d^p_d · T^p_T · m^(−p_m)
 `DeMarreProfile`(데이터): `diameterExponent = p_d`, `thicknessExponent = p_T`, `massExponent = p_m`, `baselineConstant`(단위 명시).
 - **첫 production 프리셋의 프로파일은 1937년 해군 교범 식 (2), 니켈강용 값**: `p_d = 0.75`, `p_T = 0.70`, `p_m = 0.50` [S1]. 코드에 매직 상수로 넣지 않고 프리셋 데이터로 둔다.
 - `baselineConstant`도 [S1]의 공개 상수 `10^3.00945`(단위 ft/s, in, in, lb)를 **단위와 함께** 저장하고 로딩 시 SI로 변환한다. 변환 결과는 `C_SI = 0.3048 · 10^3.00945 · 0.0254^(−1.45) · 0.45359237^(0.5) ≈ 4.3131×10⁴` (SI: d, T [m], m [kg] → v [m/s]). 이 변환은 [S1] Problem II(탄 10 in, 500 lb, 15.77 in → 1772 ft/s)를 SI로 재현한다(540.09 m/s = 1771.93 ft/s). **테스트가 이 값을 상수에서 다시 계산하므로 문서의 값은 참고용이다.**
-- `K`: **무차원 "성능계수"**. [S1]의 `K`와 같은 의미 — 니켈강 기준선(K=1) 대비 *이 장갑이 같은 탄에 얼마나 더 저항하는가*. 그 교범은 K를 판의 성능계수로 쓰며 "탄의 품질과 관통 능력의 유사성을 가정한다"고 밝힌다. 따라서 **K는 보정에 쓴 탄과 비슷한 탄에서만 의미가 있다**(5절).
+- `K`: 역사적으로는 [S1]의 판 성능계수(니켈강 기준선 K=1)지만, **DNCity 코드에서는 `calibrationCoefficient`**다. 이 값은 장갑 저항, 탄 구조, 한계 정의 불일치, 시험 방법, 모델 오차를 **모두** 흡수하므로 `armorCoefficient` 같은 이름을 쓰지 않으며(로더가 `armor_coefficient` 필드를 거부), `provenance` 없이는 로드되지 않는다. 따라서 **보정에 쓴 탄과 비슷한 탄에서만 의미가 있다**(5절).
 - 결정 1에 따라 `K` 하나만 데이터로 적합한다. 적합은 `ln K = mean( ln v_bl,data − ln V_dM )`(로그 공간 최소제곱, 지수 고정).
 - **D1에서 `K`를 지금 정하지 않는다.** M318A1 질량을 확인하지 못했다. 질량 없이 `K`를 말하면 임의의 숫자가 된다.
 - 미리보기(보정 아님, 출처 문서 3절): 지수를 0.70으로 고정하고 계수 1개만 쓰면 D1 곡선(212행)을 −1.4 % … +3.2 %(rms 1.29 %)로 재현하고, 두께 지수를 자유 적합하면 0.80이다. 즉 **H0 고정은 좁은 두께 구간(≈ 3.9–5.1 in)에서 약 ±2 % 안**이고 구간 끝에서 체계적으로 휜다. 이 오차는 `rmse`로 provenance에 기록하고 `EXTRAPOLATED` 허용 폭 결정에 쓴다. 규격값(요구 최소)을 흉내 낸 오차일 뿐 독립 검증이 아니다.
@@ -51,11 +51,11 @@ V_dM(d, T, m) = C_SI · d^p_d · T^p_T · m^(−p_m)
 
 | 전략 | 식 | 상태 |
 |---|---|---|
-| `ENERGY_BALANCE_NO_PLUG` (**v1 기준선**) | `v_r = √(v_i² − v_bl²)` | 구현 대상 |
+| `NO_PLUG_ENERGY_UPPER_BOUND` (**v1 기준선**) | `v_r = √(v_i² − v_bl²)` | 구현 대상 |
 | `RECHT_IPSON` | `v_r = m/(m+m_p) · √(v_i² − v_bl²)` (2차 문헌의 서술, `m_p` 플러그 질량) | **원 논문 확인 전 보류** [S4] |
 | `LAMBERT_JONAS` | `v_r = a (v_i^p − v_bl^p)^(1/p)` (2차 서술, `a`, `p`는 적합 계수) | **원 보고서 확인 전 보류** [S5] |
 
-`ENERGY_BALANCE_NO_PLUG`는 위 두 모델이 **아니다**. 두 식의 `a = 1`, `p = 2` 극한과 수식이 같을 뿐이다. 이것을 쓰는 이유는 단 하나다: **규격 표는 한계속도만 주고 잔류속도 데이터가 없어서 어떤 plug/`a`/`p` 계수도 보정할 수 없기 때문이다.** 명시적 가정은 다음과 같다.
+`NO_PLUG_ENERGY_UPPER_BOUND`는 위 두 모델이 **아니다**. 두 식의 `a = 1`, `p = 2` 극한과 수식이 같을 뿐이다. 이것을 쓰는 이유는 단 하나다: **규격 표는 한계속도만 주고 잔류속도 데이터가 없어서 어떤 plug/`a`/`p` 계수도 보정할 수 없기 때문이다.** 명시적 가정은 다음과 같다.
 - 한계속도에서 탄이 잃는 에너지는 `½ m v_bl²`로 일정하고, 나머지는 잔류 운동에너지가 된다. 질량 불변, 변형 없음, 플러그 없음.
 - 에너지 보존: `½ m v_i² = ½ m v_r² + ½ m v_bl²`. 에너지를 만들지 않는다(traversal이 검사).
 - 플러그를 동반하는 실제 잔류속도보다 **잔류속도를 과대평가**한다(방향이 알려진 편향). 이 편향은 문서와 provenance `notes`에 남긴다.
@@ -95,8 +95,7 @@ SOURCE_DEFINED        출처가 자체 정의를 쓰고 환산 불가
 - `extrapolation_margin`은 코드에 기본값을 두지 않는다. 프리셋 JSON이 값을 가져야 로드가 성공하고, 값은 홀드아웃 오차나 provenance의 `rmse`에서 근거를 남겨 정한다.
 - v1의 D1 프리셋은 `θ`의 유효 구간이 **0**이다. 따라서 *모든 경사 충돌은 `OUT_OF_MODEL`*이다(2절 범위와 일치).
 - `OUT_OF_MODEL` 처리 방식은 traversal API를 바꾸지 않는 선에서 다음 중 하나여야 한다. 11절 결정 2.
-  - (a) `solve()`가 전용 예외 `OutOfModelException(regime report)`를 던지고, (아직 없는) 서버 샷 처리부가 "해석 불가한 샷"으로 처리한다.
-  - (b) 프리셋이 `fallback_solver`를 가지고 `solve()`가 그 모델에 위임한다(진단에 `FALLBACK` 표시). fallback 모델 자체는 별도 설계가 필요하다.
+  - **결정 2 (확정): 예외를 쓰지 않는다.** `FullCaliberApModel.evaluate()`가 `ModelEvaluation.Unresolved`를 값으로 반환하고, solver chain/fallback은 (아직 없는) `BallisticsResolver`가 소유한다. 모델은 fallback을 스스로 고르지 않는다. `PenetratorModel.solve()`에는 "해석 불가"를 표현할 방법이 없으므로 이 모델은 아직 `PenetratorModel`로 등록하지 않는다.
 - 공개 메서드 `supports(context, layer): Regime`를 두어 서버가 미리 판정할 수 있게 한다. 내부적으로 `solveDetailed()`가 판정과 진단을 함께 반환하고 `solve()`는 그것을 감싸는 얇은 래퍼다.
 
 ## 5. 이 데이터로 *말할 수 있는 것과 없는 것*
@@ -161,7 +160,7 @@ JSON 예 — *구조만 보여 주는 예이며 production 값이 아니다*(`nu
 | 항목 | 성격 |
 |---|---|
 | 에너지 비생성(traversal이 강제), SI 단위, 기하(`perforationPoint`, 경로) | 법칙/기하 |
-| `ENERGY_BALANCE_NO_PLUG`의 에너지 균형 | **명시적 가정**(플러그 없음, 질량·변형 불변). 에너지 보존을 만족하지만 *잔류속도를 과대평가* |
+| `NO_PLUG_ENERGY_UPPER_BOUND`의 에너지 균형 | **명시적 가정**(플러그 없음, 질량·변형 불변). 에너지 보존을 만족하지만 *잔류속도를 과대평가* |
 | `V_dM`의 거듭제곱 형태와 지수 0.75/0.70/0.50 | **경험적**, 1937년 해군 교범의 니켈강 값. RHA에서 검증되지 않았다(직경·질량은 검증 불가) |
 | `K` | **경험적 보정 계수**, 한계 정의·판 클래스·탄 가족에 종속 |
 | 유효 구간·`extrapolation_margin` | 보정 데이터에서 유도된 **경험적 한계** |
@@ -183,6 +182,15 @@ JSON 예 — *구조만 보여 주는 예이며 production 값이 아니다*(`nu
 1. **보정 범위와 K의 소유권.** [D1]은 단일 탄이라 직경·질량 지수는 검증되지 않고 K의 이식성도 보장되지 않는다. v1을 "M318A1 계열 한정 + 나머지 `EXTRAPOLATED/OUT_OF_MODEL`"로 좁게 시작해도 되는가? 다른 구경 데이터(예: 소구경 AP, 별도 가족)를 추가 조사해 교차 검증할 것인가?
 2. **`OUT_OF_MODEL`의 런타임 처리**: (a) 예외 + 서버가 해석 불가 샷으로 처리, (b) `fallback_solver` 위임, 중 무엇인가? (v1 프리셋에서는 모든 경사 충돌이 여기에 해당한다. 서버 샷 처리부가 아직 없다.)
 3. **PERFORATED의 의미**: PROTECTION_LIMIT([D1])은 파편도 완전관통으로 센다. 이 모델의 `PERFORATED`를 "탄 자체의 관통"으로 쓸지 "판 뒤 효과 발생"으로 쓸지 정해야 한다.
-4. **`ENERGY_BALANCE_NO_PLUG` 기준선 승인**. 잔류속도 과대평가 편향을 인정하고 시작해도 되는가, 아니면 R–I/L–J 원문을 확인한 뒤로 잔류속도 구현을 미룰 것인가?
+4. **`NO_PLUG_ENERGY_UPPER_BOUND` 기준선 승인**. 잔류속도 과대평가 편향을 인정하고 시작해도 되는가, 아니면 R–I/L–J 원문을 확인한 뒤로 잔류속도 구현을 미룰 것인가?
 5. **자료 제공 요청**: Recht–Ipson(1963) PDF, Lambert & Jonas(1976, BRL-R-1852) PDF. M318A1의 질량·치수·탄두 구성을 밝히는 신뢰 출처(예: TM 9-1300-203 원문).
 6. 비피모 AP의 **경사 데이터**와 **잔류속도 데이터**를 별도 단계에서 조사하는 것을 승인하는가(현재 둘 다 없다).
+
+## 12. 결정 기록 (리뷰 후)
+
+1. M318A1 한정 baseline(`M318A1_LIKE_UNCAPPED_AP`). 다른 구경/질량은 `EXTRAPOLATED`/`OUT_OF_MODEL`. 프리셋은 `allowed_projectiles` 목록으로 대상을 명시한다.
+2. `OUT_OF_MODEL`은 예외가 아니라 `Unresolved` 값. fallback은 resolver 소유(4절).
+3. `PERFORATED` = 장갑 뒤에 탄 잔류 상태가 존재. `PROTECTION_LIMIT`은 시험 관측의 정의이며 provenance `systematic_uncertainty_notes`에 체계적 불확실성으로 기록한다.
+4. 잔류속도 전략 이름은 `NO_PLUG_ENERGY_UPPER_BOUND`(잔류 운동에너지 상한). 결과 진단 `RESIDUAL_MODEL_UNCALIBRATED`.
+5. M318A1 질량은 독립 두 출처가 같은 조립체 정의를 줄 때까지 production K 금지. 코드가 `TWO_INDEPENDENT_SOURCES` 아니면 프리셋 로드를 거부한다.
+6. 경사 데이터셋(A)과 잔류속도 데이터셋(B)은 별도 조사. M82 APC 데이터는 M318A1 보정에 섞지 않는다.
