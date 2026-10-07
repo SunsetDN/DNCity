@@ -2,6 +2,7 @@
 package io.github.jwyoon1220.dncity.ballistics.terminal
 
 import com.google.gson.JsonObject
+import java.util.Locale
 
 /**
  * Internal unit system of terminal ballistics is SI: metres, kilograms, seconds, kg/m^3, joules.
@@ -14,14 +15,24 @@ object Units {
 }
 
 /**
- * Angle convention of the whole pipeline: the impact angle is measured **from the armor normal**.
+ * Angle convention of the whole pipeline: an impact angle is measured **from the surface normal**.
  * 0 degrees is a perpendicular hit, 60 degrees is 60 degrees off the normal, 90 degrees grazes the surface.
+ *
+ * An angle is never stored on armor: it is derived from the projectile's current direction and the local surface normal
+ * every time a layer is met (see [ImpactContext]), so deflection, curved surfaces and yawed rods stay possible.
  */
 object ImpactAngle {
     /** Line-of-sight thickness of a plate. Geometry only: this is not a resistance, solvers add their own obliquity effects. */
     fun losThicknessM(thicknessM: Double, angleFromNormalRad: Double): Double {
         val c = kotlin.math.cos(angleFromNormalRad)
         return if (c <= 1e-6) Double.POSITIVE_INFINITY else thicknessM / c
+    }
+
+    /** Angle between the direction of flight and the outward surface normal, 0 = head-on. */
+    fun fromNormal(direction: V3, outwardNormal: V3): Double {
+        val d = direction.normalize()
+        val n = outwardNormal.normalize()
+        return kotlin.math.acos((-d.dot(n)).coerceIn(-1.0, 1.0))
     }
 }
 
@@ -50,4 +61,10 @@ internal object SiJson {
 
     fun requireMass(json: JsonObject, name: String): Double =
         mass(json, name) ?: throw IllegalArgumentException("missing ${name}_kg or ${name}_g")
+
+    inline fun <reified E : Enum<E>> enumOf(json: JsonObject, name: String): E {
+        val raw = json.get(name)?.asString ?: throw IllegalArgumentException("missing $name")
+        return enumValues<E>().firstOrNull { it.name == raw.uppercase(Locale.ROOT) }
+            ?: throw IllegalArgumentException("unknown $name '$raw'")
+    }
 }

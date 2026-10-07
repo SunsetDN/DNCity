@@ -645,28 +645,43 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   and its `*_headshot` types force the head via `data/dncity/firstaid/damage_distributions/`. The Kotlin side is not
   compiled in this environment (the root build needs the other submodules); the First Aid hook has game tests.
 
-- **Terminal ballistics (War Thunder-style hits, in progress)** — `ballistics/terminal/` (marker `terminal-ballistics-core`).
-  Target design: every projectile (rifle round to tank shell) runs the *same pipeline* with a *different penetrator model*:
-  `ShellDefinition -> ProjectileState -> ExternalBallistics -> ImpactContext -> ArmorConstruction -> PenetratorModel ->
-  PenetrationResult -> PostPenetration -> DamageEvent[]`. de Marre is only one implementation (full-caliber AP); long rod,
-  shaped charge, APCR/APDS and small arms are separate models selected by `ProjectileDefinition.terminalModel`.
-  Rules fixed now: SI units internally (JSON may say `_mm`/`_g`, `SiJson` converts); impact angle is from the armor normal
-  (0 = perpendicular); LOS thickness is geometry only, never the resistance; materials hold physical data only, how well they
-  stop a penetrator is a `ResistancePreset` chosen per terminal model (`ArmorMaterial.resistance`), not a `ke_eff`/`ce_eff`
-  constant; ERA/NERA/spaced armor are `ArmorConstruction`, not materials; a projectile's wear (cap lost, rod shortened,
-  slower) lives in `ProjectileState`, which is passed from layer to layer; `PenetrationResult` must carry outcome
-  (STOPPED/RICOCHET/PARTIAL/PERFORATED/SHATTERED), the residual state and spall data from the first version.
-  Server is authoritative for impact + penetration; the shooter client only sends a `ShotClaim` (inputs, never results) and later
-  offloads the heavy spall/BVH ray work to the server's request. Data: `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets}`.
-  Done so far: step 1 (units, `ProjectileDefinition`, `ProjectileState` with body axis/yaw and a `FuzeState` state machine
-  SAFE->ARMED->TRIGGERED->DETONATED/FAILED, `ArmorMaterial`, `ResistancePreset` = solver id + solver-specific parameters),
-  step 2 (`ArmorLayer`, `ArmorElement` = Solid / Gap / EffectPackage / InternalSpace, `ArmorEffectSpec`, `ArmorConstruction`,
-  `ArmorStack`; ERA/NERA are an `EffectPackage` = layers + effect, never a material) and step 3 (interfaces only:
-  `ImpactContext`, `PenetratorModel`, `ArmorEffectModel`, `PenetrationResult` with `SpallSource`, `BallisticsCatalog`; no solver yet).
-  Projectile state refers to its definition by id. Registries are strict (a broken file fails the reload;
-  `-Ddncity.ballistics.lenient=true` skips it) and `TerminalBallisticsValidator` checks cross references after loading.
-  Pure logic has JVM unit tests in `src/test` (`./gradlew test`: units, fuze machine). The root build cannot be run in every
-  environment; the terminal package was compiled and tested against stubbed Minecraft classes (`Vec3`, `ResourceLocation`).
+- **Terminal ballistics (War Thunder-style hits, in progress)** — `ballistics/terminal/`. Target design: every projectile (rifle
+  round to tank shell) runs the *same pipeline* with a *different penetrator model*: `ProjectileDefinition -> ProjectileState ->
+  ImpactContext -> ArmorStack traversal -> PenetratorModel / ArmorEffectModel -> PenetrationResult -> post-penetration ->
+  DamageEvent[]`. de Marre is only one possible implementation (full-caliber AP); long rod, shaped charge, APCR/APDS and small arms are
+  separate models chosen by `ProjectileDefinition.terminalModel`. **No real penetration formula exists yet** (next step).
+  - *Plain JVM core.* The package uses `Ident` and `V3`, never Minecraft types, so it and its tests (`src/test`, `./gradlew test`)
+    run without the game. Only `JsonDataRegistry.kt` and `TerminalBallistics.kt` (reload listeners, id conversion) touch Minecraft.
+    Parsing is in `fromJson` companions; cross references are checked by `BallisticsValidation`; registries are strict (one broken file
+    fails the reload, `-Ddncity.ballistics.lenient=true` skips it in development).
+  - *Rules.* SI units inside (JSON may say `_mm`/`_g`, `SiJson` converts). An impact angle is from the surface normal (0 = perpendicular)
+    and is always *derived* from the current direction and the local `SurfaceModel` normal, never stored on armor. Materials hold
+    physical data only; how well one stops a penetrator is a `ResistancePreset` (solver id + solver-specific parameters) chosen by the
+    projectile's terminal model, not a `ke_eff`/`ce_eff` constant. `ArmorMaterial` != `ArmorLayer` != `ArmorConstruction`: a layer is a
+    material with thickness and shape (`FLAT`/`CURVED`; manufacturing such as cast/rolled is a separate, not yet modelled axis); a
+    construction is the *definition* (Solid, Gap with a real distance, EffectPackage = layers + effect, InternalSpace last);
+    ERA/NERA are an `EffectPackage`, never a material. What has been used up on one vehicle is `ArmorRuntimeState` (per vehicle,
+    per `EffectSlot`), the traversal only reads it and reports `consumedEffects`; the server `commit`s an accepted result.
+  - *Traversal* (`ArmorTraverser`): carries a `ProjectileState` (the physical state: worn rod, speed, axis/yaw, fuze machine) through
+    a `TraversalState` (this passage: accumulated flown distance, deposited energy, spall/blast sources, consumed effects, phase).
+    Ends with a `TraversalOutcome`: STOPPED_IN_ARMOR, RICOCHETED, SHATTERED, DEFEATED_BY_EFFECT, EXITED_CONSTRUCTION or
+    ENTERED_INTERNAL_SPACE (after which residual tracing, spall, modules, crew and fuze are the post-penetration solver's job).
+    Gap path = distance / cos(angle) and counts towards the traversal distance and the fuze arming distance. Effect hooks:
+    `EffectPhase` BEFORE_PACKAGE, per layer BEFORE_LAYER / (penetration) / AFTER_LAYER (only if perforated), AFTER_PACKAGE; a model is
+    only called for the phases it lists. Models are pure and return data (`PenetrationResult`, `EffectInteractionResult`); the
+    traversal rejects any model that creates energy (`EnergyAccounting`).
+  - *Determinism.* Same `ImpactContext` + `ProjectileState` + runtime state + seed = same result. Solvers must not use `Random`, a clock
+    or entity/world state; anything stochastic (spall pattern, fuze failure) draws from `ImpactContext.seed`
+    (`ImpactContext.seedFor` gives every layer its own reproducible stream).
+  - *Server/client.* The server is authoritative for impact and penetration; the shooter client only sends a `ShotClaim` (inputs, never
+    results) and later offloads the heavy spall/BVH ray work at the server's request. Not built yet.
+  - *Data.* `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets,armor_effects,armor_constructions}`. Shipped: five
+    materials (physical constants) and three empty baseline RHA presets. **No projectile, effect or construction data is shipped and
+    none may be invented**: test numbers live only in `src/test` (`Fixtures.kt`).
+  - Known gaps: no solver, fuze trigger on armor contact, curved-surface `SurfaceModel`, post-penetration, `ShotClaim`/server validation,
+    `Shell` -> `ProjectileDefinition` link. The root Gradle build and `./gradlew test` could not be run in the authoring environment; the
+    package was compiled with the Kotlin compiler from Gradle's distribution (pure core with no Minecraft classes on the classpath, the
+    Minecraft boundary against stubs) and the tests were run that way.
 - **Kotlin gotcha**: block comments nest. A KDoc containing `dir/*.json` or `dir/**.json` opens a nested comment and the file
   fails with "Unclosed comment". Never write a slash followed by a star inside a comment (write `dir/(any depth)/name.json`).
 

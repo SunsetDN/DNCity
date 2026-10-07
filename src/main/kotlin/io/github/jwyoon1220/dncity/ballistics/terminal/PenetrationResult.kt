@@ -1,9 +1,6 @@
 // AGENT-DONE(claude): terminal-ballistics-core
 package io.github.jwyoon1220.dncity.ballistics.terminal
 
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.world.phys.Vec3
-
 /**
  * What became of the projectile at one layer.
  *
@@ -21,13 +18,18 @@ enum class PenetrationOutcome { STOPPED, RICOCHET, PARTIAL, PERFORATED, SHATTERE
  * spall gets implemented.
  */
 data class SpallSource(
-    val origin: Vec3,
-    val coneAxis: Vec3,
+    val origin: V3,
+    val coneAxis: V3,
     val coneHalfAngleRad: Double,
     val energyJ: Double,
     val fragmentMassKg: Double,
-    val materialId: ResourceLocation,
-)
+    val materialId: Ident,
+) {
+    init {
+        require(origin.isFinite && coneAxis.isFinite) { "spall vectors must be finite" }
+        require(energyJ >= 0.0 && fragmentMassKg >= 0.0 && coneHalfAngleRad >= 0.0) { "spall quantities must not be negative" }
+    }
+}
 
 /**
  * The result of one layer. [residual] is non-null for [PenetrationOutcome.PERFORATED] and [PenetrationOutcome.RICOCHET],
@@ -42,8 +44,8 @@ data class PenetrationResult(
     val outcome: PenetrationOutcome,
     val residual: ProjectileState?,
     val depositedEnergyJ: Double,
-    val perforationPoint: Vec3?,
-    val exitDirection: Vec3?,
+    val perforationPoint: V3?,
+    val exitDirection: V3?,
     val spall: SpallSource?,
 ) {
     init {
@@ -69,7 +71,33 @@ data class PenetrationResult(
         fun ricochet(residual: ProjectileState, deposited: Double) =
             PenetrationResult(PenetrationOutcome.RICOCHET, residual, deposited, null, residual.velocity.normalize(), null)
 
-        fun perforated(residual: ProjectileState, deposited: Double, point: Vec3, spall: SpallSource? = null) =
+        fun perforated(residual: ProjectileState, deposited: Double, point: V3, spall: SpallSource? = null) =
             PenetrationResult(PenetrationOutcome.PERFORATED, residual, deposited, point, residual.velocity.normalize(), spall)
     }
+}
+
+/** The blast an effect or a detonation produced: where, and how much (TNT equivalent). Turned into pressure/fragments later. */
+data class BlastSource(val origin: V3, val explosiveKgTnt: Double) {
+    init {
+        require(origin.isFinite && explosiveKgTnt >= 0.0) { "invalid blast" }
+    }
+}
+
+/**
+ * Energy bookkeeping. A model may lose energy (heat, deformation, anything not tracked) but must never create it: what
+ * leaves a step (residual + deposited + fragments) cannot exceed what entered, apart from float error. The traversal enforces
+ * this on every model, tests use [balance] to see how much was lost.
+ */
+object EnergyAccounting {
+    const val REL_TOL = 1e-6
+    private const val ABS_TOL = 1e-9
+
+    /** Energy that left the step through the result: residual + deposited + spall fragments. */
+    fun accountedJ(result: PenetrationResult): Double =
+        (result.residual?.kineticEnergyJ ?: 0.0) + result.depositedEnergyJ + (result.spall?.energyJ ?: 0.0)
+
+    /** Energy not accounted for (>= 0 for a sound model): initial - residual - deposited - fragments. */
+    fun balance(initialJ: Double, result: PenetrationResult): Double = initialJ - accountedJ(result)
+
+    fun createsEnergy(initialJ: Double, afterJ: Double): Boolean = afterJ > initialJ * (1.0 + REL_TOL) + ABS_TOL
 }

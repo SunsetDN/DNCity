@@ -2,8 +2,6 @@
 package io.github.jwyoon1220.dncity.ballistics.terminal
 
 import com.google.gson.JsonObject
-import net.minecraft.resources.ResourceLocation
-import java.util.Locale
 
 /** Outer shape of the projectile. Physical descriptors, not an ammo-type enum: APCR, APDS or APFSDS are combinations of these. */
 enum class Geometry { BLUNT, FLAT_NOSE, OGIVE, POINTED, LONG_ROD, SHAPED_CHARGE_CONE }
@@ -15,15 +13,19 @@ enum class Stabilization { NONE, SPIN, FIN }
  * only the rod, which is far narrower than the gun that fired it, so [diameterM] is *not* the gun caliber.
  */
 data class PenetratorSpec(
-    val material: ResourceLocation,
+    val material: Ident,
     val diameterM: Double,
     val lengthM: Double,
     val massKg: Double,
     val densityKgM3: Double,
     val hardnessBhn: Double?,
 ) {
+    init {
+        require(diameterM > 0.0 && lengthM > 0.0 && massKg > 0.0 && densityKgM3 > 0.0) { "penetrator dimensions must be positive" }
+    }
+
     /** Length over diameter, the number that separates a bullet from a long rod. */
-    val slenderness: Double get() = if (diameterM <= 0.0) 0.0 else lengthM / diameterM
+    val slenderness: Double get() = lengthM / diameterM
 }
 
 /**
@@ -39,7 +41,12 @@ data class FuzeSpec(
     val delayS: Double,
     val minTriggerThicknessM: Double?,
     val failureChance: Double,
-)
+) {
+    init {
+        require(armingDistanceM >= 0.0 && delayS >= 0.0) { "fuze distance and delay must not be negative" }
+        require(failureChance in 0.0..1.0) { "failure chance must be in 0..1" }
+    }
+}
 
 /** What the projectile carries besides the penetrator: explosive filler, a shaped-charge liner, a fuze. */
 data class PayloadSpec(
@@ -65,7 +72,7 @@ data class ExternalBallisticsSpec(
  *   also the key of [ArmorMaterial.resistance]
  */
 data class ProjectileDefinition(
-    val id: ResourceLocation,
+    val id: Ident,
     val gunCaliberM: Double,
     val projectileDiameterM: Double,
     val massKg: Double,
@@ -74,60 +81,58 @@ data class ProjectileDefinition(
     val penetrator: PenetratorSpec?,
     val payload: PayloadSpec?,
     val external: ExternalBallisticsSpec,
-    val terminalModel: ResourceLocation,
-)
-
-object ProjectileDefinitionRegistry : JsonDataRegistry<ProjectileDefinition>("dncity/projectiles", "projectile definitions") {
-    override fun parse(id: ResourceLocation, json: JsonObject): ProjectileDefinition {
-        val projectileDiameter = SiJson.requireLength(json, "diameter")
-        val mass = SiJson.requireMass(json, "mass")
-        val penetrator = json.getAsJsonObject("penetrator")?.let { p ->
-            PenetratorSpec(
-                material = ResourceLocation.parse(p.get("material").asString),
-                diameterM = SiJson.length(p, "diameter") ?: projectileDiameter,
-                lengthM = SiJson.requireLength(p, "length"),
-                massKg = SiJson.mass(p, "mass") ?: mass,
-                densityKgM3 = SiJson.density(p) ?: throw IllegalArgumentException("penetrator needs density_kg_m3 or density_g_cm3"),
-                hardnessBhn = p.get("hardness_bhn")?.asDouble,
-            )
-        }
-        val payload = json.getAsJsonObject("payload")?.let { p ->
-            PayloadSpec(
-                explosiveKgTnt = SiJson.mass(p, "explosive") ?: 0.0,
-                coneDiameterM = SiJson.length(p, "cone_diameter"),
-                optimalStandoffM = SiJson.length(p, "optimal_standoff"),
-                fuze = p.getAsJsonObject("fuze")?.let { f ->
-                    FuzeSpec(
-                        armingDistanceM = SiJson.length(f, "arming_distance") ?: 0.0,
-                        delayS = f.get("delay_s")?.asDouble ?: 0.0,
-                        minTriggerThicknessM = SiJson.length(f, "min_trigger_thickness"),
-                        failureChance = f.get("failure_chance")?.asDouble ?: 0.0,
-                    )
-                },
-            )
-        }
-        val ext = json.getAsJsonObject("external") ?: JsonObject()
-        val geometry = enumOf<Geometry>(json, "geometry")
-        return ProjectileDefinition(
-            id = id,
-            gunCaliberM = SiJson.length(json, "gun_caliber") ?: projectileDiameter,
-            projectileDiameterM = projectileDiameter,
-            massKg = mass,
-            geometry = geometry,
-            stabilization = json.get("stabilization")?.let { enumOf<Stabilization>(json, "stabilization") } ?: Stabilization.NONE,
-            penetrator = penetrator,
-            payload = payload,
-            external = ExternalBallisticsSpec(
-                dragCoefficient = ext.get("drag_coefficient")?.asDouble ?: 0.3,
-                muzzleVelocityMps = ext.get("muzzle_velocity_mps")?.asDouble ?: 0.0,
-            ),
-            terminalModel = ResourceLocation.parse(json.get("terminal_model").asString),
-        )
+    val terminalModel: Ident,
+) {
+    init {
+        require(gunCaliberM > 0.0 && projectileDiameterM > 0.0) { "calibers must be positive" }
+        require(massKg > 0.0) { "mass must be positive" }
     }
 
-    private inline fun <reified E : Enum<E>> enumOf(json: JsonObject, name: String): E {
-        val raw = json.get(name)?.asString ?: throw IllegalArgumentException("missing $name")
-        return enumValues<E>().firstOrNull { it.name == raw.uppercase(Locale.ROOT) }
-            ?: throw IllegalArgumentException("unknown $name '$raw'")
+    companion object {
+        fun fromJson(id: Ident, json: JsonObject): ProjectileDefinition {
+            val projectileDiameter = SiJson.requireLength(json, "diameter")
+            val mass = SiJson.requireMass(json, "mass")
+            val penetrator = json.getAsJsonObject("penetrator")?.let { p ->
+                PenetratorSpec(
+                    material = Ident.parse(p.get("material").asString),
+                    diameterM = SiJson.length(p, "diameter") ?: projectileDiameter,
+                    lengthM = SiJson.requireLength(p, "length"),
+                    massKg = SiJson.mass(p, "mass") ?: mass,
+                    densityKgM3 = SiJson.density(p) ?: throw IllegalArgumentException("penetrator needs density_kg_m3 or density_g_cm3"),
+                    hardnessBhn = p.get("hardness_bhn")?.asDouble,
+                )
+            }
+            val payload = json.getAsJsonObject("payload")?.let { p ->
+                PayloadSpec(
+                    explosiveKgTnt = SiJson.mass(p, "explosive") ?: 0.0,
+                    coneDiameterM = SiJson.length(p, "cone_diameter"),
+                    optimalStandoffM = SiJson.length(p, "optimal_standoff"),
+                    fuze = p.getAsJsonObject("fuze")?.let { f ->
+                        FuzeSpec(
+                            armingDistanceM = SiJson.length(f, "arming_distance") ?: 0.0,
+                            delayS = f.get("delay_s")?.asDouble ?: 0.0,
+                            minTriggerThicknessM = SiJson.length(f, "min_trigger_thickness"),
+                            failureChance = f.get("failure_chance")?.asDouble ?: 0.0,
+                        )
+                    },
+                )
+            }
+            val ext = json.getAsJsonObject("external") ?: JsonObject()
+            return ProjectileDefinition(
+                id = id,
+                gunCaliberM = SiJson.length(json, "gun_caliber") ?: projectileDiameter,
+                projectileDiameterM = projectileDiameter,
+                massKg = mass,
+                geometry = SiJson.enumOf<Geometry>(json, "geometry"),
+                stabilization = if (json.has("stabilization")) SiJson.enumOf<Stabilization>(json, "stabilization") else Stabilization.NONE,
+                penetrator = penetrator,
+                payload = payload,
+                external = ExternalBallisticsSpec(
+                    dragCoefficient = ext.get("drag_coefficient")?.asDouble ?: 0.3,
+                    muzzleVelocityMps = ext.get("muzzle_velocity_mps")?.asDouble ?: 0.0,
+                ),
+                terminalModel = Ident.parse(json.get("terminal_model")?.asString ?: throw IllegalArgumentException("missing terminal_model")),
+            )
+        }
     }
 }

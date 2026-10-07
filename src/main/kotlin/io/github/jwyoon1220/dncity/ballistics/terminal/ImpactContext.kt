@@ -1,41 +1,34 @@
 // AGENT-DONE(claude): terminal-ballistics-core
 package io.github.jwyoon1220.dncity.ballistics.terminal
 
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.world.phys.Vec3
-
-/** Where solvers look things up. The default is the loaded data; tests (and tools) can supply their own. */
+/** Where solvers look things up. The default is the loaded data ([LoadedCatalog]); tests and tools can supply their own. */
 interface BallisticsCatalog {
-    fun projectile(id: ResourceLocation): ProjectileDefinition
-    fun material(id: ResourceLocation): ArmorMaterial
-    fun preset(id: ResourceLocation): ResistancePreset
-    fun effect(id: ResourceLocation): ArmorEffectSpec
-    fun construction(id: ResourceLocation): ArmorConstruction
-
-    /** The loaded data packs. Looks up by id on every call, so a reload is picked up and nothing stale is kept. */
-    object Loaded : BallisticsCatalog {
-        override fun projectile(id: ResourceLocation) = ProjectileDefinitionRegistry.getOrThrow(id)
-        override fun material(id: ResourceLocation) = ArmorMaterialRegistry.getOrThrow(id)
-        override fun preset(id: ResourceLocation) = ResistancePresetRegistry.getOrThrow(id)
-        override fun effect(id: ResourceLocation) = ArmorEffectRegistry.getOrThrow(id)
-        override fun construction(id: ResourceLocation) = ArmorConstructionRegistry.getOrThrow(id)
-    }
+    fun projectile(id: Ident): ProjectileDefinition
+    fun material(id: Ident): ArmorMaterial
+    fun preset(id: Ident): ResistancePreset
+    fun effect(id: Ident): ArmorEffectSpec
+    fun construction(id: Ident): ArmorConstruction
 }
 
 /**
- * One projectile meeting one armor surface. Everything a [PenetratorModel] may depend on is here, nothing is read from
- * global state: the same context always gives the same result, so client prediction, server solving and tests agree.
+ * One projectile meeting one surface. Everything a [PenetratorModel] may depend on is here, nothing is read from global
+ * state, so the same context always gives the same result and client prediction, server solving and tests agree.
+ *
+ * **Determinism rule for solvers:** no `Random`, no clock, no entity or world state. Anything stochastic (spall pattern,
+ * fuze failure) draws from [seed], which the server fixes per shot, so a claimed shot can be reproduced exactly.
  *
  * @property surfaceNormal unit normal of the surface, pointing out of the armor towards the projectile
- * @property angleFromNormalRad 0 = perpendicular hit (see [ImpactAngle])
+ * @property angleFromNormalRad derived from the projectile's current direction and [surfaceNormal], 0 = perpendicular
+ * @property seed explicit randomness for this impact
  */
 class ImpactContext private constructor(
     val projectile: ProjectileState,
     val definition: ProjectileDefinition,
-    val impactPoint: Vec3,
-    val surfaceNormal: Vec3,
+    val impactPoint: V3,
+    val surfaceNormal: V3,
     val angleFromNormalRad: Double,
     val catalog: BallisticsCatalog,
+    val seed: Long,
 ) {
     /** The preset the layer's material uses against this projectile's penetrator model, if the material defines one. */
     fun resistanceOf(layer: ArmorLayer): ResistancePreset? = resistanceOf(catalog.material(layer.materialId))
@@ -45,21 +38,28 @@ class ImpactContext private constructor(
         return catalog.preset(presetId)
     }
 
-    /** The same surface met by the (changed) projectile of the next element, with the angle worked out again. */
-    fun next(projectile: ProjectileState, impactPoint: Vec3 = projectile.position, surfaceNormal: Vec3 = this.surfaceNormal): ImpactContext =
-        of(projectile, catalog, impactPoint, surfaceNormal)
-
     companion object {
         fun of(
             projectile: ProjectileState,
             catalog: BallisticsCatalog,
-            impactPoint: Vec3,
-            surfaceNormal: Vec3,
+            impactPoint: V3,
+            surfaceNormal: V3,
+            seed: Long = 0L,
         ): ImpactContext {
             val n = surfaceNormal.normalize()
-            val speed = projectile.velocity.length()
-            val cos = if (speed < 1e-9) 1.0 else (-projectile.velocity.dot(n) / speed).coerceIn(-1.0, 1.0)
-            return ImpactContext(projectile, catalog.projectile(projectile.definitionId), impactPoint, n, kotlin.math.acos(cos), catalog)
+            require(n.lengthSqr() > 0.0) { "surface normal must not be zero" }
+            return ImpactContext(
+                projectile, catalog.projectile(projectile.definitionId), impactPoint, n,
+                ImpactAngle.fromNormal(projectile.velocity, n), catalog, seed,
+            )
+        }
+
+        /** Mixes a shot's seed with the position in the stack so every layer gets its own, reproducible, stream. */
+        fun seedFor(shotSeed: Long, elementIndex: Int, layerIndex: Int): Long {
+            var h = shotSeed xor (elementIndex.toLong() * -0x61c8864680b583ebL) xor (layerIndex.toLong() * 0x2545F4914F6CDD1DL)
+            h = (h xor (h ushr 30)) * -0x40a7b892e31b1a47L
+            h = (h xor (h ushr 27)) * -0x6b2fb644ecceee15L
+            return h xor (h ushr 31)
         }
     }
 }

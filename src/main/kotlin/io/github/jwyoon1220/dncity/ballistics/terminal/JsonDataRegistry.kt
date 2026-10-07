@@ -11,7 +11,8 @@ import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener
 import net.minecraft.util.profiling.ProfilerFiller
 
 /**
- * A data-driven catalog loaded from `data/<ns>/<directory>/(any depth)/name.json`.
+ * A data-driven catalog loaded from `data/<ns>/<directory>/(any depth)/name.json`. This is the Minecraft boundary: ids are
+ * converted to [Ident] here and the parsing itself lives in the plain data classes (`fromJson`), testable without the game.
  *
  * Strict by default: one broken file fails the whole (re)load, because a server that comes up with a missing shell, armor or
  * material would quietly hand out wrong ballistics. For development, `-Ddncity.ballistics.lenient=true` logs the broken
@@ -21,22 +22,25 @@ abstract class JsonDataRegistry<T : Any>(directory: String, private val label: S
     SimpleJsonResourceReloadListener(Gson(), directory) {
 
     @Volatile
-    private var entries: Map<ResourceLocation, T> = emptyMap()
+    private var entries: Map<Ident, T> = emptyMap()
 
-    protected abstract fun parse(id: ResourceLocation, json: JsonObject): T
+    protected abstract fun parse(id: Ident, json: JsonObject): T
 
-    operator fun get(id: ResourceLocation): T? = entries[id]
+    operator fun get(id: Ident): T? = entries[id]
 
-    fun getOrThrow(id: ResourceLocation): T = entries[id] ?: throw NoSuchElementException("unknown $label $id")
+    fun getOrThrow(id: Ident): T = entries[id] ?: throw NoSuchElementException("unknown $label $id")
 
     fun all(): Collection<T> = entries.values
 
-    fun ids(): Set<ResourceLocation> = entries.keys
+    fun ids(): Set<Ident> = entries.keys
+
+    fun asMap(): Map<Ident, T> = entries
 
     override fun apply(objects: MutableMap<ResourceLocation, JsonElement>, resourceManager: ResourceManager, profiler: ProfilerFiller) {
-        val loaded = HashMap<ResourceLocation, T>()
+        val loaded = HashMap<Ident, T>()
         val errors = ArrayList<String>()
-        for ((id, json) in objects) {
+        for ((rl, json) in objects) {
+            val id = Ident(rl.namespace, rl.path)
             try {
                 loaded[id] = parse(id, json.asJsonObject)
             } catch (e: Exception) {

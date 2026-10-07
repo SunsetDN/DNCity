@@ -1,9 +1,6 @@
 // AGENT-DONE(claude): terminal-ballistics-core
 package io.github.jwyoon1220.dncity.ballistics.terminal
 
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.world.phys.Vec3
-
 /** Life cycle of a fuze. [INERT] means the projectile has none. */
 enum class FuzePhase { INERT, SAFE, ARMED, TRIGGERED, DETONATED, FAILED }
 
@@ -59,10 +56,10 @@ data class FuzeState(val phase: FuzePhase, val travelledM: Double, val delayRema
  *   oblique impact a long penetrator tumbles and the two differ ([yawRad]), which long-rod models need.
  */
 data class ProjectileState(
-    val definitionId: ResourceLocation,
-    val position: Vec3,
-    val velocity: Vec3,
-    val axis: Vec3,
+    val definitionId: Ident,
+    val position: V3,
+    val velocity: V3,
+    val axis: V3,
     val massRemainingKg: Double,
     /** Length of the penetrator still intact; null if the definition has no penetrator. */
     val penetratorLengthRemainingM: Double?,
@@ -72,6 +69,14 @@ data class ProjectileState(
     val deformation: Double,
     val fuze: FuzeState,
 ) {
+    init {
+        require(position.isFinite && velocity.isFinite && axis.isFinite) { "projectile vectors must be finite" }
+        require(massRemainingKg >= 0.0) { "mass must not be negative" }
+        require(penetratorLengthRemainingM == null || penetratorLengthRemainingM >= 0.0) { "penetrator length must not be negative" }
+        require(integrity in 0.0..1.0) { "integrity must be in 0..1" }
+        require(deformation >= 0.0) { "deformation must not be negative" }
+    }
+
     val speedMps: Double get() = velocity.length()
 
     val kineticEnergyJ: Double get() = 0.5 * massRemainingKg * velocity.lengthSqr()
@@ -91,7 +96,7 @@ data class ProjectileState(
     }
 
     companion object {
-        fun launch(definition: ProjectileDefinition, position: Vec3, direction: Vec3, speedMps: Double): ProjectileState {
+        fun launch(definition: ProjectileDefinition, position: V3, direction: V3, speedMps: Double): ProjectileState {
             val dir = direction.normalize()
             return ProjectileState(
                 definitionId = definition.id,
