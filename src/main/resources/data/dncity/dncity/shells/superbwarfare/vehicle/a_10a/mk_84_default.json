@@ -1,0 +1,12 @@
+{
+  "ammo": "457mm mk 84 (a_10a)",
+  "entity": "superbwarfare:mk_84",
+  "key": "superbwarfare:a_10a",
+  "item": "superbwarfare:large_aerial_bomb",
+  "tags": [
+    "mk_84"
+  ],
+  "caliber_mm": 457,
+  "penetration": 0.2,
+  "explosive": true
+}

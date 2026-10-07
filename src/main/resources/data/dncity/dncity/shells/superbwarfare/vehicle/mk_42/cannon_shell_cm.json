@@ -1,0 +1,17 @@
+{
+  "ammo": "127mm CM (mk_42)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:mk_42",
+  "nbt": {
+    "Type": "CM"
+  },
+  "item": "superbwarfare:large_shell_cm",
+  "tags": [
+    "cannon",
+    "naval",
+    "cm"
+  ],
+  "caliber_mm": 127,
+  "penetration": 0.1,
+  "explosive": true
+}

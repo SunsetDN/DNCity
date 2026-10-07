@@ -1,0 +1,11 @@
+{
+  "ammo": "273mm mk 82 (a_10a)",
+  "entity": "superbwarfare:mk_82",
+  "key": "superbwarfare:a_10a",
+  "tags": [
+    "mk_82"
+  ],
+  "caliber_mm": 273,
+  "penetration": 0.2,
+  "explosive": true
+}

@@ -1,0 +1,11 @@
+{
+  "ammo": "127mm ru 9m100 missile (happiest_ghast)",
+  "entity": "superbwarfare:ru_9m100_missile",
+  "key": "superbwarfare:happiest_ghast",
+  "tags": [
+    "ru_9m100_missile"
+  ],
+  "caliber_mm": 127,
+  "penetration": 0.8,
+  "explosive": true
+}

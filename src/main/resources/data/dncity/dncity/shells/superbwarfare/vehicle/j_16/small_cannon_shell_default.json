@@ -1,0 +1,11 @@
+{
+  "ammo": "23mm autocannon (j_16)",
+  "entity": "superbwarfare:small_cannon_shell",
+  "key": "superbwarfare:j_16",
+  "tags": [
+    "autocannon"
+  ],
+  "caliber_mm": 23,
+  "penetration": 0.5,
+  "explosive": true
+}

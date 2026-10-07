@@ -35,6 +35,10 @@ data class Shell(
     val fractureChanceBonus: Float,
     val overkillFactor: Float?,
     val explosive: Boolean,
+    /** The item that loads this shell into a weapon (a gun module's accepted ammunition), if there is one. */
+    val item: ResourceLocation?,
+    /** Free-form labels a weapon module can ask for ("cannon", "tank", "ap"); no fixed list. */
+    val tags: Set<String>,
 ) {
     /** How much wider than a reference rifle wound this shell's wound is (square root of the caliber ratio). */
     val woundFactor: Float

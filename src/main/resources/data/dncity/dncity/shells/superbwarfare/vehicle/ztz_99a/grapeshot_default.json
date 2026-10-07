@@ -1,0 +1,12 @@
+{
+  "ammo": "20mm grapeshot (ztz_99a)",
+  "entity": "superbwarfare:grapeshot",
+  "key": "superbwarfare:ztz_99a",
+  "item": "superbwarfare:large_shell_gs",
+  "tags": [
+    "grapeshot",
+    "tank"
+  ],
+  "caliber_mm": 20,
+  "penetration": 0.0
+}

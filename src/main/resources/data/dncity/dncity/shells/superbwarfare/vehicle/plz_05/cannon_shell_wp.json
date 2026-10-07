@@ -1,0 +1,17 @@
+{
+  "ammo": "155mm WP (plz_05)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:plz_05",
+  "nbt": {
+    "Type": "WP"
+  },
+  "item": "superbwarfare:large_shell_wp",
+  "tags": [
+    "cannon",
+    "artillery",
+    "wp"
+  ],
+  "caliber_mm": 155,
+  "penetration": 0.1,
+  "explosive": true
+}

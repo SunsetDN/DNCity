@@ -1,0 +1,11 @@
+{
+  "ammo": "70mm small rocket (ah_6)",
+  "entity": "superbwarfare:small_rocket",
+  "key": "superbwarfare:ah_6",
+  "tags": [
+    "small_rocket"
+  ],
+  "caliber_mm": 70,
+  "penetration": 0.4,
+  "explosive": true
+}

@@ -1,0 +1,18 @@
+{
+  "ammo": "120mm AP (m_1a_2)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:m_1a_2",
+  "nbt": {
+    "Type": "AP"
+  },
+  "item": "superbwarfare:large_shell_ap",
+  "tags": [
+    "cannon",
+    "tank",
+    "ap"
+  ],
+  "caliber_mm": 120,
+  "penetration": 1.0,
+  "explosive": true,
+  "fracture_chance_bonus": 0.3
+}

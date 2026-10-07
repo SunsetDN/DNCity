@@ -1,0 +1,17 @@
+{
+  "ammo": "155mm CM (plz_05)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:plz_05",
+  "nbt": {
+    "Type": "CM"
+  },
+  "item": "superbwarfare:large_shell_cm",
+  "tags": [
+    "cannon",
+    "artillery",
+    "cm"
+  ],
+  "caliber_mm": 155,
+  "penetration": 0.1,
+  "explosive": true
+}

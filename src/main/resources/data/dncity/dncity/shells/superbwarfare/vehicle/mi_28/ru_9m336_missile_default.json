@@ -1,0 +1,11 @@
+{
+  "ammo": "120mm ru 9m336 missile (mi_28)",
+  "entity": "superbwarfare:ru_9m336_missile",
+  "key": "superbwarfare:mi_28",
+  "tags": [
+    "ru_9m336_missile"
+  ],
+  "caliber_mm": 120,
+  "penetration": 0.5,
+  "explosive": true
+}

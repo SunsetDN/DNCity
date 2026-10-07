@@ -1,0 +1,17 @@
+{
+  "ammo": "105mm HE (ac_130h)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:ac_130h",
+  "nbt": {
+    "Type": "HE"
+  },
+  "item": "superbwarfare:large_shell_he",
+  "tags": [
+    "cannon",
+    "aircraft",
+    "he"
+  ],
+  "caliber_mm": 105,
+  "penetration": 0.25,
+  "explosive": true
+}

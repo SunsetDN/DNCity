@@ -1,0 +1,12 @@
+{
+  "ammo": "100mm swarm drone (yx_100)",
+  "entity": "superbwarfare:swarm_drone",
+  "key": "superbwarfare:yx_100",
+  "tags": [
+    "swarm_drone",
+    "tank"
+  ],
+  "caliber_mm": 100,
+  "penetration": 0.3,
+  "explosive": true
+}

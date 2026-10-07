@@ -1,0 +1,11 @@
+{
+  "ammo": "368mm sc 250 (ju_87)",
+  "entity": "superbwarfare:sc_250",
+  "key": "superbwarfare:ju_87",
+  "tags": [
+    "sc_250"
+  ],
+  "caliber_mm": 368,
+  "penetration": 0.2,
+  "explosive": true
+}

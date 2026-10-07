@@ -1,0 +1,18 @@
+{
+  "ammo": "140mm AP (yx_100)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:yx_100",
+  "nbt": {
+    "Type": "AP"
+  },
+  "item": "superbwarfare:large_shell_ap",
+  "tags": [
+    "cannon",
+    "tank",
+    "ap"
+  ],
+  "caliber_mm": 140,
+  "penetration": 1.0,
+  "explosive": true,
+  "fracture_chance_bonus": 0.3
+}

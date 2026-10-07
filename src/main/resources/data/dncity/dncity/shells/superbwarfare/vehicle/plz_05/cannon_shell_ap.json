@@ -1,0 +1,18 @@
+{
+  "ammo": "155mm AP (plz_05)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:plz_05",
+  "nbt": {
+    "Type": "AP"
+  },
+  "item": "superbwarfare:large_shell_ap",
+  "tags": [
+    "cannon",
+    "artillery",
+    "ap"
+  ],
+  "caliber_mm": 155,
+  "penetration": 1.0,
+  "explosive": true,
+  "fracture_chance_bonus": 0.3
+}

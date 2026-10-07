@@ -1,0 +1,17 @@
+{
+  "ammo": "139mm CM (mle_1934)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:mle_1934",
+  "nbt": {
+    "Type": "CM"
+  },
+  "item": "superbwarfare:large_shell_cm",
+  "tags": [
+    "cannon",
+    "artillery",
+    "cm"
+  ],
+  "caliber_mm": 139,
+  "penetration": 0.1,
+  "explosive": true
+}

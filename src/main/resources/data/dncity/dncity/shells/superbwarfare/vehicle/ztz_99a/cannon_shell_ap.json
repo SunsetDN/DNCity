@@ -1,0 +1,18 @@
+{
+  "ammo": "125mm AP (ztz_99a)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:ztz_99a",
+  "nbt": {
+    "Type": "AP"
+  },
+  "item": "superbwarfare:large_shell_ap",
+  "tags": [
+    "cannon",
+    "tank",
+    "ap"
+  ],
+  "caliber_mm": 125,
+  "penetration": 1.0,
+  "explosive": true,
+  "fracture_chance_bonus": 0.3
+}

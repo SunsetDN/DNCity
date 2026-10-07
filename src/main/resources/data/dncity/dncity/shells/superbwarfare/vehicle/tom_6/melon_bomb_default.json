@@ -1,0 +1,11 @@
+{
+  "ammo": "200mm melon bomb (tom_6)",
+  "entity": "superbwarfare:melon_bomb",
+  "key": "superbwarfare:tom_6",
+  "tags": [
+    "melon_bomb"
+  ],
+  "caliber_mm": 200,
+  "penetration": 0.0,
+  "explosive": true
+}

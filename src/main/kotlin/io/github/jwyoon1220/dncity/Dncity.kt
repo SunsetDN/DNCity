@@ -3,6 +3,7 @@ package io.github.jwyoon1220.dncity
 import io.github.jwyoon1220.dncity.block.ModBlockEntities
 import io.github.jwyoon1220.dncity.block.ModBlocks
 import io.github.jwyoon1220.dncity.command.PgpCommand
+import io.github.jwyoon1220.dncity.ballistics.ModAttachments
 import io.github.jwyoon1220.dncity.ballistics.ShellRegistry
 import io.github.jwyoon1220.dncity.compat.FirstAidShellBridge
 import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
@@ -69,6 +70,7 @@ object Dncity {
         ModBlockEntities.REGISTRY.register(MOD_BUS)
         ModItems.REGISTRY.register(MOD_BUS)
         ModDataComponents.REGISTRY.register(MOD_BUS)
+        ModAttachments.REGISTRY.register(MOD_BUS)
 
         NeoForge.EVENT_BUS.addListener(RadioCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicCommand::onRegisterCommands)

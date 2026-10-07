@@ -1,0 +1,12 @@
+{
+  "ammo": "20mm grapeshot (yx_100)",
+  "entity": "superbwarfare:grapeshot",
+  "key": "superbwarfare:yx_100",
+  "item": "superbwarfare:large_shell_gs",
+  "tags": [
+    "grapeshot",
+    "tank"
+  ],
+  "caliber_mm": 20,
+  "penetration": 0.0
+}

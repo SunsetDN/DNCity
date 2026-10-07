@@ -1,0 +1,17 @@
+{
+  "ammo": "155mm HE (fh_77bw)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:fh_77bw",
+  "nbt": {
+    "Type": "HE"
+  },
+  "item": "superbwarfare:large_shell_he",
+  "tags": [
+    "cannon",
+    "artillery",
+    "he"
+  ],
+  "caliber_mm": 155,
+  "penetration": 0.25,
+  "explosive": true
+}

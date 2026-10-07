@@ -1,0 +1,11 @@
+{
+  "ammo": "70mm fim 92 missile (lav_ad)",
+  "entity": "superbwarfare:fim_92_missile",
+  "key": "superbwarfare:lav_ad",
+  "tags": [
+    "fim_92_missile"
+  ],
+  "caliber_mm": 70,
+  "penetration": 0.2,
+  "explosive": true
+}

@@ -1,0 +1,17 @@
+{
+  "ammo": "132mm CM (bl_132)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:bl_132",
+  "nbt": {
+    "Type": "CM"
+  },
+  "item": "superbwarfare:large_shell_cm",
+  "tags": [
+    "cannon",
+    "artillery",
+    "cm"
+  ],
+  "caliber_mm": 132,
+  "penetration": 0.1,
+  "explosive": true
+}
