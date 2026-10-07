@@ -1,0 +1,17 @@
+{
+  "ammo": "140mm HE (yx_100)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:yx_100",
+  "nbt": {
+    "Type": "HE"
+  },
+  "item": "superbwarfare:large_shell_he",
+  "tags": [
+    "cannon",
+    "tank",
+    "he"
+  ],
+  "caliber_mm": 140,
+  "penetration": 0.25,
+  "explosive": true
+}

@@ -1,0 +1,17 @@
+{
+  "ammo": "125mm HE (t_90a)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:t_90a",
+  "nbt": {
+    "Type": "HE"
+  },
+  "item": "superbwarfare:large_shell_he",
+  "tags": [
+    "cannon",
+    "tank",
+    "he"
+  ],
+  "caliber_mm": 125,
+  "penetration": 0.25,
+  "explosive": true
+}

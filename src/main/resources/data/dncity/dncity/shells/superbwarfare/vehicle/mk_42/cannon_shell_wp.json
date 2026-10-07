@@ -1,0 +1,17 @@
+{
+  "ammo": "127mm WP (mk_42)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:mk_42",
+  "nbt": {
+    "Type": "WP"
+  },
+  "item": "superbwarfare:large_shell_wp",
+  "tags": [
+    "cannon",
+    "naval",
+    "wp"
+  ],
+  "caliber_mm": 127,
+  "penetration": 0.1,
+  "explosive": true
+}

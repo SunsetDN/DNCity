@@ -1,0 +1,7 @@
+{
+  "ammo": "Melon bomb",
+  "entity": "superbwarfare:melon_bomb",
+  "caliber_mm": 200,
+  "penetration": 0.0,
+  "explosive": true
+}

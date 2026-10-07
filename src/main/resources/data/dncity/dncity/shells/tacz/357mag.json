@@ -1,0 +1,7 @@
+{
+  "ammo": ".357 Magnum",
+  "entity": "tacz:bullet",
+  "key": "tacz:357mag",
+  "caliber_mm": 9.07,
+  "penetration": 0.1
+}

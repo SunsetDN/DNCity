@@ -1,0 +1,7 @@
+{
+  "ammo": "5.7x28mm FN",
+  "entity": "tacz:bullet",
+  "key": "tacz:57x28",
+  "caliber_mm": 5.7,
+  "penetration": 0.4
+}

@@ -1,0 +1,11 @@
+{
+  "ammo": "25mm autocannon (happiest_ghast)",
+  "entity": "superbwarfare:small_cannon_shell",
+  "key": "superbwarfare:happiest_ghast",
+  "tags": [
+    "autocannon"
+  ],
+  "caliber_mm": 25,
+  "penetration": 0.5,
+  "explosive": true
+}

@@ -1,0 +1,7 @@
+{
+  "ammo": "9x19mm Parabellum",
+  "entity": "tacz:bullet",
+  "key": "tacz:9mm",
+  "caliber_mm": 9.0,
+  "penetration": 0.05
+}

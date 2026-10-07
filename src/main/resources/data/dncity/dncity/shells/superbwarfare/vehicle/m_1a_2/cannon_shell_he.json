@@ -1,0 +1,17 @@
+{
+  "ammo": "120mm HE (m_1a_2)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:m_1a_2",
+  "nbt": {
+    "Type": "HE"
+  },
+  "item": "superbwarfare:large_shell_he",
+  "tags": [
+    "cannon",
+    "tank",
+    "he"
+  ],
+  "caliber_mm": 120,
+  "penetration": 0.25,
+  "explosive": true
+}

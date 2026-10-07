@@ -1,0 +1,11 @@
+{
+  "ammo": "275mm kh 39 (mi_28)",
+  "entity": "superbwarfare:kh_39",
+  "key": "superbwarfare:mi_28",
+  "tags": [
+    "kh_39"
+  ],
+  "caliber_mm": 275,
+  "penetration": 0.6,
+  "explosive": true
+}

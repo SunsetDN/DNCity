@@ -1,0 +1,7 @@
+{
+  "ammo": ".500 S&W Magnum",
+  "entity": "tacz:bullet",
+  "key": "tacz:500mag",
+  "caliber_mm": 12.7,
+  "penetration": 0.1
+}

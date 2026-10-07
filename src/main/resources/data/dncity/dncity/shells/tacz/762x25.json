@@ -1,0 +1,7 @@
+{
+  "ammo": "7.62x25mm Tokarev",
+  "entity": "tacz:bullet",
+  "key": "tacz:762x25",
+  "caliber_mm": 7.62,
+  "penetration": 0.12
+}

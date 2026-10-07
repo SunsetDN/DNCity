@@ -1,0 +1,7 @@
+{
+  "ammo": "4.6x30mm HK",
+  "entity": "tacz:bullet",
+  "key": "tacz:46x30",
+  "caliber_mm": 4.6,
+  "penetration": 0.4
+}

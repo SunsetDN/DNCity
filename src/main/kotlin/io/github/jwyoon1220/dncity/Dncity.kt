@@ -3,6 +3,12 @@ package io.github.jwyoon1220.dncity
 import io.github.jwyoon1220.dncity.block.ModBlockEntities
 import io.github.jwyoon1220.dncity.block.ModBlocks
 import io.github.jwyoon1220.dncity.command.PgpCommand
+import io.github.jwyoon1220.dncity.ballistics.ModAttachments
+import io.github.jwyoon1220.dncity.ballistics.ShellRegistry
+import io.github.jwyoon1220.dncity.ballistics.terminal.TerminalBallistics
+import io.github.jwyoon1220.dncity.compat.FirstAidShellBridge
+import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
+import io.github.jwyoon1220.dncity.compat.TaczShellKeys
 import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
@@ -22,6 +28,7 @@ import io.github.jwyoon1220.dncity.security.PgpAuthServerEvents
 import net.minecraft.world.item.CreativeModeTabs
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
+import net.neoforged.fml.ModList
 import net.neoforged.fml.common.Mod
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLDedicatedServerSetupEvent
@@ -64,6 +71,7 @@ object Dncity {
         ModBlockEntities.REGISTRY.register(MOD_BUS)
         ModItems.REGISTRY.register(MOD_BUS)
         ModDataComponents.REGISTRY.register(MOD_BUS)
+        ModAttachments.REGISTRY.register(MOD_BUS)
 
         NeoForge.EVENT_BUS.addListener(RadioCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicCommand::onRegisterCommands)
@@ -84,6 +92,18 @@ object Dncity {
         MOD_BUS.addListener(PhoneNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
+        NeoForge.EVENT_BUS.addListener(ShellRegistry::onAddReloadListeners)
+        NeoForge.EVENT_BUS.addListener(TerminalBallistics::onAddReloadListeners)
+        // Loaded lazily: these reference TACZ and First Aid classes
+        if (ModList.get().isLoaded("tacz")) {
+            TaczShellKeys.register()
+        }
+        if (ModList.get().isLoaded("firstaid")) {
+            FirstAidShellBridge.register()
+        }
+        if (ModList.get().isLoaded("tacz") && ModList.get().isLoaded("firstaid")) {
+            TaczFirstAidBridge.register()
+        }
     }
 
     /**

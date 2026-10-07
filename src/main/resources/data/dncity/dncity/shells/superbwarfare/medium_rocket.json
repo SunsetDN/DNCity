@@ -1,0 +1,7 @@
+{
+  "ammo": "70mm rocket (medium)",
+  "entity": "superbwarfare:medium_rocket",
+  "caliber_mm": 70,
+  "penetration": 0.6,
+  "explosive": true
+}

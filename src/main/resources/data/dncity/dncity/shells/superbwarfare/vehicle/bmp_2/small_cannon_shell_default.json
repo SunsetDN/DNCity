@@ -1,0 +1,11 @@
+{
+  "ammo": "30mm autocannon (bmp_2)",
+  "entity": "superbwarfare:small_cannon_shell",
+  "key": "superbwarfare:bmp_2",
+  "tags": [
+    "autocannon"
+  ],
+  "caliber_mm": 30,
+  "penetration": 0.5,
+  "explosive": true
+}

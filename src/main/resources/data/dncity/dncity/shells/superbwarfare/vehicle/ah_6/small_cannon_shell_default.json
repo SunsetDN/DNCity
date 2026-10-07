@@ -1,0 +1,11 @@
+{
+  "ammo": "20mm autocannon (ah_6)",
+  "entity": "superbwarfare:small_cannon_shell",
+  "key": "superbwarfare:ah_6",
+  "tags": [
+    "autocannon"
+  ],
+  "caliber_mm": 20,
+  "penetration": 0.5,
+  "explosive": true
+}

@@ -1,0 +1,11 @@
+{
+  "ammo": "81mm mortar shell (kv_16)",
+  "entity": "superbwarfare:mortar_shell",
+  "key": "superbwarfare:kv_16",
+  "tags": [
+    "mortar_shell"
+  ],
+  "caliber_mm": 81,
+  "penetration": 0.0,
+  "explosive": true
+}

@@ -1,0 +1,7 @@
+{
+  "ammo": "SC 250 bomb",
+  "entity": "superbwarfare:sc_250",
+  "caliber_mm": 368,
+  "penetration": 0.2,
+  "explosive": true
+}

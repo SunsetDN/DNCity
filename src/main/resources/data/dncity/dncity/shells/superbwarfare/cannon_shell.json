@@ -1,0 +1,7 @@
+{
+  "ammo": "120mm cannon shell (type unknown)",
+  "entity": "superbwarfare:cannon_shell",
+  "caliber_mm": 120,
+  "penetration": 0.4,
+  "explosive": true
+}

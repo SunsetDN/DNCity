@@ -1,0 +1,7 @@
+{
+  "ammo": "Kh-39",
+  "entity": "superbwarfare:kh_39",
+  "caliber_mm": 275,
+  "penetration": 0.6,
+  "explosive": true
+}

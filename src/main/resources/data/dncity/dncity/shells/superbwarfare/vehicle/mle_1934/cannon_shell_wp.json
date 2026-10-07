@@ -1,0 +1,17 @@
+{
+  "ammo": "139mm WP (mle_1934)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:mle_1934",
+  "nbt": {
+    "Type": "WP"
+  },
+  "item": "superbwarfare:large_shell_wp",
+  "tags": [
+    "cannon",
+    "artillery",
+    "wp"
+  ],
+  "caliber_mm": 139,
+  "penetration": 0.1,
+  "explosive": true
+}

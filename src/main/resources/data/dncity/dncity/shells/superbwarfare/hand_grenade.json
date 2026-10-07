@@ -1,0 +1,7 @@
+{
+  "ammo": "Hand grenade",
+  "entity": "superbwarfare:hand_grenade",
+  "caliber_mm": 60,
+  "penetration": 0.0,
+  "explosive": true
+}

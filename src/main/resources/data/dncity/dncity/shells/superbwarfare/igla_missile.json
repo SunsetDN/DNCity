@@ -1,0 +1,7 @@
+{
+  "ammo": "9K38 Igla",
+  "entity": "superbwarfare:igla_9k38_missile",
+  "caliber_mm": 72,
+  "penetration": 0.2,
+  "explosive": true
+}

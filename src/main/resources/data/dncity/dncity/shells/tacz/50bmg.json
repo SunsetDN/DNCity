@@ -1,0 +1,7 @@
+{
+  "ammo": ".50 BMG",
+  "entity": "tacz:bullet",
+  "key": "tacz:50bmg",
+  "caliber_mm": 12.7,
+  "penetration": 0.6
+}

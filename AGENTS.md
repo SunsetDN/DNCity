@@ -570,6 +570,141 @@ point. **Mandatory before merging any of this as real, working code**: verify TA
 with FSR2 enabled, given the shared `GameRenderer`/`EntityRenderDispatcher` mixin targets — this
 is the single biggest compatibility risk in the whole feature, not a generic "run the game" check.
 
+## Architecture: health engine (`mods/First-Aid-New`, EFT-style limb health)
+
+The player's real health is the per-limb hit points of First Aid's `PlayerDamageModel` (head 35, body
+85, arms 60, legs 65, feet 25 by default — `FirstAidConfig.Server.maxHealth*`). Vanilla
+`getHealth()` is a **derived compatibility value**, never the source of truth. Work lives in the
+`ichttt.mods.firstaid.common.health` package (marker label `tarkov-health-engine`):
+
+- **`VanillaHealthBridge`** — the only place the two meet. `LivingEntityHealthMixin` routes every
+  `setHealth` on a `ServerPlayer` into `onExternalSetHealth`, which turns the requested value into
+  limb damage (`DamageDistribution.handleDamageTaken`), limb healing (`HealthDistribution`) or a kill
+  (`setHealth(0)`), then re-derives the vanilla value (`PlayerDamageModel.syncVanillaHealth`, which now
+  converges on the real vanilla value every server tick). `heal()` goes through `EventHandler.onHeal`.
+  Interception is skipped while `connection == null || tickCount <= 0` (NBT load, `ServerPlayer#restoreFrom`
+  copies vanilla health *before* attachments exist) and inside `CommonUtils.runWithoutSetHealthInterception`.
+  The old `SynchedEntityDataWrapper` hack was dead code (excluded in `build.gradle`) and is deleted.
+- **`HealthUnits`** — engine units (limb hit points) vs vanilla units (what `hurt()/heal()/setHealth()`
+  and the item configs' "half heart" speak). `damageScaleMode=AUTO` (default) maps them linearly
+  (`total limb hp / vanilla max health`, 20.5 for the defaults), so vanilla-balanced mods keep working;
+  `RAW` applies amounts 1:1 (legacy, only sensible with small limb values). Conversion happens in
+  `DamageDistribution.distributeDamageOnParts` (after armor math, which is tuned for vanilla units),
+  `EventHandler.onHeal`, `DamageablePart.tick` (heal pulses) and the pain/feedback thresholds in
+  `PlayerDamageModel`. `/damagePart` speaks limb hit points.
+- **`InjuryEngine`** — bleeds (light/heavy, `AbstractDamageablePart.bleedLevel`, drained once per second
+  as a percentage of the limb's max hp, stopped by treatment) and fractures (`fractured`, arms/legs/feet only:
+  attribute penalties, reduced while painkillers/morphine are active). Rolled in
+  `DamageDistribution.handleDamageTaken` from the before/after limb snapshot; bleed-capable sources are the
+  `firstaid:causes_bleeding` damage-type tag plus any `Projectile` direct entity. Bleed deaths use the
+  `firstaid:bleed_out` damage type. State is in the part NBT and so rides the existing damage-model sync.
+  A non-critical limb that empties passes only `limbOverkillFactor` of the excess on.
+- **Medical items** — `ItemTreatment` (an `ItemHealing` with its own `canTreat(part)` and a completion hook):
+  bandage/plaster close light bleeds, tourniquet (limbs only) any bleed, splint fractures, trauma kit heals
+  quickly and closes every bleed. `ItemHealing#canTreat` replaced the "part is not full" checks (server
+  `MessageApplyHealingItem`, `GuiHealthScreen`, `ClientEventHandler`). `/firstaid injury <player> ...` sets
+  or clears bleeds/fractures; the HUD marks them `B`/`BB`/`F`.
+- **Verification** — `./gradlew runGameTestServer` inside `mods/First-Aid-New` boots a real headless
+  server and runs `gametest/FirstAidGameTests` (not shipped: excluded from the jar in `build.gradle`).
+  The mock player is built by hand because `GameTestHelper#makeMockServerPlayerInLevel` has a connection
+  without NeoForge's payload registry, and it must be ticked via `doTick()` (vanilla ticks real players
+  through the network handler, which is what fires `PlayerTickEvent`).
+
+- **TACZ damage** — TACZ bullets are `Projectile`s but move with their own ray logic (never `Projectile#onHit`) and
+  their damage types (`tacz:bullet*`) are not in `minecraft:is_projectile`, so First Aid used to treat every hit as
+  random-limb. `EventHandler.isProjectileDamage` now also accepts any source whose direct entity is a `Projectile`;
+  the hit context is kept for the whole tick because one shot calls `hurt()` twice (normal + armor-piercing part);
+  damage types in `firstaid:precise_hit` (default `#tacz:bullets`) use that location even with friendly random
+  distribution on. `compat/TaczFirstAidBridge.kt` (registered from `Dncity` only if both mods are loaded) listens to
+  `EntityHurtByGunEvent.Pre` and records the hit: TACZ's headshot flag becomes the player's eye position (head),
+  otherwise the bullet position. TACZ damage values are vanilla-scaled and go through `HealthUnits` (AUTO); add
+  `#tacz:bullets` to the `firstaid:raw_damage` tag to make a gun's damage value mean limb hit points instead
+  (a damage of 50 removes 50 hp from the limb hit). Not compiled in this environment (DNCity's root build needs the
+  other submodules); the First Aid side is covered by a game test.
+
+- **Shells (every projectile is one Shell)** — `ballistics/` in DNCity (not First Aid). `ShellRegistry.of(entity)` is
+  the single place where a projectile of any mod (TACZ bullet, SuperbWarfare cannon shell/rocket/missile/bomb) turns
+  into a `Shell`; everything downstream (First Aid's damage, future vehicle damage) asks only that. The catalog is data,
+  no enum: `data/<ns>/dncity/shells/**.json` (`ammo` = type name only, `entity`, optional `key`/`nbt`/`item`/`tags`,
+  `caliber_mm`, `penetration`, `damage_multiplier`, `damage_is_limb_hp`, bleed/fracture/overkill modifiers, `explosive`).
+  A projectile gets its shell in this order: (1) a weapon stamped it when firing (`ShellRegistry.stamp(entity, id)`,
+  the intended path for modular tank gun modules); (2) it was decided before (`dncity:shell_id` attachment, saved with the
+  entity, so the answer never changes mid-flight); (3) it is matched: `entity` = projectile entity type, `key` must equal the
+  key resolver's answer (TACZ: `ammoId` via `TaczShellKeys`; default for any `Projectile`: the entity type of the
+  vehicle the shooter is riding, `rootVehicle`), `nbt` must be contained in the entity's saved data
+  (`{"Type":"AP"}` for `superbwarfare:cannon_shell`); the most specific match wins and is saved as (2). A weapon
+  module asks `ShellRegistry.forItem(item)` / `compatible(caliberMm, tag)` instead of hard-coding ammo.
+  Size and power: the wound width is `sqrt(caliber/7.62)` (more bleed chance, heavy bleeds at a smaller share of
+  the limb, more of an emptied limb's excess passed on); `penetration` is the share of damage that ignores armor.
+  `compat/FirstAidShellBridge.kt` registers a `HitProfiles` provider (First Aid's neutral `api.damage` hook) turning the
+  shell into a `HitProfile`. Shipped catalog: TACZ ammo (`shells/tacz`), generic SuperbWarfare projectiles, and one shell per
+  (vehicle, ammo type) generated from SuperbWarfare's `sbw/vehicles/*.json` (`shells/superbwarfare/vehicle/<vehicle>/`,
+  `key` = the vehicle's entity id, `item` = the loading ammo item). The vehicle calibers (M1A2 120, T-90A/ZTZ-99A 125,
+  PLZ-05/FH-77BW 155, ...) are assumptions: SuperbWarfare's data has none. Small autocannon AP/HE variants cannot be told
+  apart (same entity, same vehicle) and share one shell. SuperbWarfare explosion damage types use the equal distribution
+  and its `*_headshot` types force the head via `data/dncity/firstaid/damage_distributions/`. The Kotlin side is not
+  compiled in this environment (the root build needs the other submodules); the First Aid hook has game tests.
+
+- **Terminal ballistics (War Thunder-style hits, in progress)** — `ballistics/terminal/`. Target design: every projectile (rifle
+  round to tank shell) runs the *same pipeline* with a *different penetrator model*: `ProjectileDefinition -> ProjectileState ->
+  ImpactContext -> ArmorStack traversal -> PenetratorModel / ArmorEffectModel -> PenetrationResult -> post-penetration ->
+  DamageEvent[]`. de Marre is only one possible implementation (full-caliber AP); long rod, shaped charge, APCR/APDS and small arms are
+  separate models chosen by `ProjectileDefinition.terminalModel`. **No real penetration formula exists yet** (next step).
+  - *Plain JVM core.* The package uses `Ident` and `V3`, never Minecraft types, so it and its tests (`src/test`, `./gradlew test`)
+    run without the game. Only `JsonDataRegistry.kt` and `TerminalBallistics.kt` (reload listeners, id conversion) touch Minecraft.
+    Parsing is in `fromJson` companions; cross references are checked by `BallisticsValidation`; registries are strict (one broken file
+    fails the reload, `-Ddncity.ballistics.lenient=true` skips it in development).
+  - *Rules.* SI units inside (JSON may say `_mm`/`_g`, `SiJson` converts). An impact angle is from the surface normal (0 = perpendicular)
+    and is always *derived* from the current direction and the local `SurfaceModel` normal, never stored on armor. Materials hold
+    physical data only; how well one stops a penetrator is a `ResistancePreset` (solver id + solver-specific parameters) chosen by the
+    projectile's terminal model, not a `ke_eff`/`ce_eff` constant. `ArmorMaterial` != `ArmorLayer` != `ArmorConstruction`: a layer is a
+    material with thickness and shape (`FLAT`/`CURVED`; manufacturing such as cast/rolled is a separate, not yet modelled axis); a
+    construction is the *definition* (Solid, Gap with a real distance, EffectPackage = layers + effect, InternalSpace last);
+    ERA/NERA are an `EffectPackage`, never a material. What has been used up on one vehicle is `ArmorRuntimeState` (per vehicle,
+    per `EffectSlot`), the traversal only reads it and reports `consumedEffects`; the server `commit`s an accepted result.
+  - *Traversal* (`ArmorTraverser`): carries a `ProjectileState` (the physical state: worn rod, speed, axis/yaw, fuze machine) through
+    a `TraversalState` (this passage: accumulated flown distance, deposited energy, spall/blast sources, consumed effects, phase).
+    Ends with a `TraversalOutcome`: STOPPED_IN_ARMOR, RICOCHETED, SHATTERED, DEFEATED_BY_EFFECT, EXITED_CONSTRUCTION or
+    ENTERED_INTERNAL_SPACE (after which residual tracing, spall, modules, crew and fuze are the post-penetration solver's job).
+    Gap path = distance / cos(angle) (a gap is air; there is no fill, a medium model would be separate) and counts towards the
+    traversal distance and the fuze arming distance. Contracts the traverser enforces on every model: the traversal owns canonical
+    state (after a perforation the residual is placed at `perforationPoint`, the path must be finite and > 0; `exitDirection` is derived
+    from `residual.velocity`); `ProjectileState.axis` is a unit vector and `deformation` is 0..1; no energy from nowhere
+    (`EnergyBudget`: a penetrator model may only use the projectile's energy, an effect may also release its
+    `ArmorEffectSpec.storedEnergyJ`, and only in the interaction in which it uses itself up; blasts are TNT mass converted by
+    `EnergyAccounting.blastJ`; passive armor has no stored energy); only a `singleUse` effect may report consumption, once; an
+    effect cannot end, alter or revive a projectile a layer already ended. An effect says what it did to the projectile with
+    `ProjectileChange` (Untouched / Replaced / Destroyed; only Destroyed ends the traversal, as DEFEATED_BY_EFFECT, so "null" never
+    means two things). `ArmorEffectSpec.storedEnergyJ` is a *provisional accounting upper bound* (the most a conservation check
+    lets that one interaction add), not a physical ERA description and not an amount delivered; a real ERA model will derive it from
+    explosive mass and distribute at most that. What a layer absorbed (`depositedEnergyJ`) is NOT available to effects: an observer
+    has no mechanical energy except its own stored energy, until layers report an energy breakdown (plastic work, heat, fracture,
+    plate motion, spall). Effect hooks: `EffectPhase` BEFORE_PACKAGE, per layer BEFORE_LAYER / (penetration) / AFTER_LAYER (called for
+    every solved outcome; observation-only after a layer that did not perforate, the layer's verdict outranks it) and AFTER_PACKAGE
+    (only if every layer was perforated); a model is only called for the phases it lists. Once a single-use effect has used itself up,
+    its later hooks do not run in that traversal (`EFFECT_SKIPPED_CONSUMED_THIS_TRAVERSAL`) but the layers of the package are still
+    solved. Runtime effect state is just INTACT/SPENT. **The traversal API is frozen** until the first real solver exposes a need.
+  - *Determinism.* Same `ImpactContext` + `ProjectileState` + runtime state + seed = same result. Solvers must not use `Random`, a clock
+    or entity/world state; anything stochastic (spall pattern, fuze failure) draws from `ImpactContext.seed`
+    (`ImpactContext.seedFor(shotSeed, constructionId, elementIndex, layerIndex, SeedDomain)` hashes *what* a stream is for, not call order, so adding a layer, phase or domain never shifts another stream).
+  - *Server/client.* The server is authoritative for impact and penetration; the shooter client only sends a `ShotClaim` (inputs, never
+    results) and later offloads the heavy spall/BVH ray work at the server's request. Not built yet.
+  - *Next step (proposal only, not implemented):* `docs/ballistics/full-caliber-ap-proposal.md` (v2) built on `docs/ballistics/full-caliber-ap-sources.md` (what was actually verified, and what was not) and `docs/ballistics/data/` (MIL-DTL-12560K tables + `analyze_12560k.py`). No solver code or calibration numbers exist until it is approved; never cite a number from a search-engine summary, read the source.
+  - *Data.* `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets,armor_effects,armor_constructions}`. Shipped: five
+    materials (physical constants) and three empty baseline RHA presets. **No projectile, effect or construction data is shipped and
+    none may be invented**: test numbers live only in `src/test` (`Fixtures.kt`).
+  - Known gaps: no solver, fuze trigger on armor contact, curved-surface `SurfaceModel`, post-penetration, `ShotClaim`/server validation,
+    `Shell` -> `ProjectileDefinition` link. The root Gradle build and `./gradlew test` could not be run in the authoring environment; the
+    package was compiled with the Kotlin compiler from Gradle's distribution (pure core with no Minecraft classes on the classpath, the
+    Minecraft boundary against stubs) and the tests were run that way.
+- **Kotlin gotcha**: block comments nest. A KDoc containing `dir/*.json` or `dir/**.json` opens a nested comment and the file
+  fails with "Unclosed comment". Never write a slash followed by a star inside a comment (write `dir/(any depth)/name.json`).
+
+Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separate stomach), so this is
+EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only
+keeps vanilla-balanced numbers proportional). Verified on a headless server only — nothing here has been
+played in a real client (HUD markers, item models, pending-heal UI are unchecked visually).
+
 ## Editing the mod metadata template
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in

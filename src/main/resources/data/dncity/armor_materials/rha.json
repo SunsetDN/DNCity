@@ -1,0 +1,11 @@
+{
+  "type": "metal",
+  "density_kg_m3": 7850,
+  "hardness_bhn": 300,
+  "resistance": {
+    "dncity:full_caliber_ap": "dncity:rha_ap",
+    "dncity:long_rod": "dncity:rha_long_rod",
+    "dncity:shaped_charge": "dncity:rha_ce"
+  },
+  "spall": { "enabled": true, "coefficient": 1.0 }
+}

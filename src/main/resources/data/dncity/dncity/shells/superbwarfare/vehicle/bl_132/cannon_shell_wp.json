@@ -1,0 +1,17 @@
+{
+  "ammo": "132mm WP (bl_132)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:bl_132",
+  "nbt": {
+    "Type": "WP"
+  },
+  "item": "superbwarfare:large_shell_wp",
+  "tags": [
+    "cannon",
+    "artillery",
+    "wp"
+  ],
+  "caliber_mm": 132,
+  "penetration": 0.1,
+  "explosive": true
+}

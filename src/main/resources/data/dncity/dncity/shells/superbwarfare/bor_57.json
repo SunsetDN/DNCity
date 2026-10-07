@@ -1,0 +1,7 @@
+{
+  "ammo": "BOR-57 bomb",
+  "entity": "superbwarfare:bor_57",
+  "caliber_mm": 350,
+  "penetration": 0.2,
+  "explosive": true
+}

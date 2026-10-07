@@ -1,0 +1,7 @@
+{
+  "ammo": "12 gauge buckshot (per pellet)",
+  "entity": "tacz:bullet",
+  "key": "tacz:12g",
+  "caliber_mm": 8.4,
+  "penetration": 0.0
+}

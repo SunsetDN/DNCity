@@ -1,0 +1,7 @@
+{
+  "ammo": "5.8x42mm",
+  "entity": "tacz:bullet",
+  "key": "tacz:58x42",
+  "caliber_mm": 5.8,
+  "penetration": 0.32
+}

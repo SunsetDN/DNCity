@@ -1,0 +1,10 @@
+{
+  "ammo": "120mm AP",
+  "entity": "superbwarfare:cannon_shell",
+  "caliber_mm": 120,
+  "penetration": 1.0,
+  "nbt": {
+    "Type": "AP"
+  },
+  "fracture_chance_bonus": 0.3
+}

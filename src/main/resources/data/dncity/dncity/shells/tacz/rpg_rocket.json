@@ -1,0 +1,8 @@
+{
+  "ammo": "PG-7 rocket",
+  "entity": "tacz:bullet",
+  "key": "tacz:rpg_rocket",
+  "caliber_mm": 85,
+  "penetration": 0.9,
+  "explosive": true
+}

@@ -1,0 +1,11 @@
+{
+  "ammo": "305mm agm 65 (j_16)",
+  "entity": "superbwarfare:agm_65",
+  "key": "superbwarfare:j_16",
+  "tags": [
+    "agm_65"
+  ],
+  "caliber_mm": 305,
+  "penetration": 0.8,
+  "explosive": true
+}

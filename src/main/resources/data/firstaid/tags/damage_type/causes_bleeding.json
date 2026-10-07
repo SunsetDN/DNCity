@@ -1,0 +1,53 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "superbwarfare:gunfire",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:gunfire_absolute",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:gunfire_headshot",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:gunfire_headshot_absolute",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:projectile_hit",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:projectile_hit_headshot",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:projectile_explosion",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:custom_explosion",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:vehicle_explosion",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:mine",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:lunge_mine",
+      "required": false
+    },
+    {
+      "id": "superbwarfare:grapeshot_hit",
+      "required": false
+    }
+  ]
+}

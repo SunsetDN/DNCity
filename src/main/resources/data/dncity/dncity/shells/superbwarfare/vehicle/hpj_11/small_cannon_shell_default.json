@@ -1,0 +1,11 @@
+{
+  "ammo": "23mm autocannon (hpj_11)",
+  "entity": "superbwarfare:small_cannon_shell",
+  "key": "superbwarfare:hpj_11",
+  "tags": [
+    "autocannon"
+  ],
+  "caliber_mm": 23,
+  "penetration": 0.5,
+  "explosive": true
+}

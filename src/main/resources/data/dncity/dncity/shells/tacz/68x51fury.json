@@ -1,0 +1,7 @@
+{
+  "ammo": "6.8x51mm FURY",
+  "entity": "tacz:bullet",
+  "key": "tacz:68x51fury",
+  "caliber_mm": 6.8,
+  "penetration": 0.5
+}

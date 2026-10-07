@@ -1,0 +1,11 @@
+{
+  "ammo": "30mm autocannon (mi_28)",
+  "entity": "superbwarfare:small_cannon_shell",
+  "key": "superbwarfare:mi_28",
+  "tags": [
+    "autocannon"
+  ],
+  "caliber_mm": 30,
+  "penetration": 0.5,
+  "explosive": true
+}

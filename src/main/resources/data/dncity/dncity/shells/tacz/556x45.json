@@ -1,0 +1,7 @@
+{
+  "ammo": "5.56x45mm NATO",
+  "entity": "tacz:bullet",
+  "key": "tacz:556x45",
+  "caliber_mm": 5.56,
+  "penetration": 0.3
+}

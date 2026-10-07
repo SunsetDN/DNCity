@@ -1,0 +1,11 @@
+{
+  "ammo": "350mm bor 57 (kirov)",
+  "entity": "superbwarfare:bor_57",
+  "key": "superbwarfare:kirov",
+  "tags": [
+    "bor_57"
+  ],
+  "caliber_mm": 350,
+  "penetration": 0.2,
+  "explosive": true
+}

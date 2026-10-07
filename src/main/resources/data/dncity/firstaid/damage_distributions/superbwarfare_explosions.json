@@ -1,0 +1,15 @@
+{
+  "type": "firstaid:static",
+  "damageTypes": [
+    "superbwarfare:projectile_explosion",
+    "superbwarfare:custom_explosion",
+    "superbwarfare:vehicle_explosion",
+    "superbwarfare:mine",
+    "superbwarfare:lunge_mine"
+  ],
+  "algorithm": {
+    "type": "firstaid:equal",
+    "reductionMultiplier": 0.8,
+    "tryNoKill": false
+  }
+}

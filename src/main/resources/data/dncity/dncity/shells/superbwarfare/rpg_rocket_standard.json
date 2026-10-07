@@ -1,0 +1,7 @@
+{
+  "ammo": "PG-7V rocket",
+  "entity": "superbwarfare:rpg_rocket_standard",
+  "caliber_mm": 85,
+  "penetration": 0.9,
+  "explosive": true
+}

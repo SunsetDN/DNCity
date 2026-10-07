@@ -1,0 +1,7 @@
+{
+  "ammo": "RGO grenade",
+  "entity": "superbwarfare:rgo_grenade",
+  "caliber_mm": 60,
+  "penetration": 0.0,
+  "explosive": true
+}

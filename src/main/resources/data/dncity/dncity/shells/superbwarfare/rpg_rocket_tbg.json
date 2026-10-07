@@ -1,0 +1,7 @@
+{
+  "ammo": "TBG-7V thermobaric rocket",
+  "entity": "superbwarfare:rpg_rocket_tbg",
+  "caliber_mm": 105,
+  "penetration": 0.2,
+  "explosive": true
+}

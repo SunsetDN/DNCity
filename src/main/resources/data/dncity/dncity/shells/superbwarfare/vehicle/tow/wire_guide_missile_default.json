@@ -1,0 +1,11 @@
+{
+  "ammo": "127mm wire guide missile (tow)",
+  "entity": "superbwarfare:wire_guide_missile",
+  "key": "superbwarfare:tow",
+  "tags": [
+    "wire_guide_missile"
+  ],
+  "caliber_mm": 127,
+  "penetration": 0.9,
+  "explosive": true
+}

@@ -1,0 +1,18 @@
+{
+  "ammo": "127mm AP (mk_42)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:mk_42",
+  "nbt": {
+    "Type": "AP"
+  },
+  "item": "superbwarfare:large_shell_ap",
+  "tags": [
+    "cannon",
+    "naval",
+    "ap"
+  ],
+  "caliber_mm": 127,
+  "penetration": 1.0,
+  "explosive": true,
+  "fracture_chance_bonus": 0.3
+}

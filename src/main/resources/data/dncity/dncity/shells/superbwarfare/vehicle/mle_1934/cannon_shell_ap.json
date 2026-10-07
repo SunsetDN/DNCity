@@ -1,0 +1,18 @@
+{
+  "ammo": "139mm AP (mle_1934)",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "superbwarfare:mle_1934",
+  "nbt": {
+    "Type": "AP"
+  },
+  "item": "superbwarfare:large_shell_ap",
+  "tags": [
+    "cannon",
+    "artillery",
+    "ap"
+  ],
+  "caliber_mm": 139,
+  "penetration": 1.0,
+  "explosive": true,
+  "fracture_chance_bonus": 0.3
+}

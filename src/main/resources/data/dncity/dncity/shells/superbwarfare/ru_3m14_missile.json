@@ -1,0 +1,7 @@
+{
+  "ammo": "3M14 cruise missile",
+  "entity": "superbwarfare:ru_3m14_missile",
+  "caliber_mm": 533,
+  "penetration": 0.4,
+  "explosive": true
+}

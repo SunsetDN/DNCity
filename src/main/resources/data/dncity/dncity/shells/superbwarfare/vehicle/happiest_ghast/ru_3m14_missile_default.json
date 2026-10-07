@@ -1,0 +1,11 @@
+{
+  "ammo": "533mm ru 3m14 missile (happiest_ghast)",
+  "entity": "superbwarfare:ru_3m14_missile",
+  "key": "superbwarfare:happiest_ghast",
+  "tags": [
+    "ru_3m14_missile"
+  ],
+  "caliber_mm": 533,
+  "penetration": 0.4,
+  "explosive": true
+}
