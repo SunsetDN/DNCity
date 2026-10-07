@@ -8,7 +8,7 @@ import kotlin.math.sqrt
 
 /**
  * One kind of ammunition, any ammunition: a rifle round (TACZ), a tank shell, a rocket or a mortar bomb (SuperbWarfare).
- * The list of shells is data (`data/<namespace>/dncity/shells/*.json`, see [ShellRegistry]); there is no enum of ammo types.
+ * The list of shells is data (`data/<namespace>/dncity/shells/(any depth)/name.json`, see [ShellRegistry]); there is no enum of ammo types.
  *
  * A shell is found from the projectile that caused a hit: [entity] is the projectile's entity type, [key] (optional) is
  * what a registered key resolver says about that projectile (TACZ: the ammo id) and [nbt] (optional) must be contained in

@@ -658,8 +658,17 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   (STOPPED/RICOCHET/PARTIAL/PERFORATED/SHATTERED), the residual state and spall data from the first version.
   Server is authoritative for impact + penetration; the shooter client only sends a `ShotClaim` (inputs, never results) and later
   offloads the heavy spall/BVH ray work to the server's request. Data: `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets}`.
-  Done so far: step 1 (units, `ProjectileDefinition`, `ProjectileState`, `ArmorMaterial`, `ResistancePreset`, registries).
-  Not compiled here (root build needs the other submodules).
+  Done so far: step 1 (units, `ProjectileDefinition`, `ProjectileState` with body axis/yaw and a `FuzeState` state machine
+  SAFE->ARMED->TRIGGERED->DETONATED/FAILED, `ArmorMaterial`, `ResistancePreset` = solver id + solver-specific parameters),
+  step 2 (`ArmorLayer`, `ArmorElement` = Solid / Gap / EffectPackage / InternalSpace, `ArmorEffectSpec`, `ArmorConstruction`,
+  `ArmorStack`; ERA/NERA are an `EffectPackage` = layers + effect, never a material) and step 3 (interfaces only:
+  `ImpactContext`, `PenetratorModel`, `ArmorEffectModel`, `PenetrationResult` with `SpallSource`, `BallisticsCatalog`; no solver yet).
+  Projectile state refers to its definition by id. Registries are strict (a broken file fails the reload;
+  `-Ddncity.ballistics.lenient=true` skips it) and `TerminalBallisticsValidator` checks cross references after loading.
+  Pure logic has JVM unit tests in `src/test` (`./gradlew test`: units, fuze machine). The root build cannot be run in every
+  environment; the terminal package was compiled and tested against stubbed Minecraft classes (`Vec3`, `ResourceLocation`).
+- **Kotlin gotcha**: block comments nest. A KDoc containing `dir/*.json` or `dir/**.json` opens a nested comment and the file
+  fails with "Unclosed comment". Never write a slash followed by a star inside a comment (write `dir/(any depth)/name.json`).
 
 Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separate stomach), so this is
 EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only

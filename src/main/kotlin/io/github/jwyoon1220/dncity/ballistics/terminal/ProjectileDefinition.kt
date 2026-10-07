@@ -26,6 +26,21 @@ data class PenetratorSpec(
     val slenderness: Double get() = if (diameterM <= 0.0) 0.0 else lengthM / diameterM
 }
 
+/**
+ * Fixed fuze data; the changing part is [FuzeState].
+ *
+ * @property armingDistanceM flight distance before the fuze can work (0 = armed from the start)
+ * @property delayS time from trigger to detonation (0 = instant)
+ * @property minTriggerThicknessM an armor layer thinner than this does not trigger the fuze (null = any contact)
+ * @property failureChance 0..1 chance that the trigger does nothing
+ */
+data class FuzeSpec(
+    val armingDistanceM: Double,
+    val delayS: Double,
+    val minTriggerThicknessM: Double?,
+    val failureChance: Double,
+)
+
 /** What the projectile carries besides the penetrator: explosive filler, a shaped-charge liner, a fuze. */
 data class PayloadSpec(
     val explosiveKgTnt: Double,
@@ -33,8 +48,8 @@ data class PayloadSpec(
     val coneDiameterM: Double?,
     /** Distance at which the jet works best, null when not a shaped charge. */
     val optimalStandoffM: Double?,
-    /** Fuze delay after the first armor contact, seconds; 0 is impact-fuzed. */
-    val fuzeDelayS: Double,
+    /** Null for a payload with no fuze (inert filler). */
+    val fuze: FuzeSpec?,
 )
 
 /** What flight needs: not the muzzle velocity of any gun (a gun module supplies that), only the projectile's own drag. */
@@ -46,7 +61,8 @@ data class ExternalBallisticsSpec(
 /**
  * Fixed data of one kind of projectile. Never changes while a projectile flies, that is [ProjectileState]'s job.
  *
- * @property terminalModel the id of the penetrator model ([PenetratorModels]) that decides what happens on armor
+ * @property terminalModel the id of the penetrator model ([PenetratorModels]) that decides what happens on armor;
+ *   also the key of [ArmorMaterial.resistance]
  */
 data class ProjectileDefinition(
     val id: ResourceLocation,
@@ -80,7 +96,14 @@ object ProjectileDefinitionRegistry : JsonDataRegistry<ProjectileDefinition>("dn
                 explosiveKgTnt = SiJson.mass(p, "explosive") ?: 0.0,
                 coneDiameterM = SiJson.length(p, "cone_diameter"),
                 optimalStandoffM = SiJson.length(p, "optimal_standoff"),
-                fuzeDelayS = p.get("fuze_delay_s")?.asDouble ?: 0.0,
+                fuze = p.getAsJsonObject("fuze")?.let { f ->
+                    FuzeSpec(
+                        armingDistanceM = SiJson.length(f, "arming_distance") ?: 0.0,
+                        delayS = f.get("delay_s")?.asDouble ?: 0.0,
+                        minTriggerThicknessM = SiJson.length(f, "min_trigger_thickness"),
+                        failureChance = f.get("failure_chance")?.asDouble ?: 0.0,
+                    )
+                },
             )
         }
         val ext = json.getAsJsonObject("external") ?: JsonObject()

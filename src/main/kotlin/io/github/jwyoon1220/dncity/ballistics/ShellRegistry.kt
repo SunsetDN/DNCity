@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * The one place every projectile of every mod turns into a [Shell]: `ShellRegistry.of(entity)`.
  *
- * The list of shells is data (`data/<namespace>/dncity/shells/**.json`, reloaded with datapacks):
+ * The list of shells is data (`data/<namespace>/dncity/shells/(any depth)/name.json`, reloaded with datapacks):
  * ```json
  * {
  *   "ammo": "120mm AP (M1A2)",

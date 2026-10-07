@@ -1,1 +1,1 @@
-{ "params": { "rha_equivalence": 1.0 } }
+{ "solver": "dncity:shaped_charge", "parameters": {} }

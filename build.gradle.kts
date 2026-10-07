@@ -336,7 +336,13 @@ sourceSets["main"].resources.srcDir("src/generated/resources")
 // from; Gradle resolves/dedupes to the same jars either way.
 val bundledExternalMods: Configuration by configurations.creating
 
+// Plain JVM unit tests (pure logic only: terminal ballistics units/state machines). No Minecraft on their classpath.
+tasks.withType<Test>().configureEach { useJUnitPlatform() }
+
 dependencies {
+    testImplementation(kotlin("test"))
+    testImplementation("com.google.code.gson:gson:2.10.1")
+
     // See mods/SuperbWarfare/build.gradle.kts's own `curse.maven:create-328085`/
     // `curse.maven:sable-1312371` lines.
     bundledExternalMods("curse.maven:create-328085:7963363")
