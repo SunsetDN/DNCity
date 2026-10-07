@@ -570,6 +570,51 @@ point. **Mandatory before merging any of this as real, working code**: verify TA
 with FSR2 enabled, given the shared `GameRenderer`/`EntityRenderDispatcher` mixin targets — this
 is the single biggest compatibility risk in the whole feature, not a generic "run the game" check.
 
+## Architecture: health engine (`mods/First-Aid-New`, EFT-style limb health)
+
+The player's real health is the per-limb hit points of First Aid's `PlayerDamageModel` (head 35, body
+85, arms 60, legs 65, feet 25 by default — `FirstAidConfig.Server.maxHealth*`). Vanilla
+`getHealth()` is a **derived compatibility value**, never the source of truth. Work lives in the
+`ichttt.mods.firstaid.common.health` package (marker label `tarkov-health-engine`):
+
+- **`VanillaHealthBridge`** — the only place the two meet. `LivingEntityHealthMixin` routes every
+  `setHealth` on a `ServerPlayer` into `onExternalSetHealth`, which turns the requested value into
+  limb damage (`DamageDistribution.handleDamageTaken`), limb healing (`HealthDistribution`) or a kill
+  (`setHealth(0)`), then re-derives the vanilla value (`PlayerDamageModel.syncVanillaHealth`, which now
+  converges on the real vanilla value every server tick). `heal()` goes through `EventHandler.onHeal`.
+  Interception is skipped while `connection == null || tickCount <= 0` (NBT load, `ServerPlayer#restoreFrom`
+  copies vanilla health *before* attachments exist) and inside `CommonUtils.runWithoutSetHealthInterception`.
+  The old `SynchedEntityDataWrapper` hack was dead code (excluded in `build.gradle`) and is deleted.
+- **`HealthUnits`** — engine units (limb hit points) vs vanilla units (what `hurt()/heal()/setHealth()`
+  and the item configs' "half heart" speak). `damageScaleMode=AUTO` (default) maps them linearly
+  (`total limb hp / vanilla max health`, 20.5 for the defaults), so vanilla-balanced mods keep working;
+  `RAW` applies amounts 1:1 (legacy, only sensible with small limb values). Conversion happens in
+  `DamageDistribution.distributeDamageOnParts` (after armor math, which is tuned for vanilla units),
+  `EventHandler.onHeal`, `DamageablePart.tick` (heal pulses) and the pain/feedback thresholds in
+  `PlayerDamageModel`. `/damagePart` speaks limb hit points.
+- **`InjuryEngine`** — bleeds (light/heavy, `AbstractDamageablePart.bleedLevel`, drained once per second
+  as a percentage of the limb's max hp, stopped by treatment) and fractures (`fractured`, arms/legs/feet only:
+  attribute penalties, reduced while painkillers/morphine are active). Rolled in
+  `DamageDistribution.handleDamageTaken` from the before/after limb snapshot; bleed-capable sources are the
+  `firstaid:causes_bleeding` damage-type tag plus any `Projectile` direct entity. Bleed deaths use the
+  `firstaid:bleed_out` damage type. State is in the part NBT and so rides the existing damage-model sync.
+  A non-critical limb that empties passes only `limbOverkillFactor` of the excess on.
+- **Medical items** — `ItemTreatment` (an `ItemHealing` with its own `canTreat(part)` and a completion hook):
+  bandage/plaster close light bleeds, tourniquet (limbs only) any bleed, splint fractures, trauma kit heals
+  quickly and closes every bleed. `ItemHealing#canTreat` replaced the "part is not full" checks (server
+  `MessageApplyHealingItem`, `GuiHealthScreen`, `ClientEventHandler`). `/firstaid injury <player> ...` sets
+  or clears bleeds/fractures; the HUD marks them `B`/`BB`/`F`.
+- **Verification** — `./gradlew runGameTestServer` inside `mods/First-Aid-New` boots a real headless
+  server and runs `gametest/FirstAidGameTests` (not shipped: excluded from the jar in `build.gradle`).
+  The mock player is built by hand because `GameTestHelper#makeMockServerPlayerInLevel` has a connection
+  without NeoForge's payload registry, and it must be ticked via `doTick()` (vanilla ticks real players
+  through the network handler, which is what fires `PlayerTickEvent`).
+
+Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separate stomach), so this is
+EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only
+keeps vanilla-balanced numbers proportional). Verified on a headless server only — nothing here has been
+played in a real client (HUD markers, item models, pending-heal UI are unchecked visually).
+
 ## Editing the mod metadata template
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in
