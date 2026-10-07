@@ -1,0 +1,1 @@
+{ "type": "ceramic", "density_kg_m3": 3900, "spall": { "enabled": true, "coefficient": 0.4 } }

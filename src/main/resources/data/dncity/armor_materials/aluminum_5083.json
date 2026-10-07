@@ -1,0 +1,1 @@
+{ "type": "metal", "density_kg_m3": 2660, "hardness_bhn": 90, "spall": { "enabled": true, "coefficient": 0.6 } }

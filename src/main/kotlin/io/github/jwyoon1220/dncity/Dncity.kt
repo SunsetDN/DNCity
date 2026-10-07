@@ -5,6 +5,7 @@ import io.github.jwyoon1220.dncity.block.ModBlocks
 import io.github.jwyoon1220.dncity.command.PgpCommand
 import io.github.jwyoon1220.dncity.ballistics.ModAttachments
 import io.github.jwyoon1220.dncity.ballistics.ShellRegistry
+import io.github.jwyoon1220.dncity.ballistics.terminal.TerminalBallistics
 import io.github.jwyoon1220.dncity.compat.FirstAidShellBridge
 import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
 import io.github.jwyoon1220.dncity.compat.TaczShellKeys
@@ -92,6 +93,7 @@ object Dncity {
         MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
         NeoForge.EVENT_BUS.addListener(ShellRegistry::onAddReloadListeners)
+        NeoForge.EVENT_BUS.addListener(TerminalBallistics::onAddReloadListeners)
         // Loaded lazily: these reference TACZ and First Aid classes
         if (ModList.get().isLoaded("tacz")) {
             TaczShellKeys.register()

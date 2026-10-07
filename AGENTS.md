@@ -645,6 +645,22 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   and its `*_headshot` types force the head via `data/dncity/firstaid/damage_distributions/`. The Kotlin side is not
   compiled in this environment (the root build needs the other submodules); the First Aid hook has game tests.
 
+- **Terminal ballistics (War Thunder-style hits, in progress)** — `ballistics/terminal/` (marker `terminal-ballistics-core`).
+  Target design: every projectile (rifle round to tank shell) runs the *same pipeline* with a *different penetrator model*:
+  `ShellDefinition -> ProjectileState -> ExternalBallistics -> ImpactContext -> ArmorConstruction -> PenetratorModel ->
+  PenetrationResult -> PostPenetration -> DamageEvent[]`. de Marre is only one implementation (full-caliber AP); long rod,
+  shaped charge, APCR/APDS and small arms are separate models selected by `ProjectileDefinition.terminalModel`.
+  Rules fixed now: SI units internally (JSON may say `_mm`/`_g`, `SiJson` converts); impact angle is from the armor normal
+  (0 = perpendicular); LOS thickness is geometry only, never the resistance; materials hold physical data only, how well they
+  stop a penetrator is a `ResistancePreset` chosen per terminal model (`ArmorMaterial.resistance`), not a `ke_eff`/`ce_eff`
+  constant; ERA/NERA/spaced armor are `ArmorConstruction`, not materials; a projectile's wear (cap lost, rod shortened,
+  slower) lives in `ProjectileState`, which is passed from layer to layer; `PenetrationResult` must carry outcome
+  (STOPPED/RICOCHET/PARTIAL/PERFORATED/SHATTERED), the residual state and spall data from the first version.
+  Server is authoritative for impact + penetration; the shooter client only sends a `ShotClaim` (inputs, never results) and later
+  offloads the heavy spall/BVH ray work to the server's request. Data: `data/<ns>/dncity/{projectiles,armor_materials,resistance_presets}`.
+  Done so far: step 1 (units, `ProjectileDefinition`, `ProjectileState`, `ArmorMaterial`, `ResistancePreset`, registries).
+  Not compiled here (root build needs the other submodules).
+
 Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separate stomach), so this is
 EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only
 keeps vanilla-balanced numbers proportional). Verified on a headless server only — nothing here has been
