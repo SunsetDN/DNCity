@@ -98,8 +98,11 @@ class ModelInvariantTest {
     }
 
     @Test
-    fun `an effect result with nothing left cannot ask to continue`() {
-        assertFailsWith<IllegalArgumentException> { EffectInteractionResult(null, consumeRuntimeEffect = false, continueTraversal = true) }
+    fun `an effect result says explicitly what happened to the projectile`() {
+        assertEquals(ProjectileChange.Untouched, EffectInteractionResult.untouched().projectile)
+        assertEquals(ProjectileChange.Destroyed, EffectInteractionResult.destroyed().projectile)
+        assertEquals(ProjectileChange.Replaced(ok), EffectInteractionResult.replaced(ok).projectile)
+        assertTrue(EffectInteractionResult.untouched(consume = true).consumeRuntimeEffect)
     }
 
     @Test

@@ -59,8 +59,10 @@ data class ArmorLayer(
  * @property singleUse this effect may use itself up: an interaction may then report `consumeRuntimeEffect`, after which the tile
  *   is spent on that vehicle ([ArmorRuntimeState]). It does not mean the effect works every time; whether a particular tile on a
  *   particular vehicle is spent is runtime state, not data. An effect with `singleUse = false` must never report consumption.
- * @property storedEnergyJ energy the armor itself carries (an ERA tile's explosive), joules. Zero for passive armor, which cannot
- *   create energy. It becomes available only in the interaction in which the effect uses itself up, so it needs [singleUse].
+ * @property storedEnergyJ **a provisional accounting upper bound, joules**: the most energy this effect may add in the one
+ *   interaction in which it uses itself up (so it needs [singleUse]). It is not what reaches the projectile, spall or blast, and it is
+ *   not meant to be the authoritative physical description of an ERA tile: a real ERA model derives it from explosive mass and an
+ *   explosive model, and distributes at most this much. Zero for passive armor, which cannot create energy.
  */
 data class ArmorEffectSpec(
     val id: Ident,

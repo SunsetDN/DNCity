@@ -44,7 +44,14 @@ data class TraversalState(
     val direction: V3 get() = projectile.velocity.normalize()
 }
 
-enum class EventKind { GAP_CROSSED, LAYER_SOLVED, EFFECT_CALLED, EFFECT_SKIPPED_SPENT, INTERNAL_SPACE_ENTERED }
+enum class EventKind {
+    GAP_CROSSED, LAYER_SOLVED, EFFECT_CALLED,
+    /** The effect was already spent on this vehicle before the traversal began. */
+    EFFECT_SKIPPED_SPENT,
+    /** The effect used itself up earlier in this traversal; a hook it would have run in was skipped. */
+    EFFECT_SKIPPED_CONSUMED_THIS_TRAVERSAL,
+    INTERNAL_SPACE_ENTERED,
+}
 
 /** One step of a traversal, in the order it happened. Mainly for tests and debugging, but also what a replay would show. */
 data class TraversalEvent(
@@ -194,40 +201,43 @@ class ArmorTraverser(
         fun runPackage(index: Int, pack: ArmorElement.EffectPackage): TraversalOutcome? {
             val slot = EffectSlot(stack.constructionId, index)
             val spec = catalog.effect(pack.effectId)
-            val active = runtime.effectState(slot) != EffectRuntimeState.SPENT
-            val model: ArmorEffectModel? = if (active) effects.getOrThrow(spec.solver) else null
-            if (!active) events += TraversalEvent(EventKind.EFFECT_SKIPPED_SPENT, index, null, null, null, null, 0.0)
+            val spentBefore = runtime.effectState(slot) == EffectRuntimeState.SPENT
+            val model: ArmorEffectModel? = if (spentBefore) null else effects.getOrThrow(spec.solver)
+            var available = !spentBefore // false once the effect has used itself up here
+            if (spentBefore) events += TraversalEvent(EventKind.EFFECT_SKIPPED_SPENT, index, null, null, null, null, 0.0)
 
             fun hook(phase: EffectPhase, layerIndex: Int?, layerResult: PenetrationResult?): TraversalOutcome? {
                 if (model == null || phase !in model.phases) return null
+                if (!available) {
+                    events += TraversalEvent(EventKind.EFFECT_SKIPPED_CONSUMED_THIS_TRAVERSAL, index, layerIndex, phase, null, null, 0.0)
+                    return null
+                }
                 val ctx = contextAt(index, layerIndex, domainOf(phase))
                 val invocation = EffectInvocation(phase, ctx, pack, spec, slot, layerIndex, layerResult)
                 val r = model.interact(invocation)
 
-                // contract: consumption is only for single-use effects, once per vehicle slot
+                // contract: consumption is only for single-use effects
                 check(!r.consumeRuntimeEffect || spec.singleUse) { "effect model ${model.id} reported consumption of effect ${spec.id}, which is not single use" }
-                check(!r.consumeRuntimeEffect || slot !in state.consumedEffects) { "effect model ${model.id} consumed $slot twice" }
-                // contract: an effect cannot bring back a projectile the layer stopped
-                check(!invocation.isObservationOnly || r.updatedProjectile == null) { "effect model ${model.id} tried to revive a projectile that ${layerResult!!.outcome} stopped" }
-
-                // energy: the projectile's own (or, when observing a stopped layer, what that layer absorbed and did not already
-                // turn into its own spall) plus what the effect stores and releases by using itself up
-                val inputJ = if (invocation.isObservationOnly) {
-                    maxOf(0.0, layerResult!!.depositedEnergyJ - (layerResult.spall?.energyJ ?: 0.0))
-                } else {
-                    state.projectile.kineticEnergyJ
+                // contract: an observer of a layer that already ended the projectile cannot end, change or revive it
+                check(!invocation.isObservationOnly || r.projectile == ProjectileChange.Untouched) {
+                    "effect model ${model.id} tried to revive or alter a projectile that ${layerResult!!.outcome} already ended"
                 }
+
+                // energy: an observer has none of the projectile's; otherwise the projectile's own. Plus the effect's stored
+                // energy, only in the interaction in which it uses itself up.
+                val inputJ = if (invocation.isObservationOnly) 0.0 else state.projectile.kineticEnergyJ
                 val budget = EnergyBudget.ofEffect(inputJ, if (r.consumeRuntimeEffect) spec.storedEnergyJ else 0.0, r)
                 check(budget.isSound) { "effect model ${model.id} created energy: $budget" }
 
                 state = state.copy(
-                    projectile = r.updatedProjectile ?: state.projectile,
+                    projectile = (r.projectile as? ProjectileChange.Replaced)?.projectile ?: state.projectile,
                     spall = state.spall + r.generatedSpall,
                     blasts = if (r.generatedBlast != null) state.blasts + r.generatedBlast else state.blasts,
                     consumedEffects = if (r.consumeRuntimeEffect) state.consumedEffects + slot else state.consumedEffects,
                 )
+                if (r.consumeRuntimeEffect) available = false
                 events += TraversalEvent(EventKind.EFFECT_CALLED, index, layerIndex, phase, null, ctx.angleFromNormalRad, 0.0)
-                return if (r.continueTraversal) null else TraversalOutcome.DEFEATED_BY_EFFECT
+                return if (r.projectile == ProjectileChange.Destroyed) TraversalOutcome.DEFEATED_BY_EFFECT else null
             }
 
             hook(EffectPhase.BEFORE_PACKAGE, null, null)?.let { return it }

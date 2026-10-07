@@ -116,8 +116,13 @@ data class BlastSource(val origin: V3, val explosiveKgTnt: Double) {
  * not tracked) but must never create it: what leaves (residual + deposited + fragments + blast) cannot exceed what is
  * available (the projectile's own energy + what an active armor stores and releases), apart from float error.
  *
- * Only an active armor has a source of its own ([ArmorEffectSpec.storedEnergyJ], released when the effect uses itself up).
- * Passive armor (NERA, spaced plates, ...) has none, so any energy it "makes" is an error.
+ * Only an active armor has a source of its own, [ArmorEffectSpec.storedEnergyJ], released when the effect uses itself up. It
+ * is an *accounting upper bound*: the most a conservation check will ever let that effect add, not an amount that is
+ * delivered to the projectile, spall or blast. How much of it actually goes where is the effect model's physics (an explosive
+ * model must distribute at most this). Passive armor (NERA, spaced plates, ...) has none, so any energy it "makes" is an error.
+ *
+ * What a layer absorbed ([PenetrationResult.depositedEnergyJ]) is *not* available to effects: until a layer reports where that
+ * energy went (plastic work, heat, fracture, plate motion, spall), nothing may take mechanical energy back out of it.
  */
 data class EnergyBudget(
     val projectileInputJ: Double,
@@ -142,12 +147,18 @@ data class EnergyBudget(
         )
 
         /**
-         * An effect model. [inputJ] is what the effect may work on; [storedReleasedJ] is the effect's stored energy and counts
-         * only when the effect uses itself up in this very interaction.
+         * An effect model. [inputJ] is the projectile energy the effect may work on: the projectile's energy when it is still
+         * flying, 0 when the effect only observes a layer that already ended the projectile. [storedReleasedJ] is the effect's
+         * stored energy and counts only when the effect uses itself up in this very interaction.
          */
         fun ofEffect(inputJ: Double, storedReleasedJ: Double, result: EffectInteractionResult) = EnergyBudget(
-            inputJ, storedReleasedJ, result.updatedProjectile?.kineticEnergyJ ?: 0.0, 0.0,
-            result.generatedSpall.sumOf { it.energyJ }, EnergyAccounting.blastJ(result.generatedBlast),
+            inputJ, storedReleasedJ,
+            when (val change = result.projectile) {
+                is ProjectileChange.Replaced -> change.projectile.kineticEnergyJ
+                ProjectileChange.Untouched -> inputJ // carries on unchanged: in and out cancel
+                ProjectileChange.Destroyed -> 0.0
+            },
+            0.0, result.generatedSpall.sumOf { it.energyJ }, EnergyAccounting.blastJ(result.generatedBlast),
         )
     }
 }

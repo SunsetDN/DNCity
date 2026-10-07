@@ -8,9 +8,14 @@ package io.github.jwyoon1220.dncity.ballistics.terminal
  * `BEFORE_PACKAGE`, then for every layer `BEFORE_LAYER`, the layer's penetration, `AFTER_LAYER` (whatever the layer did),
  * and finally `AFTER_PACKAGE` (only if every layer was perforated).
  *
- * `AFTER_LAYER` is an *observation* point when the layer did not perforate (STOPPED, PARTIAL, RICOCHET, SHATTERED): the effect
- * may produce spall, a blast or use itself up, but it cannot bring the projectile back, so it must return
- * [EffectInteractionResult.observation] (`updatedProjectile == null`). After a perforation it may change the projectile.
+ * `AFTER_LAYER` is an *observation* point when the layer did not perforate (STOPPED, PARTIAL, RICOCHET, SHATTERED): the layer
+ * has already given its verdict and the effect only watches. It must return [ProjectileChange.Untouched], it has no energy to
+ * work with except its own stored energy (see [EnergyBudget]), and it cannot end, bring back or alter the projectile. After a
+ * perforation it may change the projectile.
+ *
+ * Once a single-use effect has used itself up, none of its later hooks run in that traversal; the layers of the package are
+ * still solved, a spent tile does not remove the plates around it.
+ *
  * Small and fixed on purpose: this is ballistics' own hook, not a general event bus.
  */
 enum class EffectPhase { BEFORE_PACKAGE, BEFORE_LAYER, AFTER_LAYER, AFTER_PACKAGE }
@@ -34,34 +39,41 @@ class EffectInvocation(
         get() = phase == EffectPhase.AFTER_LAYER && layerResult != null && layerResult.outcome != PenetrationOutcome.PERFORATED
 }
 
+/** What an effect did to the projectile. Three distinct things, so that "null" never has to mean two of them. */
+sealed interface ProjectileChange {
+    /** The effect did not touch the projectile; it carries on exactly as it was (also what an observer returns). */
+    data object Untouched : ProjectileChange
+
+    /** The projectile after the effect (a jet disrupted, a rod deflected, a cap stripped). It carries on. */
+    data class Replaced(val projectile: ProjectileState) : ProjectileChange
+
+    /** Nothing is left of the projectile: the traversal ends with [TraversalOutcome.DEFEATED_BY_EFFECT]. */
+    data object Destroyed : ProjectileChange
+}
+
 /**
  * What an effect did. Pure data: the effect does not touch the vehicle. Using up a tile, changing vehicle state and applying
  * damage are committed by the server from this result ([ArmorRuntimeState.commit]).
  *
- * @property updatedProjectile the projectile after the effect (a jet disrupted, a rod deflected), null if nothing is left
- *   (or, for an observation, if the projectile is not touched)
  * @property consumeRuntimeEffect the effect used itself up *in this interaction* (ERA tile fired). Only an effect whose
- *   [ArmorEffectSpec.singleUse] is true may do that, and only once; its stored energy is available exactly then.
- * @property continueTraversal false ends the traversal here ([TraversalOutcome.DEFEATED_BY_EFFECT]); required when nothing is left
+ *   [ArmorEffectSpec.singleUse] is true may do that. Its stored energy is available exactly then, and none of its later hooks
+ *   run in the same traversal.
  */
 data class EffectInteractionResult(
-    val updatedProjectile: ProjectileState?,
+    val projectile: ProjectileChange,
     val consumeRuntimeEffect: Boolean,
     val generatedSpall: List<SpallSource> = emptyList(),
     val generatedBlast: BlastSource? = null,
-    val continueTraversal: Boolean = true,
 ) {
-    init {
-        require(updatedProjectile != null || !continueTraversal) { "nothing left of the projectile: traversal cannot continue" }
-    }
-
     companion object {
-        /** The result of an effect that only watched (or only produced spall/blast): the projectile is not touched. */
-        fun observation(
-            consumeRuntimeEffect: Boolean = false,
-            spall: List<SpallSource> = emptyList(),
-            blast: BlastSource? = null,
-        ) = EffectInteractionResult(null, consumeRuntimeEffect, spall, blast, continueTraversal = false)
+        fun untouched(consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null) =
+            EffectInteractionResult(ProjectileChange.Untouched, consume, spall, blast)
+
+        fun replaced(projectile: ProjectileState, consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null) =
+            EffectInteractionResult(ProjectileChange.Replaced(projectile), consume, spall, blast)
+
+        fun destroyed(consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null) =
+            EffectInteractionResult(ProjectileChange.Destroyed, consume, spall, blast)
     }
 }
 

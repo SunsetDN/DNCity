@@ -122,7 +122,7 @@ class TraversalTest {
     @Test
     fun `using up an effect is reported, not done, and only commit changes the vehicle`() {
         val log = ArrayList<String>()
-        val effect = Fx.RecordingEffect(setOf(EffectPhase.BEFORE_PACKAGE), log) { EffectInteractionResult(it.context.projectile, consumeRuntimeEffect = true) }
+        val effect = Fx.RecordingEffect(setOf(EffectPhase.BEFORE_PACKAGE), log) { EffectInteractionResult.untouched(consume = true) }
         val vehicleA = ArmorRuntimeState()
         val vehicleB = ArmorRuntimeState()
         val slot = EffectSlot(Ident("test", "c"), 0)
@@ -143,7 +143,7 @@ class TraversalTest {
 
     @Test
     fun `an effect can end the traversal`() {
-        val effect = Fx.RecordingEffect(setOf(EffectPhase.BEFORE_PACKAGE), ArrayList()) { EffectInteractionResult(null, consumeRuntimeEffect = true, continueTraversal = false) }
+        val effect = Fx.RecordingEffect(setOf(EffectPhase.BEFORE_PACKAGE), ArrayList()) { EffectInteractionResult.destroyed(consume = true) }
         val m = Fx.ThicknessModel()
         val r = run(m, Fx.pack(0.01), Fx.solid(0.01), effect = effect)
         assertEquals(TraversalOutcome.DEFEATED_BY_EFFECT, r.outcome)
@@ -210,7 +210,7 @@ class TraversalTest {
     @Test
     fun `an effect model that creates energy is rejected`() {
         val effect = Fx.RecordingEffect(setOf(EffectPhase.BEFORE_PACKAGE), ArrayList()) {
-            EffectInteractionResult(it.context.projectile.withSpeed(it.context.projectile.speedMps * 2), consumeRuntimeEffect = false)
+            EffectInteractionResult.replaced(it.context.projectile.withSpeed(it.context.projectile.speedMps * 2))
         }
         assertFailsWith<IllegalStateException> { run(Fx.ThicknessModel(), Fx.pack(0.01), effect = effect) }
     }

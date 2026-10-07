@@ -673,10 +673,17 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
     (`EnergyBudget`: a penetrator model may only use the projectile's energy, an effect may also release its
     `ArmorEffectSpec.storedEnergyJ`, and only in the interaction in which it uses itself up; blasts are TNT mass converted by
     `EnergyAccounting.blastJ`; passive armor has no stored energy); only a `singleUse` effect may report consumption, once; an
-    effect cannot revive a projectile a layer stopped. Effect hooks: `EffectPhase` BEFORE_PACKAGE, per layer BEFORE_LAYER /
-    (penetration) / AFTER_LAYER (called for every solved outcome; after a layer that did not perforate it is observation-only and
-    returns `EffectInteractionResult.observation`, the layer's verdict outranks it) and AFTER_PACKAGE (only if every layer was
-    perforated); a model is only called for the phases it lists. Runtime effect state is just INTACT/SPENT.
+    effect cannot end, alter or revive a projectile a layer already ended. An effect says what it did to the projectile with
+    `ProjectileChange` (Untouched / Replaced / Destroyed; only Destroyed ends the traversal, as DEFEATED_BY_EFFECT, so "null" never
+    means two things). `ArmorEffectSpec.storedEnergyJ` is a *provisional accounting upper bound* (the most a conservation check
+    lets that one interaction add), not a physical ERA description and not an amount delivered; a real ERA model will derive it from
+    explosive mass and distribute at most that. What a layer absorbed (`depositedEnergyJ`) is NOT available to effects: an observer
+    has no mechanical energy except its own stored energy, until layers report an energy breakdown (plastic work, heat, fracture,
+    plate motion, spall). Effect hooks: `EffectPhase` BEFORE_PACKAGE, per layer BEFORE_LAYER / (penetration) / AFTER_LAYER (called for
+    every solved outcome; observation-only after a layer that did not perforate, the layer's verdict outranks it) and AFTER_PACKAGE
+    (only if every layer was perforated); a model is only called for the phases it lists. Once a single-use effect has used itself up,
+    its later hooks do not run in that traversal (`EFFECT_SKIPPED_CONSUMED_THIS_TRAVERSAL`) but the layers of the package are still
+    solved. Runtime effect state is just INTACT/SPENT. **The traversal API is frozen** until the first real solver exposes a need.
   - *Determinism.* Same `ImpactContext` + `ProjectileState` + runtime state + seed = same result. Solvers must not use `Random`, a clock
     or entity/world state; anything stochastic (spall pattern, fuze failure) draws from `ImpactContext.seed`
     (`ImpactContext.seedFor(shotSeed, constructionId, elementIndex, layerIndex, SeedDomain)` hashes *what* a stream is for, not call order, so adding a layer, phase or domain never shifts another stream).

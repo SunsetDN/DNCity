@@ -132,7 +132,7 @@ object Fx {
         override val phases: Set<EffectPhase>,
         val log: MutableList<String>,
         val handler: (EffectInvocation) -> EffectInteractionResult = { inv ->
-            if (inv.isObservationOnly) EffectInteractionResult.observation() else EffectInteractionResult(inv.context.projectile, consumeRuntimeEffect = false)
+            EffectInteractionResult.untouched()
         },
     ) : ArmorEffectModel {
         override val id = ERA_SOLVER
