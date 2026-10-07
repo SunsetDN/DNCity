@@ -3,6 +3,7 @@ package io.github.jwyoon1220.dncity
 import io.github.jwyoon1220.dncity.block.ModBlockEntities
 import io.github.jwyoon1220.dncity.block.ModBlocks
 import io.github.jwyoon1220.dncity.command.PgpCommand
+import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
 import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
@@ -22,6 +23,7 @@ import io.github.jwyoon1220.dncity.security.PgpAuthServerEvents
 import net.minecraft.world.item.CreativeModeTabs
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.common.EventBusSubscriber
+import net.neoforged.fml.ModList
 import net.neoforged.fml.common.Mod
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLDedicatedServerSetupEvent
@@ -84,6 +86,10 @@ object Dncity {
         MOD_BUS.addListener(PhoneNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
+        // Loaded lazily: the bridge references TACZ and First Aid classes
+        if (ModList.get().isLoaded("tacz") && ModList.get().isLoaded("firstaid")) {
+            TaczFirstAidBridge.register()
+        }
     }
 
     /**

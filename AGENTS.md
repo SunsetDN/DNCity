@@ -610,6 +610,18 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   without NeoForge's payload registry, and it must be ticked via `doTick()` (vanilla ticks real players
   through the network handler, which is what fires `PlayerTickEvent`).
 
+- **TACZ damage** — TACZ bullets are `Projectile`s but move with their own ray logic (never `Projectile#onHit`) and
+  their damage types (`tacz:bullet*`) are not in `minecraft:is_projectile`, so First Aid used to treat every hit as
+  random-limb. `EventHandler.isProjectileDamage` now also accepts any source whose direct entity is a `Projectile`;
+  the hit context is kept for the whole tick because one shot calls `hurt()` twice (normal + armor-piercing part);
+  damage types in `firstaid:precise_hit` (default `#tacz:bullets`) use that location even with friendly random
+  distribution on. `compat/TaczFirstAidBridge.kt` (registered from `Dncity` only if both mods are loaded) listens to
+  `EntityHurtByGunEvent.Pre` and records the hit: TACZ's headshot flag becomes the player's eye position (head),
+  otherwise the bullet position. TACZ damage values are vanilla-scaled and go through `HealthUnits` (AUTO); add
+  `#tacz:bullets` to the `firstaid:raw_damage` tag to make a gun's damage value mean limb hit points instead
+  (a damage of 50 removes 50 hp from the limb hit). Not compiled in this environment (DNCity's root build needs the
+  other submodules); the First Aid side is covered by a game test.
+
 Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separate stomach), so this is
 EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only
 keeps vanilla-balanced numbers proportional). Verified on a headless server only — nothing here has been
