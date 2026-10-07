@@ -1,0 +1,6 @@
+{
+  "ammo": "TACZ round (ammo id not listed)",
+  "entity": "tacz:bullet",
+  "caliber_mm": 7.62,
+  "penetration": 0.2
+}

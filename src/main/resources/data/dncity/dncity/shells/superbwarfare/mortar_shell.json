@@ -1,0 +1,7 @@
+{
+  "ammo": "81mm mortar bomb",
+  "entity": "superbwarfare:mortar_shell",
+  "caliber_mm": 81,
+  "penetration": 0.0,
+  "explosive": true
+}

@@ -1,0 +1,7 @@
+{
+  "ammo": "40mm grenade",
+  "entity": "superbwarfare:gun_grenade",
+  "caliber_mm": 40,
+  "penetration": 0.0,
+  "explosive": true
+}

@@ -1,0 +1,7 @@
+{
+  "ammo": "AGM-65 Maverick",
+  "entity": "superbwarfare:agm_65",
+  "caliber_mm": 305,
+  "penetration": 0.8,
+  "explosive": true
+}

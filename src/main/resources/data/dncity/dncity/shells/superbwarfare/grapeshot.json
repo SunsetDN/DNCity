@@ -1,0 +1,6 @@
+{
+  "ammo": "Canister shot",
+  "entity": "superbwarfare:grapeshot",
+  "caliber_mm": 20,
+  "penetration": 0.0
+}

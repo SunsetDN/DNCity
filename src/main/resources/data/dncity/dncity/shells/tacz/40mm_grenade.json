@@ -1,0 +1,8 @@
+{
+  "ammo": "40x46mm grenade",
+  "entity": "tacz:bullet",
+  "key": "tacz:40mm_grenade",
+  "caliber_mm": 40,
+  "penetration": 0.0,
+  "explosive": true
+}

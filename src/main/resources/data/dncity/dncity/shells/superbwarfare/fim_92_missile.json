@@ -1,0 +1,7 @@
+{
+  "ammo": "FIM-92 Stinger",
+  "entity": "superbwarfare:fim_92_missile",
+  "caliber_mm": 70,
+  "penetration": 0.2,
+  "explosive": true
+}

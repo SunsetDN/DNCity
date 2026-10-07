@@ -1,0 +1,7 @@
+{
+  "ammo": "FGM-148 Javelin",
+  "entity": "superbwarfare:javelin_missile",
+  "caliber_mm": 127,
+  "penetration": 1.0,
+  "explosive": true
+}

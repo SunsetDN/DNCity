@@ -1,0 +1,10 @@
+{
+  "ammo": "120mm white phosphorus",
+  "entity": "superbwarfare:cannon_shell",
+  "caliber_mm": 120,
+  "penetration": 0.1,
+  "nbt": {
+    "Type": "WP"
+  },
+  "explosive": true
+}

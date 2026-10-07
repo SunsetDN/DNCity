@@ -1,0 +1,7 @@
+{
+  "ammo": "C4 charge",
+  "entity": "superbwarfare:c4",
+  "caliber_mm": 60,
+  "penetration": 0.0,
+  "explosive": true
+}

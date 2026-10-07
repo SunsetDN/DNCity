@@ -1,0 +1,7 @@
+{
+  "ammo": ".338 Lapua Magnum",
+  "entity": "tacz:bullet",
+  "key": "tacz:338",
+  "caliber_mm": 8.58,
+  "penetration": 0.55
+}

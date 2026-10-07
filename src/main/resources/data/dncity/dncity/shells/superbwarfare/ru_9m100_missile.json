@@ -1,0 +1,7 @@
+{
+  "ammo": "9M100 missile",
+  "entity": "superbwarfare:ru_9m100_missile",
+  "caliber_mm": 127,
+  "penetration": 0.8,
+  "explosive": true
+}

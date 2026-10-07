@@ -1,0 +1,7 @@
+{
+  "ammo": ".308 Winchester",
+  "entity": "tacz:bullet",
+  "key": "tacz:308",
+  "caliber_mm": 7.62,
+  "penetration": 0.4
+}

@@ -1,0 +1,7 @@
+{
+  "ammo": "Swarm drone warhead",
+  "entity": "superbwarfare:swarm_drone",
+  "caliber_mm": 100,
+  "penetration": 0.3,
+  "explosive": true
+}

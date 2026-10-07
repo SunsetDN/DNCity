@@ -622,6 +622,23 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   (a damage of 50 removes 50 hp from the limb hit). Not compiled in this environment (DNCity's root build needs the
   other submodules); the First Aid side is covered by a game test.
 
+- **Shells (ammunition catalog)** — `ballistics/Shell.kt` + `ShellRegistry.kt` in DNCity (not First Aid). Every kind
+  of ammunition — TACZ rounds, SuperbWarfare tank shells/rockets/missiles/bombs — is one JSON file in
+  `data/<ns>/dncity/shells/**` (reloaded with datapacks, no enum). Fields: `ammo` (type name only), `entity` (projectile
+  entity type, required), optional `key` (what a key resolver says about the entity: `TaczShellKeys` returns the TACZ
+  `ammoId`, because `tacz:bullet` is one unsaved entity type) and `nbt` (partial match on the entity's saved data, e.g.
+  `{"Type":"AP"}` for `superbwarfare:cannon_shell`); the most specific match wins. Size and power: `caliber_mm` (the wound
+  width is `sqrt(caliber/7.62)`: wider = more bleed chance, heavy bleeds at a smaller share of the limb, more of an emptied
+  limb's excess passed on, so a 120 mm shell does not stop at an arm), `penetration` (0..1 share of damage that ignores
+  armor), `damage_multiplier`, `damage_is_limb_hp`, `bleed_chance_bonus`, `heavy_bleed_hit_fraction`,
+  `fracture_chance_bonus`, `overkill_factor`, `explosive`. `compat/FirstAidShellBridge.kt` registers a
+  `HitProfiles` provider (First Aid's neutral `api.damage` hook) that turns the resolved shell into a `HitProfile`; First
+  Aid applies it while the hit is distributed and knows nothing about ammunition. SuperbWarfare explosion damage types
+  use the equal distribution and its `*_headshot` types force the head via
+  `data/dncity/firstaid/damage_distributions/`; its types are added to `firstaid:causes_bleeding`. The numbers in the
+  shipped catalog are starting values. The Kotlin side is not compiled in this environment (DNCity's root build needs the
+  other submodules); the First Aid hook is covered by game tests.
+
 Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separate stomach), so this is
 EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only
 keeps vanilla-balanced numbers proportional). Verified on a headless server only — nothing here has been

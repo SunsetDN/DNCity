@@ -3,7 +3,10 @@ package io.github.jwyoon1220.dncity
 import io.github.jwyoon1220.dncity.block.ModBlockEntities
 import io.github.jwyoon1220.dncity.block.ModBlocks
 import io.github.jwyoon1220.dncity.command.PgpCommand
+import io.github.jwyoon1220.dncity.ballistics.ShellRegistry
+import io.github.jwyoon1220.dncity.compat.FirstAidShellBridge
 import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
+import io.github.jwyoon1220.dncity.compat.TaczShellKeys
 import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
@@ -86,7 +89,14 @@ object Dncity {
         MOD_BUS.addListener(PhoneNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
-        // Loaded lazily: the bridge references TACZ and First Aid classes
+        NeoForge.EVENT_BUS.addListener(ShellRegistry::onAddReloadListeners)
+        // Loaded lazily: these reference TACZ and First Aid classes
+        if (ModList.get().isLoaded("tacz")) {
+            TaczShellKeys.register()
+        }
+        if (ModList.get().isLoaded("firstaid")) {
+            FirstAidShellBridge.register()
+        }
         if (ModList.get().isLoaded("tacz") && ModList.get().isLoaded("firstaid")) {
             TaczFirstAidBridge.register()
         }

@@ -1,0 +1,7 @@
+{
+  "ammo": "30mm autocannon",
+  "entity": "superbwarfare:small_cannon_shell",
+  "caliber_mm": 30,
+  "penetration": 0.7,
+  "explosive": true
+}

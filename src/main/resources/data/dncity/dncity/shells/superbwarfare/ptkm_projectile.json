@@ -1,0 +1,7 @@
+{
+  "ammo": "PTKM anti-tank missile",
+  "entity": "superbwarfare:ptkm_projectile",
+  "caliber_mm": 125,
+  "penetration": 1.0,
+  "explosive": true
+}

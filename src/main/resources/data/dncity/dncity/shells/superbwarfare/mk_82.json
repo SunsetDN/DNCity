@@ -1,0 +1,7 @@
+{
+  "ammo": "Mk 82 bomb",
+  "entity": "superbwarfare:mk_82",
+  "caliber_mm": 273,
+  "penetration": 0.2,
+  "explosive": true
+}
