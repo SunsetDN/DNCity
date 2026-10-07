@@ -6,7 +6,8 @@ import io.github.jwyoon1220.dncity.ballistics.terminal.PenetrationResult
 /** Where an input sits relative to the data a model was calibrated on. Nothing is ever clamped into range. */
 enum class ModelRegime { IN_RANGE, EXTRAPOLATED, OUT_OF_MODEL }
 
-enum class ModelAxis { THICKNESS, DIAMETER, MASS, DIAMETER_OVER_THICKNESS, OBLIQUITY }
+/** The calibrated axes that can be extrapolated. Today only thickness varies in the data; diameter, mass and obliquity are fixed calibration values. */
+enum class ModelAxis { THICKNESS }
 
 enum class ModelDiagnostic {
     /** The residual velocity is an energy upper bound, not a calibrated residual-velocity model. */

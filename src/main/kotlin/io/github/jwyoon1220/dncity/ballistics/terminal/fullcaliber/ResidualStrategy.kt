@@ -14,9 +14,11 @@ import kotlin.math.sqrt
 enum class ResidualStrategy {
     NO_PLUG_ENERGY_UPPER_BOUND;
 
-    /** Speed after the plate; 0 when the projectile does not get through. */
-    fun residualSpeedMps(strikingSpeedMps: Double, ballisticLimitMps: Double): Double = when (this) {
-        NO_PLUG_ENERGY_UPPER_BOUND ->
-            if (strikingSpeedMps <= ballisticLimitMps) 0.0 else sqrt(strikingSpeedMps * strikingSpeedMps - ballisticLimitMps * ballisticLimitMps)
+    /** Speed after the plate. Only defined above the ballistic limit: the caller decides stopped/perforated first, nothing is clamped here. */
+    fun residualSpeedMps(strikingSpeedMps: Double, ballisticLimitMps: Double): Double {
+        require(strikingSpeedMps > ballisticLimitMps) { "residual speed is only defined above the ballistic limit" }
+        return when (this) {
+            NO_PLUG_ENERGY_UPPER_BOUND -> sqrt(strikingSpeedMps * strikingSpeedMps - ballisticLimitMps * ballisticLimitMps)
+        }
     }
 }

@@ -194,3 +194,12 @@ JSON 예 — *구조만 보여 주는 예이며 production 값이 아니다*(`nu
 4. 잔류속도 전략 이름은 `NO_PLUG_ENERGY_UPPER_BOUND`(잔류 운동에너지 상한). 결과 진단 `RESIDUAL_MODEL_UNCALIBRATED`.
 5. M318A1 질량은 독립 두 출처가 같은 조립체 정의를 줄 때까지 production K 금지. 코드가 `TWO_INDEPENDENT_SOURCES` 아니면 프리셋 로드를 거부한다.
 6. 경사 데이터셋(A)과 잔류속도 데이터셋(B)은 별도 조사. M82 APC 데이터는 M318A1 보정에 섞지 않는다.
+
+## 13. 리뷰 2차 반영 (구현 기준)
+
+- **축 정리.** 데이터가 바꾸는 것은 판 두께뿐이다. `EXTRAPOLATED`는 두께 축에만 존재한다. 직경·질량은 *보정값*이며 수치 오차 허용(`numerical_tolerance`)만 허용하고 다르면 `OUT_OF_MODEL`. `valid_ranges`에는 `thickness_m`만 올 수 있다(로더 강제).
+- **0° 보정과 수치 허용 분리.** 보정된 입사각은 0° 하나뿐이다. `normal_incidence_tolerance_deg`는 기하의 부동소수점 오차를 위한 값이며 검증된 물리 범위가 아니다(코드의 상한 0.05°). 이 값 안에서도 `EXTRAPOLATED`는 없다.
+- **provenance 불변식.** `ballistic_limit_definition`이 `MINIMUM_PERFORATION`이 아니면 `limit_outcome_mismatch`(관측 한계가 DNCity `PERFORATED`와 어떻게 다른지)가 비어 있지 않아야 로드된다. PROTECTION_LIMIT은 증인판 파편도 완전관통으로 센다.
+- **임계 분기.** 한계속도 분기가 먼저 STOPPED/PERFORATED를 정한다. 잔류속도 식은 `v_i > v_bl`에서만 호출되며 `max(0, …)`로 오류를 가리지 않는다(아니면 예외).
+- **TODO (임시 구조).** `allowed_projectiles`(탄 ID 목록)는 임시다. 장기적으로 `penetratorConstruction` 분류(`FULL_CALIBER_MONOBLOC`, `CAPPED_FULL_CALIBER`, `COMPOSITE_RIGID`, `SABOT`, `LONG_ROD`, `SHAPED_CHARGE`, …)로 교체해야 한다. `M318A1` 같은 특정 ID를 알아야 solver가 동작하는 구조는 최종 아키텍처가 아니다.
+- `10.93 kg`와 `calibrationCoefficient = 1.1631`은 **fixture 전용**이며 M318A1 물성이 아니다.

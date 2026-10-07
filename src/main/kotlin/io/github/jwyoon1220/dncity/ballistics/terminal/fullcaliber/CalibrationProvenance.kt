@@ -15,6 +15,8 @@ enum class MassVerification { UNVERIFIED_FIXTURE, SINGLE_SOURCE, TWO_INDEPENDENT
  * @property massBoundary what the projectile mass includes (complete round / projectile assembly / steel body, windshield, tracer)
  * @property independentSamples null = unknown; never inflated to the row count of a piecewise-linear table
  * @property systematicUncertaintyNotes known biases of this calibration; must not be empty
+ * @property limitOutcomeMismatch how the observed limit differs from DNCity's `PERFORATED`; required for every definition except
+ *   [BallisticLimitDefinition.MINIMUM_PERFORATION] (a PROTECTION_LIMIT counts armor fragments through the witness plate)
  */
 data class CalibrationProvenance(
     val sourceId: String,
@@ -34,8 +36,13 @@ data class CalibrationProvenance(
     val independentSamples: Int?,
     val rmsResidualPct: Double?,
     val systematicUncertaintyNotes: List<String>,
+    val limitOutcomeMismatch: String?,
 ) {
     init {
+        require(ballisticLimitDefinition == BallisticLimitDefinition.MINIMUM_PERFORATION || !limitOutcomeMismatch.isNullOrBlank()) {
+            "provenance: limit_outcome_mismatch is required: a $ballisticLimitDefinition observation is not 'the projectile perforated', " +
+                "so it must state how it differs from DNCity's PERFORATED (a residual projectile exists behind the armor)"
+        }
         require(projectileMassKg > 0.0 && projectileMassKg.isFinite()) { "provenance: projectile mass must be positive" }
         require(systematicUncertaintyNotes.isNotEmpty()) { "provenance: systematic_uncertainty_notes must not be empty" }
         require(sourceId.isNotBlank() && originalDocument.isNotBlank() && massSource.isNotBlank() && massBoundary.isNotBlank()) {
@@ -73,6 +80,7 @@ data class CalibrationProvenance(
                 rmsResidualPct = json.get("rms_residual_pct")?.takeIf { !it.isJsonNull }?.asDouble,
                 systematicUncertaintyNotes = json.getAsJsonArray("systematic_uncertainty_notes")?.map { it.asString }
                     ?: throw IllegalArgumentException("provenance: missing systematic_uncertainty_notes"),
+                limitOutcomeMismatch = json.get("limit_outcome_mismatch")?.takeIf { !it.isJsonNull }?.asString,
             )
         }
     }

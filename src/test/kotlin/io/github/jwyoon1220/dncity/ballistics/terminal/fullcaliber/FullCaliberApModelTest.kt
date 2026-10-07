@@ -83,7 +83,6 @@ private val IMPERIAL_PROFILE = DeMarreProfile.fromImperial(0.75, 0.70, 0.50, Mat
 private fun fixturePresetJson(
     k: Double,
     thickness: Pair<Double, Double>,
-    ratio: Pair<Double, Double>,
     mutate: (JsonObject) -> Unit = {},
 ): JsonObject {
     val json = JsonParser.parseString(
@@ -93,12 +92,10 @@ private fun fixturePresetJson(
           "de_marre": { "diameter_exponent": 0.75, "thickness_exponent": 0.70, "mass_exponent": 0.50,
                         "constant_log10": 3.00945, "constant_units": "IMPERIAL_FTS_IN_LB" },
           "valid_ranges": {
-            "thickness_m": { "min": ${thickness.first}, "max": ${thickness.second}, "extrapolation_margin": 0.05 },
-            "diameter_m": { "min": $DIAMETER_M, "max": $DIAMETER_M, "extrapolation_margin": 0.10 },
-            "mass_kg": { "min": $FIXTURE_MASS_KG, "max": $FIXTURE_MASS_KG, "extrapolation_margin": 0.10 },
-            "diameter_over_thickness": { "min": ${ratio.first}, "max": ${ratio.second}, "extrapolation_margin": 0.05 }
+            "thickness_m": { "min": ${thickness.first}, "max": ${thickness.second}, "extrapolation_margin": 0.05 }
           },
-          "normal_tolerance_deg": 0.5,
+          "calibrated": { "diameter_m": $DIAMETER_M, "mass_kg": $FIXTURE_MASS_KG, "numerical_tolerance": 1e-6 },
+          "normal_incidence_tolerance_deg": 0.01,
           "allowed_projectiles": ["test:m318a1_like"],
           "ballistic_limit_definition": "PROTECTION_LIMIT",
           "residual_strategy": "NO_PLUG_ENERGY_UPPER_BOUND",
@@ -112,6 +109,7 @@ private fun fixturePresetJson(
                             "mass_verification": "UNVERIFIED_FIXTURE" },
             "fit_method": "log-space least squares, exponents fixed", "sample_count": 212, "independent_samples": null,
             "rms_residual_pct": null,
+            "limit_outcome_mismatch": "PROTECTION_LIMIT counts armor/projectile fragments through the witness plate as perforation; DNCity PERFORATED means a residual projectile exists behind the armor",
             "systematic_uncertainty_notes": ["PROTECTION_LIMIT counts armor fragments as perforation; PERFORATED means projectile perforation",
                                              "table is acceptance minima, piecewise linear"]
           }
@@ -127,9 +125,8 @@ class FullCaliberApModelTest {
     private val fit = DeMarreCalibrator.fit(IMPERIAL_PROFILE, DIAMETER_M, FIXTURE_MASS_KG, points)
     private val tMin = points.minOf { it.thicknessM }
     private val tMax = points.maxOf { it.thicknessM }
-    private val ratio = (DIAMETER_M / tMax) to (DIAMETER_M / tMin)
 
-    private val preset = FullCaliberApPreset.fromJson(PRESET_ID, fixturePresetJson(fit.coefficient, tMin to tMax, ratio), requireVerifiedMass = false)
+    private val preset = FullCaliberApPreset.fromJson(PRESET_ID, fixturePresetJson(fit.coefficient, tMin to tMax), requireVerifiedMass = false)
     private val model = FullCaliberApModel(mapOf(PRESET_ID to preset))
 
     private fun context(
@@ -208,6 +205,7 @@ class FullCaliberApModelTest {
 
         unresolved(context(3000.0, angleRad = Math.toRadians(30.0)))
         unresolved(context(3000.0, angleRad = Math.toRadians(1.0)))
+        unresolved(context(3000.0, angleRad = Math.toRadians(0.2))) // not a validated range: only 0 degrees is calibrated
         unresolved(context(3000.0, def = definition(id = Ident("test", "m82_apc_like"))))
         unresolved(context(3000.0, def = definition(geometry = Geometry.LONG_ROD)))
         unresolved(context(3000.0, def = definition(geometry = Geometry.SHAPED_CHARGE_CONE)))
@@ -219,21 +217,85 @@ class FullCaliberApModelTest {
     }
 
     @Test
-    fun `a nearly normal impact inside the tolerance is accepted`() {
-        val r = model.evaluate(context(vbl(midT) * 1.5, angleRad = Math.toRadians(0.2)), layer(midT))
+    fun `only float noise around 0 degrees counts as normal incidence`() {
+        val r = model.evaluate(context(vbl(midT) * 1.5, angleRad = Math.toRadians(0.005)), layer(midT))
         assertIs<ModelEvaluation.Resolved>(r)
+        assertEquals(ModelRegime.IN_RANGE, r.report.regime) // not EXTRAPOLATED: obliquity has no extrapolation
+    }
+
+    @Test
+    fun `diameter and mass have no extrapolation, only float tolerance`() {
+        val v = vbl(midT) * 1.5
+        // within numerical tolerance (1e-6 relative): still the calibrated value
+        val noisy = model.evaluate(context(v, mass = FIXTURE_MASS_KG * (1 + 1e-8)), layer(midT))
+        assertIs<ModelEvaluation.Resolved>(noisy)
+        // anything the data did not vary is OUT_OF_MODEL, however small the difference
+        for (factor in listOf(1.0001, 0.9999, 1.01, 0.9, 1.1)) {
+            assertIs<ModelEvaluation.Unresolved>(model.evaluate(context(v, mass = FIXTURE_MASS_KG * factor), layer(midT)), "mass x$factor")
+            val otherDiameter = ProjectileDefinition(
+                id = PROJECTILE, gunCaliberM = DIAMETER_M * factor, projectileDiameterM = DIAMETER_M * factor, massKg = FIXTURE_MASS_KG,
+                geometry = Geometry.OGIVE, stabilization = Stabilization.SPIN, penetrator = null, payload = null,
+                external = ExternalBallisticsSpec(0.3, 0.0), terminalModel = FullCaliberApModel.ID,
+            )
+            assertIs<ModelEvaluation.Unresolved>(model.evaluate(context(v, def = otherDiameter), layer(midT)), "diameter x$factor")
+        }
+    }
+
+    @Test
+    fun `only thickness can be EXTRAPOLATED`() {
+        val extrapolatedThickness = model.evaluate(context(5000.0), layer(tMax * 1.03))
+        assertEquals(listOf(ModelAxis.THICKNESS), extrapolatedThickness.report.axes.map { it.axis })
+        assertEquals(ModelRegime.EXTRAPOLATED, extrapolatedThickness.report.regime)
+        assertEquals(ModelRegime.EXTRAPOLATED, model.supports(context(5000.0), layer(tMin * 0.97)).regime)
     }
 
     // --- NO_PLUG_ENERGY_UPPER_BOUND ---
 
+    private fun outcomeAt(speed: Double): ModelEvaluation.Resolved {
+        val r = model.evaluate(context(speed), layer(midT))
+        assertIs<ModelEvaluation.Resolved>(r)
+        return r
+    }
+
+    private fun assertStopped(r: ModelEvaluation.Resolved) {
+        assertEquals(PenetrationOutcome.STOPPED, r.result.outcome)
+        assertEquals(null, r.result.residual)
+    }
+
+    private fun assertPerforated(r: ModelEvaluation.Resolved, inputSpeed: Double) {
+        assertEquals(PenetrationOutcome.PERFORATED, r.result.outcome)
+        val vr = r.result.residual!!.speedMps
+        assertTrue(vr > 0.0, "residual speed $vr must be positive")
+        assertTrue(vr < inputSpeed, "residual speed $vr must be below the input $inputSpeed")
+    }
+
     @Test
-    fun `at or below the ballistic limit the projectile is stopped`() {
-        val v = vbl(midT)
-        for (speed in listOf(v * 0.5, v * 0.999, v)) {
-            val r = model.evaluate(context(speed), layer(midT))
-            assertIs<ModelEvaluation.Resolved>(r)
-            assertEquals(PenetrationOutcome.STOPPED, r.result.outcome)
-        }
+    fun `threshold v_i = 0 is stopped`() = assertStopped(outcomeAt(0.0))
+
+    @Test
+    fun `threshold v_i = v_bl - epsilon is stopped`() = assertStopped(outcomeAt(vbl(midT) - 1e-6))
+
+    @Test
+    fun `threshold v_i = v_bl is stopped`() = assertStopped(outcomeAt(vbl(midT)))
+
+    @Test
+    fun `threshold v_i = v_bl + epsilon is perforated with a positive slower residual`() {
+        val v = vbl(midT) + 1e-6
+        assertPerforated(outcomeAt(v), v)
+    }
+
+    @Test
+    fun `threshold v_i much greater than v_bl is perforated with a positive slower residual`() {
+        val v = vbl(midT) * 50.0
+        val r = outcomeAt(v)
+        assertPerforated(r, v)
+        assertTrue(r.result.residual!!.speedMps > 0.99 * v) // far above the limit the plate barely slows it
+    }
+
+    @Test
+    fun `the residual formula refuses to run at or below the limit instead of hiding it with max(0)`() {
+        assertFailsWith<IllegalArgumentException> { ResidualStrategy.NO_PLUG_ENERGY_UPPER_BOUND.residualSpeedMps(100.0, 100.0) }
+        assertFailsWith<IllegalArgumentException> { ResidualStrategy.NO_PLUG_ENERGY_UPPER_BOUND.residualSpeedMps(50.0, 100.0) }
     }
 
     @Test
@@ -288,18 +350,45 @@ class FullCaliberApModelTest {
     @Test
     fun `a preset needs provenance, margins and a calibration coefficient`() {
         fun load(mutate: (JsonObject) -> Unit, verified: Boolean = false) =
-            FullCaliberApPreset.fromJson(PRESET_ID, fixturePresetJson(fit.coefficient, tMin to tMax, ratio, mutate), requireVerifiedMass = verified)
+            FullCaliberApPreset.fromJson(PRESET_ID, fixturePresetJson(fit.coefficient, tMin to tMax, mutate), requireVerifiedMass = verified)
         assertFailsWith<IllegalArgumentException> { load({ it.remove("provenance") }) }
         assertFailsWith<IllegalArgumentException> { load({ it.getAsJsonObject("valid_ranges").getAsJsonObject("thickness_m").remove("extrapolation_margin") }) }
         assertFailsWith<IllegalArgumentException> { load({ it.add("armor_coefficient", it.get("calibration_coefficient")) }) }
         assertFailsWith<IllegalArgumentException> { load({ it.addProperty("residual_strategy", "RECHT_IPSON") }) }
-        assertFailsWith<IllegalArgumentException> { load({ it.addProperty("normal_tolerance_deg", 5.0) }) }
         assertFailsWith<IllegalArgumentException> { load({ it.getAsJsonObject("provenance").add("systematic_uncertainty_notes", com.google.gson.JsonArray()) }) }
     }
 
     @Test
+    fun `tolerances cannot grow into ranges`() {
+        fun load(mutate: (JsonObject) -> Unit) =
+            FullCaliberApPreset.fromJson(PRESET_ID, fixturePresetJson(fit.coefficient, tMin to tMax, mutate), requireVerifiedMass = false)
+        assertFailsWith<IllegalArgumentException> { load({ it.addProperty("normal_incidence_tolerance_deg", 0.5) }) }
+        assertFailsWith<IllegalArgumentException> { load({ it.getAsJsonObject("calibrated").addProperty("numerical_tolerance", 0.1) }) }
+        // diameter and mass cannot be given an extrapolation range
+        assertFailsWith<IllegalArgumentException> {
+            load({
+                it.getAsJsonObject("valid_ranges").add(
+                    "mass_kg", JsonParser.parseString("""{"min":9.0,"max":12.0,"extrapolation_margin":0.1}"""),
+                )
+            })
+        }
+    }
+
+    @Test
+    fun `the PROTECTION_LIMIT versus PERFORATED mismatch is a provenance invariant`() {
+        fun load(mutate: (JsonObject) -> Unit) =
+            FullCaliberApPreset.fromJson(PRESET_ID, fixturePresetJson(fit.coefficient, tMin to tMax, mutate), requireVerifiedMass = false)
+        val missing = assertFailsWith<IllegalArgumentException> { load({ it.getAsJsonObject("provenance").remove("limit_outcome_mismatch") }) }
+        assertTrue("limit_outcome_mismatch" in missing.message!!)
+        assertFailsWith<IllegalArgumentException> { load({ it.getAsJsonObject("provenance").addProperty("limit_outcome_mismatch", "  ") }) }
+        assertFailsWith<IllegalArgumentException> { load({ it.getAsJsonObject("provenance").add("limit_outcome_mismatch", com.google.gson.JsonNull.INSTANCE) }) }
+        // with the explanation present it loads
+        assertEquals(BallisticLimitDefinition.PROTECTION_LIMIT, load({}).provenance.ballisticLimitDefinition)
+    }
+
+    @Test
     fun `a production preset is refused while the projectile mass is not confirmed by two sources`() {
-        val json = fixturePresetJson(fit.coefficient, tMin to tMax, ratio)
+        val json = fixturePresetJson(fit.coefficient, tMin to tMax)
         val e = assertFailsWith<IllegalArgumentException> { FullCaliberApPreset.fromJson(PRESET_ID, json) }
         assertTrue("TWO_INDEPENDENT_SOURCES" in e.message!!)
     }
