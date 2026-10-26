@@ -4,5 +4,12 @@
   "key": "tacz:rpg_rocket",
   "caliber_mm": 85,
   "penetration": 0.9,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 500,
+    "status": "ESTIMATE",
+    "source": "PG-7VL: export brochure, homogeneous armor penetration not less than 0.5 m",
+    "source_url": "https://bulletpicker.com/pdf/Russian-Defense-Export-PG7VL.pdf"
+  }
 }

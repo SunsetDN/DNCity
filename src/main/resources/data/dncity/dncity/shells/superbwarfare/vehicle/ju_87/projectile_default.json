@@ -1,0 +1,18 @@
+{
+  "ammo": "7.92 mm MG 17 (ju_87)",
+  "entity": "superbwarfare:projectile",
+  "key": "superbwarfare:ju_87",
+  "tags": [
+    "machine_gun"
+  ],
+  "caliber_mm": 7.92,
+  "penetration": 0.2,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 8,
+    "range_m": 100,
+    "loss_per_km_mm": 10,
+    "status": "DESIGN",
+    "source": "7.92 mm MG 17; SuperbWarfare does not name the ammunition, no figure"
+  }
+}

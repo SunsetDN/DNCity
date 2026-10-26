@@ -66,6 +66,11 @@
                   <project path="$PROJECT_DIR$/mods/lithium/neoforge" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/mods/lithium/components/mixin-config-plugin" name="mixin-config-plugin">
+                <projects>
+                  <project path="$PROJECT_DIR$/mods/lithium/components/mixin-config-plugin" />
+                </projects>
+              </build>
               <build path="$PROJECT_DIR$/mods/ModernUI-MC" name="ModernUI-MC">
                 <projects>
                   <project path="$PROJECT_DIR$/mods/ModernUI-MC" />
@@ -118,6 +123,7 @@
           </compositeBuild>
         </compositeConfiguration>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="graalvm-ce-21" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
@@ -149,6 +155,7 @@
             <option value="$PROJECT_DIR$/mods/distant-horizons/neoforge" />
             <option value="$PROJECT_DIR$/mods/lithium" />
             <option value="$PROJECT_DIR$/mods/lithium/common" />
+            <option value="$PROJECT_DIR$/mods/lithium/components/mixin-config-plugin" />
             <option value="$PROJECT_DIR$/mods/lithium/neoforge" />
             <option value="$PROJECT_DIR$/mods/sodium" />
             <option value="$PROJECT_DIR$/mods/sodium/buildSrc" />

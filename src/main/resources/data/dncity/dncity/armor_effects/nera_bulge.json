@@ -1,0 +1,16 @@
+{
+  "_note": "Parameters are NOT calibrated against a test; they are in the range the open literature gives for rubber/polyurethane sandwiches. Every key is optional (defaults in NeraParameters).",
+  "solver": "dncity:nera_bulge",
+  "single_use": false,
+  "parameters": {
+    "cavity_expansion_ratio": 0.25,
+    "elastomer_wave_speed_mps": 1600,
+    "energy_cap_fraction": 0.25,
+    "plate_spread_ratio": 1.0,
+    "lateral_failure_mps": 400,
+    "disruption_coefficient": 1.0,
+    "debris_speed_ratio": 0.6,
+    "tear_strain": 0.12,
+    "plate_spall_energy_fraction": 0.05
+  }
+}

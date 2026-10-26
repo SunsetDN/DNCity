@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "display": { "name": "Example 120 mm APFSDS", "rarity": "RARE" },
+  "item": { "max_stack_size": 8 },
+  "compatibility": { "gun_caliber_mm": 120, "weapon_tags": ["dncity:120mm_guns"] },
+  "projectile": {
+    "type": "APFSDS",
+    "construction": "LONG_ROD_SABOT",
+    "geometry": "LONG_ROD",
+    "stabilization": "FIN",
+    "diameter_mm": 120,
+    "mass_kg": 8.0,
+    "drag_coefficient": 0.3,
+    "muzzle_velocity_mps": 1500,
+    "penetrator": { "material": "dncity:tungsten_alloy", "diameter_mm": 25, "length_mm": 600, "mass_kg": 4.5, "density_g_cm3": 17.5 }
+  },
+  "penetration": { "mode": "PHYSICS" },
+  "terminal": { "solver": "dncity:long_rod" },
+  "provenance": { "status": "FICTIONAL", "notes": "structure example only, not data" }
+}

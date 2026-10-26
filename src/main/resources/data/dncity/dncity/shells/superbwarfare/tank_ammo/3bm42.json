@@ -1,0 +1,23 @@
+{
+  "ammo": "125mm 3BM42 Mango APFSDS",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:3bm42",
+  "tags": [
+    "cannon",
+    "tank",
+    "apfsds"
+  ],
+  "caliber_mm": 125,
+  "penetration": 1.0,
+  "explosive": false,
+  "fracture_chance_bonus": 0.3,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 520,
+    "range_m": 2000,
+    "loss_per_km_mm": 29,
+    "status": "ESTIMATE",
+    "source": "Wikipedia: 520 mm at 2000 m at 0 deg (230 mm at 60 deg), 1700 m/s. loss_per_km_mm: War Thunder reference (457 -> 406 mm, 5.6 %/km) scaled to 520 mm",
+    "source_url": "https://en.wikipedia.org/wiki/125_mm_smoothbore_ammunition"
+  }
+}

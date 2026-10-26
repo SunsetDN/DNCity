@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "display": { "name": "Example 75 mm APCBC", "icon": "dncity:item/ammo/75mm_apcbc", "rarity": "COMMON" },
+  "item": { "max_stack_size": 16 },
+  "compatibility": { "gun_caliber_mm": 75, "weapon_tags": ["dncity:75mm_guns"] },
+  "projectile": {
+    "type": "APCBC",
+    "construction": "CAPPED_FULL_CALIBER",
+    "geometry": "OGIVE",
+    "diameter_mm": 75,
+    "mass_kg": 6.8,
+    "drag_coefficient": 0.35,
+    "muzzle_velocity_mps": 750,
+    "armor_piercing_cap": true,
+    "ballistic_cap": true,
+    "penetrator": { "material": "dncity:steel", "length_mm": 250, "density_kg_m3": 7850 }
+  },
+  "penetration": {
+    "mode": "TABLE",
+    "criterion": "PROTECTION_LIMIT",
+    "reference_material": "dncity:rha",
+    "reference_spec": "example, not a real specification",
+    "angle_convention": "FROM_ARMOR_NORMAL",
+    "thickness_unit": "mm",
+    "source": { "kind": "FICTIONAL", "citation": "structure example, numbers are invented" },
+    "uncertainty": { "thickness_relative": 0.05 },
+    "interpolation": "LINEAR",
+    "out_of_range": "UNRESOLVED",
+    "table": [
+      { "distance_m": 0,    "angles": { "0": 120, "30": 95, "60": 45 } },
+      { "distance_m": 500,  "angles": { "0": 110, "30": 85, "60": 38 } },
+      { "distance_m": 1000, "angles": { "0": 98,  "30": 74, "60": 30 } }
+    ]
+  },
+  "terminal": {
+    "solver": "dncity:table_limit",
+    "ricochet_profile": "dncity:capped_ap_default",
+    "shatter_profile": "dncity:steel_ap_default",
+    "spall_profile": "dncity:ap_penetration_default"
+  },
+  "provenance": { "status": "FICTIONAL", "notes": "structure example only, not data" }
+}

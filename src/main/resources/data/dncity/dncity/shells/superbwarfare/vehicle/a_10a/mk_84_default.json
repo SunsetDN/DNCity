@@ -8,5 +8,11 @@
   ],
   "caliber_mm": 457,
   "penetration": 0.2,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 80,
+    "status": "DESIGN",
+    "source": "Mk 84 (2,000 lb) direct hit; blast only, no estimate"
+  }
 }

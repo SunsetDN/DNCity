@@ -7,5 +7,13 @@
   ],
   "caliber_mm": 20,
   "penetration": 0.5,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 30,
+    "range_m": 500,
+    "loss_per_km_mm": 20,
+    "status": "DESIGN",
+    "source": "SuperbWarfare's unnamed 20 mm cannon; no ammunition to source"
+  }
 }

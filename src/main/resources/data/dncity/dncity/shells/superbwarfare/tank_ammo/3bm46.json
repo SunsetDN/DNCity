@@ -1,0 +1,23 @@
+{
+  "ammo": "125mm 3BM46 Svinets APFSDS",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:3bm46",
+  "tags": [
+    "cannon",
+    "tank",
+    "apfsds"
+  ],
+  "caliber_mm": 125,
+  "penetration": 1.0,
+  "explosive": false,
+  "fracture_chance_bonus": 0.3,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 660,
+    "range_m": 2000,
+    "loss_per_km_mm": 16,
+    "status": "ESTIMATE",
+    "source": "Wikipedia (3BM48 Svinets entry, 3VBM20/3BM46): about 660 mm at 2000 m at 0 deg (300 mm at 60 deg), 1700 m/s. loss_per_km_mm: War Thunder reference (614 -> 586 mm, 2.4 %/km)",
+    "source_url": "https://en.wikipedia.org/wiki/125_mm_smoothbore_ammunition"
+  }
+}

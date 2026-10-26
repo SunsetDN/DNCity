@@ -5,10 +5,23 @@ import io.github.jwyoon1220.dncity.block.ModBlocks
 import io.github.jwyoon1220.dncity.command.PgpCommand
 import io.github.jwyoon1220.dncity.ballistics.ModAttachments
 import io.github.jwyoon1220.dncity.ballistics.ShellRegistry
+import io.github.jwyoon1220.dncity.ballistics.smallarms.SmallArmsData
+import io.github.jwyoon1220.dncity.ballistics.terminal.ArmorEffectModels
 import io.github.jwyoon1220.dncity.ballistics.terminal.TerminalBallistics
+import io.github.jwyoon1220.dncity.ballistics.vehicle.VehicleArmorRegistry
+import io.github.jwyoon1220.dncity.ballistics.terminal.ammo.AmmoRegistry
+import io.github.jwyoon1220.dncity.ballistics.terminal.ammo.AmmoSolvers
+import io.github.jwyoon1220.dncity.command.AmmoCommand
+import io.github.jwyoon1220.dncity.ballistics.terminal.fullcaliber.FullCaliberApPresetRegistry
 import io.github.jwyoon1220.dncity.compat.FirstAidShellBridge
+import io.github.jwyoon1220.dncity.compat.SbwFlightModelBridge
+import io.github.jwyoon1220.dncity.compat.SbwRemovedContent
+import io.github.jwyoon1220.dncity.compat.SbwVehicleArmorBridge
+import io.github.jwyoon1220.dncity.compat.TaczCartridges
+import io.github.jwyoon1220.dncity.compat.TaczVehicleArmorBridge
 import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
 import io.github.jwyoon1220.dncity.compat.TaczShellKeys
+import io.github.jwyoon1220.dncity.compat.TaczSmallArmsBridge
 import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
@@ -20,6 +33,7 @@ import io.github.jwyoon1220.dncity.network.PgpNetworking
 import io.github.jwyoon1220.dncity.network.PhoneNetworking
 import io.github.jwyoon1220.dncity.network.RadioNetworking
 import io.github.jwyoon1220.dncity.network.RadioStationNetworking
+import io.github.jwyoon1220.dncity.network.VehicleHitNetworking
 import io.github.jwyoon1220.dncity.network.VoiceNetworking
 import io.github.jwyoon1220.dncity.network.kcp.VoiceKcpServerEvents
 import io.github.jwyoon1220.dncity.phone.PhoneServerEvents
@@ -93,10 +107,20 @@ object Dncity {
         MOD_BUS.addListener(PgpNetworking::onRegisterPayloadHandlers)
         MOD_BUS.addListener(PgpAuthServerEvents::onRegisterConfigurationTasks)
         NeoForge.EVENT_BUS.addListener(ShellRegistry::onAddReloadListeners)
+        NeoForge.EVENT_BUS.addListener(SmallArmsData::onAddReloadListeners)
         NeoForge.EVENT_BUS.addListener(TerminalBallistics::onAddReloadListeners)
+        AmmoSolvers.registerBuiltins { FullCaliberApPresetRegistry.asMap() }
+        ArmorEffectModels.registerBuiltins()
+        NeoForge.EVENT_BUS.addListener(AmmoRegistry::onAddReloadListeners)
+        NeoForge.EVENT_BUS.addListener(AmmoCommand::onRegisterCommands)
+        NeoForge.EVENT_BUS.addListener(VehicleArmorRegistry::onAddReloadListeners)
+        MOD_BUS.addListener(VehicleHitNetworking::onRegisterPayloadHandlers)
         // Loaded lazily: these reference TACZ and First Aid classes
         if (ModList.get().isLoaded("tacz")) {
             TaczShellKeys.register()
+            TaczSmallArmsBridge.register()
+            // One item per round in dncity/cartridges.json, plus the "Ammunition" creative tab
+            TaczCartridges.register(MOD_BUS)
         }
         if (ModList.get().isLoaded("firstaid")) {
             FirstAidShellBridge.register()
@@ -104,6 +128,16 @@ object Dncity {
         if (ModList.get().isLoaded("tacz") && ModList.get().isLoaded("firstaid")) {
             TaczFirstAidBridge.register()
         }
+        // Armor penetration on SuperbWarfare vehicles (+ the shooter's hit camera)
+        if (ModList.get().isLoaded("superbwarfare")) {
+            // War Thunder-style flight model for SuperbWarfare's aircraft that have data in dncity/flight_models
+            SbwFlightModelBridge.register()
+            SbwVehicleArmorBridge.register()
+            if (ModList.get().isLoaded("tacz")) TaczVehicleArmorBridge.register()
+        }
+        // SuperbWarfare's energy / sci-fi weapons: no recipes, loot, creative entries or entities. No SuperbWarfare classes
+        // involved, and the loot modifier type must exist for data/neoforge/loot_modifiers either way
+        SbwRemovedContent.register(MOD_BUS)
     }
 
     /**

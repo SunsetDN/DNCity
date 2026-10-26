@@ -1,0 +1,86 @@
+{
+  "vehicle": "superbwarfare:bmp_2",
+  "layout": "ifv",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 30,
+        "ce": 30
+      },
+      "side": {
+        "ke": 16,
+        "ce": 16
+      },
+      "rear": {
+        "ke": 10,
+        "ce": 10
+      },
+      "top": {
+        "ke": 7,
+        "ce": 7
+      },
+      "bottom": {
+        "ke": 7,
+        "ce": 7
+      }
+    },
+    "turret": {
+      "front": {
+        "ke": 33,
+        "ce": 33
+      },
+      "side": {
+        "ke": 20,
+        "ce": 20
+      },
+      "rear": {
+        "ke": 15,
+        "ce": 15
+      },
+      "top": {
+        "ke": 10,
+        "ce": 10
+      },
+      "bottom": {
+        "ke": 10,
+        "ce": 10
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 10,
+        "ce": 10
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "hull front 30",
+      "kind": "ESTIMATE",
+      "source": "frontal arc resists 23 mm AP from 500 m and is immune to 12.7 mm AP; sides resist 7.62x39 AP",
+      "url": "https://en.wikipedia.org/wiki/BMP-2"
+    },
+    {
+      "value": "turret front 33, hull sides 16",
+      "kind": "ESTIMATE",
+      "source": "Tanks-Encyclopedia: armor 33 mm at best; 12.7 mm protection front and side, rear doors vulnerable",
+      "url": "https://www.tanks-encyclopedia.com/coldwar/ussr/BMP-2.php"
+    },
+    {
+      "value": "rear 10, top/bottom 7, tracks",
+      "kind": "DESIGN",
+      "source": "thin plates; rear doors noted as the weak point"
+    },
+    {
+      "value": "layout 'ifv' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    }
+  ]
+}

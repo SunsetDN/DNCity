@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:762x39",
   "caliber_mm": 7.62,
-  "penetration": 0.3
+  "penetration": 0.3,
+  "small_arms": {
+    "mass_g": 7.9,
+    "diameter_in": 0.311,
+    "velocity_mps": 718,
+    "velocity_note": "muzzle",
+    "source": "Wikipedia '7.62x39mm', Russian service loads: 57-N-231 7.9 g at 718 m/s; diameter .311 in nominal",
+    "source_kind": "ENCYCLOPEDIA"
+  }
 }

@@ -40,4 +40,11 @@ object PenetratorModels {
 
 object ArmorEffectModels {
     val registry = ModelRegistry<ArmorEffectModel>("armor effect model") { it.id }
+
+    /** Safe to call more than once; only the first call of each id registers. */
+    fun registerBuiltins() {
+        if (registry[io.github.jwyoon1220.dncity.ballistics.terminal.nera.NeraBulgeModel.ID] == null) {
+            registry.register(io.github.jwyoon1220.dncity.ballistics.terminal.nera.NeraBulgeModel())
+        }
+    }
 }

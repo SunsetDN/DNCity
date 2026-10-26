@@ -466,13 +466,16 @@ dependencies {
     // Distant Horizons (mods/distant-horizons) -- distant-terrain LOD rendering, not referenced by
     // this repo's own code (same as Sound Physics Remastered above), just a standalone mod that
     // needs to be on the dev runtime's classpath for runClient/runClient2/runServer to load it, and
-    // built for collectDistributionJars to pick up. Its "neoforge" subproject's shadowJar task
-    // produces a "-all.jar" (the shaded, distributable jar with dependencies bundled in) alongside
-    // plain/dev/sources variants (see mods/distant-horizons/neoforge/build.gradle) -- only the
-    // "-all" one is wanted, same reasoning as ModernUI-MC/VoxelMap above for avoiding a plain
-    // project substitution.
+    // built for collectDistributionJars to pick up. Its "neoforge" subproject's remapJar task
+    // produces the unclassified jar NeoForge is meant to load: the shaded shadowJar ("-all.jar")
+    // plus META-INF/accesstransformer.cfg converted from DH's access widener (remapJar's
+    // atAccessWideners). The "-all.jar" alone lacks that file, so DH's own mixins that read
+    // widened fields (MixinOptionsScreen -> HeaderAndFooterLayout.headerFrame) crash with
+    // IllegalAccessError -- never consume the "-all.jar" directly. Same reasoning as
+    // ModernUI-MC/VoxelMap above for avoiding a plain project substitution.
     implementation(fileTree("mods/distant-horizons/neoforge/build/libs") {
-        include("*-all.jar")
+        include("DistantHorizons-neoforge-*.jar")
+        exclude("*-all.jar", "*-sources.jar", "*-dev.jar")
     })
 
     // Lithium (mods/lithium) -- general server/client performance optimizations, not referenced by
@@ -519,7 +522,7 @@ listOf("compileJava", "compileKotlin", "runClient", "runClient2", "runServer", "
         dependsOn(gradle.includedBuild("ModernUI-MC").task(":ModernUI-NeoForge:remapJar"))
         dependsOn(gradle.includedBuild("VoxelMap").task(":neoforge:jar"))
         dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
-        dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:shadowJar"))
+        dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:remapJar"))
         dependsOn(gradle.includedBuild("lithium").task(":neoforge:jar"))
     }
 }
@@ -636,9 +639,9 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     // Sound Physics Remastered's "neoforge" subproject's shadowJar is its distributable jar --
     // see the fileTree dependency above's comment.
     dependsOn(gradle.includedBuild("sound-physics-remastered").task(":neoforge:shadowJar"))
-    // Distant Horizons's "neoforge" subproject's shadowJar produces the shaded "-all.jar" this
-    // repo wants to distribute -- see the fileTree dependency above's comment.
-    dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:shadowJar"))
+    // Distant Horizons's "neoforge" subproject's remapJar produces the jar this repo distributes
+    // (shaded, with its access transformer) -- see the fileTree dependency above's comment.
+    dependsOn(gradle.includedBuild("distant-horizons").task(":neoforge:remapJar"))
     // Lithium's "neoforge" subproject's plain "jar" task is its full distributable jar -- see the
     // fileTree dependency above's comment.
     dependsOn(gradle.includedBuild("lithium").task(":neoforge:jar"))
@@ -701,11 +704,11 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
         include("*.jar")
         exclude("*-sources.jar", "*-javadoc.jar")
     }
-    // Distant Horizons's "neoforge" subproject's own build/libs -- only the shaded "-all.jar",
-    // same reasoning as the fileTree dependency above (the plain/dev/sources variants alongside it
-    // aren't meant to be distributed standalone).
+    // Distant Horizons's "neoforge" subproject's own build/libs -- only the remapJar output, same
+    // reasoning as the fileTree dependency above (the "-all.jar" lacks the access transformer).
     from(file("mods/distant-horizons/neoforge/build/libs")) {
-        include("*-all.jar")
+        include("DistantHorizons-neoforge-*.jar")
+        exclude("*-all.jar", "*-sources.jar", "*-dev.jar")
     }
     // SuperbWarfare's own externally-published (Create/Create: Aeronautics/Sable) runtime
     // dependencies -- see this file's `bundledExternalMods` configuration declaration above for why.

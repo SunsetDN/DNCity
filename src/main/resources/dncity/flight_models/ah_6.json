@@ -1,0 +1,62 @@
+{
+  "vehicle": "superbwarfare:ah_6",
+  "type": "helicopter",
+  "sources": [
+    "https://wiki.warthunder.com/unit/ah_6m",
+    "https://en.wikipedia.org/wiki/MD_Helicopters_MH-6_Little_Bird#Specifications_(MH-6)",
+    "https://www.ecfr.gov/current/title-14/chapter-I/subchapter-C/part-25/subpart-C/section-25.303"
+  ],
+  "notes": [
+    "vertical_drag_area_m2 stands in for the drag of the rotor disc in vertical flow (no autorotation model): DESIGN.",
+    "Power 317 kW (T63, de-rated for take-off), rotor diameter 8.352 m, MTOW 1,406 kg and 282 km/h top speed from the source (MH-6 specifications).",
+    "mass_kg is the sourced MTOW (an armed AH-6 flies near it).",
+    "Load limits and Vne are ESTIMATEs (the source gives none).",
+    "War Thunder fit (user request 2026-10-25): top speed at 1,000 m and climb rate are the official wiki characteristics (upgraded, Realistic Battles); the engine power is scaled and the drag area derived to meet both together (fit_climb), then the power is raised if needed so a hover at 1,000 m takes at most 85 % collective (fit_hover, DESIGN: War Thunder helicopters hover with margin; their published climb rate alone would leave too little power for it, so the model climbs faster than that figure); engine_power_w below is the real figure before scaling. The drag area absorbs the blade profile power the model does not count separately.",
+    "tail_rotor_power_fraction 0.1: typical tail rotor share (Leishman, Principles of Helicopter Aerodynamics), ESTIMATE.",
+    "mass_kg ESTIMATE: War Thunder base weight 0.99 t (AH-6M) plus about 0.1 t of fuel (the wiki page did not give it)."
+  ],
+  "mass_kg": 1090,
+  "rotor_radius_m": 4.176,
+  "engine_power_w": 317000,
+  "power_density_exponent": 1.0,
+  "tail_rotor_power_fraction": 0.1,
+  "figure_of_merit": 0.7,
+  "derive_drag_area_from": {
+    "max_speed_mps": 65.0,
+    "altitude_m": 1000
+  },
+  "vertical_drag_area_m2": 30,
+  "vortex_ring_max_thrust_loss": 0.35,
+  "limits": {
+    "load_factor_pos": 3.5,
+    "load_factor_neg": -0.5,
+    "ultimate_factor": 1.5,
+    "vne_ias_mps": 86
+  },
+  "fit_climb": {
+    "climb_mps": 7.1
+  },
+  "fit_hover": {
+    "collective": 0.85,
+    "altitude_m": 1000
+  },
+  "provenance": {
+    "mass_kg": "ESTIMATE",
+    "rotor_radius_m": "SOURCED",
+    "engine_power_w": "SOURCED",
+    "power_density_exponent": "ESTIMATE",
+    "tail_rotor_power_fraction": "ESTIMATE",
+    "figure_of_merit": "ESTIMATE",
+    "derive_drag_area_from.max_speed_mps": "WAR_THUNDER",
+    "derive_drag_area_from.altitude_m": "WAR_THUNDER",
+    "vertical_drag_area_m2": "DESIGN",
+    "vortex_ring_max_thrust_loss": "DESIGN",
+    "limits.load_factor_pos": "ESTIMATE",
+    "limits.load_factor_neg": "ESTIMATE",
+    "limits.ultimate_factor": "SOURCED",
+    "limits.vne_ias_mps": "ESTIMATE",
+    "fit_climb.climb_mps": "WAR_THUNDER",
+    "fit_hover.collective": "DESIGN",
+    "fit_hover.altitude_m": "DESIGN"
+  }
+}

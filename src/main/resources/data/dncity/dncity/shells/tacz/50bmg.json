@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:50bmg",
   "caliber_mm": 12.7,
-  "penetration": 0.6
+  "penetration": 0.6,
+  "small_arms": {
+    "mass_gr": 661,
+    "diameter_in": 0.51,
+    "velocity_fps": 2910,
+    "velocity_note": "78 ft from muzzle (TM); bullet weight from retailer listings",
+    "source": "TM 43-0001-27 (C1-8), Cartridge, Caliber .50, Ball, M33: velocity 2910 fps 78 ft from muzzle (the TM card gives no projectile weight); 661 gr per Barrett M33 retailer listings (Magtech lists 655 gr)",
+    "source_kind": "MILITARY_SPEC"
+  }
 }

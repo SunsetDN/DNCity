@@ -3,5 +3,12 @@
   "entity": "superbwarfare:javelin_missile",
   "caliber_mm": 127,
   "penetration": 1.0,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 760,
+    "status": "ESTIMATE",
+    "source": "FGM-148 Javelin: penetration classified; Wikipedia gives in excess of 760 mm RHA (other estimates 600-800)",
+    "source_url": "https://en.wikipedia.org/wiki/FGM-148_Javelin"
+  }
 }

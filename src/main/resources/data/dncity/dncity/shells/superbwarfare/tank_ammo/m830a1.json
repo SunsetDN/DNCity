@@ -1,0 +1,21 @@
+{
+  "ammo": "120mm M830A1 MPAT",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:m830a1",
+  "tags": [
+    "cannon",
+    "tank",
+    "heat"
+  ],
+  "caliber_mm": 120,
+  "penetration": 0.4,
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 350,
+    "filler_kg": 1.0,
+    "status": "WAR_THUNDER",
+    "source": "Northrop Grumman fact sheet: 1400 m/s, no mm figure; War Thunder reference 350 mm (multipurpose charge, rated against bunkers and light vehicles). filler_kg DESIGN",
+    "source_url": "https://www.fbcinc.com/source/Northrop_Resources/120mm_M830A1.pdf"
+  }
+}

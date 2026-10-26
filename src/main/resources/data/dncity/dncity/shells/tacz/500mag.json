@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:500mag",
   "caliber_mm": 12.7,
-  "penetration": 0.1
+  "penetration": 0.1,
+  "small_arms": {
+    "mass_gr": 300,
+    "diameter_in": 0.5,
+    "velocity_fps": 2075,
+    "velocity_note": "muzzle, test barrel length not stated",
+    "source": "Hornady Custom .500 S&W 300 gr FTX (9249): 2075 fps / 2868 ft-lb as listed by retailers (Midwest Gun Works, Molly's); Hornady's own sheet not checked",
+    "source_kind": "RETAILER_LISTING"
+  }
 }

@@ -7,5 +7,12 @@
   ],
   "caliber_mm": 127,
   "penetration": 0.9,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 800,
+    "status": "ESTIMATE",
+    "source": "9M120 Ataka: 800 mm RHA after ERA (the Mi-28 guided missile)",
+    "source_url": "https://en.wikipedia.org/wiki/9M120_Ataka"
+  }
 }

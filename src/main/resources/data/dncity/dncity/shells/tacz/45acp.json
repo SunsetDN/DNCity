@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:45acp",
   "caliber_mm": 11.43,
-  "penetration": 0.05
+  "penetration": 0.05,
+  "small_arms": {
+    "mass_gr": 230,
+    "diameter_in": 0.452,
+    "velocity_fps": 885,
+    "velocity_note": "25.5 ft from muzzle (TM); mass and diameter from Wikipedia '.45 ACP'",
+    "source": "TM 43-0001-27 (C1-8), Cartridge, Caliber .45, Ball, M1911: velocity 885 +/- 25 fps 25.5 ft from muzzle (the TM card gives no projectile weight); 230 gr round-nose bullet per Wikipedia '.45 ACP'",
+    "source_kind": "MILITARY_SPEC"
+  }
 }

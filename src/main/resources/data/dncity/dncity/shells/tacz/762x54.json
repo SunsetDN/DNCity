@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:762x54",
   "caliber_mm": 7.62,
-  "penetration": 0.45
+  "penetration": 0.45,
+  "small_arms": {
+    "mass_g": 9.6,
+    "diameter_in": 0.312,
+    "velocity_mps": 828,
+    "velocity_note": "muzzle",
+    "source": "Wikipedia '7.62x54mmR', Russian service loads: 57-N-323S 9.6 g at 828 m/s; diameter .312 in nominal",
+    "source_kind": "ENCYCLOPEDIA"
+  }
 }

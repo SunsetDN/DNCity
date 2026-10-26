@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "display": { "name": "Example 105 mm HEAT", "rarity": "UNCOMMON" },
+  "item": { "max_stack_size": 12 },
+  "compatibility": { "gun_caliber_mm": 105, "weapon_tags": ["dncity:105mm_guns"] },
+  "projectile": {
+    "type": "HEAT",
+    "construction": "SHAPED_CHARGE",
+    "geometry": "OGIVE",
+    "diameter_mm": 105,
+    "mass_kg": 12.0,
+    "drag_coefficient": 0.4,
+    "muzzle_velocity_mps": 1173,
+    "payload": {
+      "explosive_kg": 1.5,
+      "cone_diameter_mm": 90,
+      "optimal_standoff_mm": 200,
+      "fuze": { "arming_distance_m": 10, "delay_s": 0.0, "failure_chance": 0.0 }
+    }
+  },
+  "penetration": { "mode": "PHYSICS" },
+  "terminal": { "solver": "dncity:shaped_charge" },
+  "provenance": { "status": "FICTIONAL", "notes": "structure example only, not data" }
+}

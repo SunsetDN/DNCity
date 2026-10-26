@@ -194,8 +194,8 @@ class FullCaliberApModelTest {
         val t = tMax * 1.03
         val extra = model.evaluate(context(5000.0), layer(t))
         assertIs<ModelEvaluation.Resolved>(extra)
-        assertEquals(vbl(t), extra.ballisticLimitMps, 1e-9)
-        assertNotEquals(vbl(tMax), extra.ballisticLimitMps)
+        assertEquals(vbl(t), extra.ballisticLimitMps!!, 1e-9)
+        assertNotEquals(vbl(tMax), extra.ballisticLimitMps!!)
     }
 
     @Test
@@ -391,5 +391,239 @@ class FullCaliberApModelTest {
         val json = fixturePresetJson(fit.coefficient, tMin to tMax)
         val e = assertFailsWith<IllegalArgumentException> { FullCaliberApPreset.fromJson(PRESET_ID, json) }
         assertTrue("TWO_INDEPENDENT_SOURCES" in e.message!!)
+    }
+}
+
+/** Obliquity: fixtures only, same rules as above. The exponent 1.2 is an arithmetic fixture, not a measured value. */
+class FullCaliberApObliquityTest {
+    private val points = loadTableA7()
+    private val fit = DeMarreCalibrator.fit(IMPERIAL_PROFILE, DIAMETER_M, FIXTURE_MASS_KG, points)
+    private val tMin = points.minOf { it.thicknessM }
+    private val tMax = points.maxOf { it.thicknessM }
+    private val t = tMin // data spans only x1.54 in thickness, so an inclined plate must start at the thin end
+
+    private fun presetWith(obliquity: String): FullCaliberApPreset =
+        FullCaliberApPreset.fromJson(
+            PRESET_ID,
+            fixturePresetJson(fit.coefficient, tMin to tMax) { it.add("obliquity", JsonParser.parseString(obliquity)) },
+            requireVerifiedMass = false,
+        )
+
+    private val geometric = presetWith("""{ "basis": "GEOMETRIC_LOS", "max_angle_deg": 45, "extrapolation_margin_deg": 5 }""")
+    private val power = presetWith("""{ "basis": "COSINE_POWER", "exponent": 1.2, "exponent_source": "fixture, arithmetic only", "max_angle_deg": 45, "extrapolation_margin_deg": 5 }""")
+
+    private fun ctx(speed: Double, deg: Double): ImpactContext {
+        val def = definition()
+        val a = Math.toRadians(deg)
+        val state = ProjectileState.launch(def, V3.ZERO, V3(cos(a), sin(a), 0.0), speed)
+        return ImpactContext.of(state, ApCatalog(def, material()), V3.ZERO, V3(-1.0, 0.0, 0.0))
+    }
+
+    private fun resolved(model: FullCaliberApModel, speed: Double, deg: Double): ModelEvaluation.Resolved =
+        assertIs<ModelEvaluation.Resolved>(model.evaluate(ctx(speed, deg), layer(t)))
+
+    @Test
+    fun `geometric basis uses the line of sight thickness and says it is geometry only`() {
+        val m = FullCaliberApModel(mapOf(PRESET_ID to geometric))
+        val r = resolved(m, 4000.0, 30.0)
+        assertEquals(geometric.ballisticLimitMps(DIAMETER_M, t / cos(Math.toRadians(30.0)), FIXTURE_MASS_KG), r.ballisticLimitMps!!, 1e-9)
+        assertTrue(ModelDiagnostic.OBLIQUITY_GEOMETRIC_ONLY in r.diagnostics)
+        assertTrue(ModelDiagnostic.NO_DEFLECTION_MODEL in r.diagnostics)
+        assertEquals(setOf(ModelAxis.THICKNESS, ModelAxis.ANGLE), r.report.axes.map { it.axis }.toSet())
+    }
+
+    @Test
+    fun `zero degrees equals the normal case and a steeper angle needs more speed`() {
+        val m = FullCaliberApModel(mapOf(PRESET_ID to geometric))
+        assertEquals(geometric.ballisticLimitMps(DIAMETER_M, t, FIXTURE_MASS_KG), resolved(m, 4000.0, 0.0).ballisticLimitMps!!, 1e-9)
+        assertTrue(resolved(m, 4000.0, 40.0).ballisticLimitMps!! > resolved(m, 4000.0, 10.0).ballisticLimitMps!!)
+    }
+
+    @Test
+    fun `an empirical exponent above 1 makes the plate harder than its line of sight thickness`() {
+        val g = resolved(FullCaliberApModel(mapOf(PRESET_ID to geometric)), 4000.0, 40.0)
+        val p = resolved(FullCaliberApModel(mapOf(PRESET_ID to power)), 4000.0, 40.0)
+        assertTrue(p.ballisticLimitMps!! > g.ballisticLimitMps!!)
+        assertTrue(ModelDiagnostic.OBLIQUITY_EMPIRICAL_EXPONENT in p.diagnostics)
+    }
+
+    @Test
+    fun `angle range is data - extrapolated within the margin, declined beyond`() {
+        val m = FullCaliberApModel(mapOf(PRESET_ID to geometric))
+        assertEquals(ModelRegime.IN_RANGE, resolved(m, 4000.0, 45.0).report.regime)
+        val extra = resolved(m, 4000.0, 48.0)
+        assertEquals(ModelRegime.EXTRAPOLATED, extra.report.regime)
+        assertTrue(ModelDiagnostic.EXTRAPOLATED_AXIS in extra.diagnostics)
+        assertIs<ModelEvaluation.Unresolved>(m.evaluate(ctx(4000.0, 60.0), layer(t))) // no ricochet model: no number is made up
+    }
+
+    @Test
+    fun `perforation point lies along the flight line and energy is never created`() {
+        val m = FullCaliberApModel(mapOf(PRESET_ID to geometric))
+        val r = resolved(m, 4000.0, 30.0)
+        assertEquals(PenetrationOutcome.PERFORATED, r.result.outcome)
+        val inc = ctx(4000.0, 30.0).projectile
+        assertEquals(t / cos(Math.toRadians(30.0)), r.result.perforationPoint!!.distanceTo(inc.position), 1e-9)
+        assertTrue(EnergyBudget.ofLayer(inc.kineticEnergyJ, r.result).isSound)
+    }
+
+    @Test
+    fun `a stopped result below the oblique limit`() {
+        val m = FullCaliberApModel(mapOf(PRESET_ID to geometric))
+        val vbl = resolved(m, 4000.0, 30.0).ballisticLimitMps!!
+        assertEquals(PenetrationOutcome.STOPPED, resolved(m, vbl * 0.99, 30.0).result.outcome)
+    }
+
+    @Test
+    fun `the obliquity block is validated`() {
+        fun bad(s: String) = assertFailsWith<IllegalArgumentException> { presetWith(s) }
+        bad("""{ "basis": "COSINE_POWER", "exponent": 1.2, "max_angle_deg": 45, "extrapolation_margin_deg": 5 }""") // no source
+        bad("""{ "basis": "GEOMETRIC_LOS", "exponent": 1.2, "max_angle_deg": 45, "extrapolation_margin_deg": 5 }""")
+        bad("""{ "basis": "COSINE_POWER", "exponent": 0.8, "exponent_source": "x", "max_angle_deg": 45, "extrapolation_margin_deg": 5 }""")
+        bad("""{ "basis": "GEOMETRIC_LOS", "extrapolation_margin_deg": 5 }""") // no default angle range
+        bad("""{ "basis": "GEOMETRIC_LOS", "max_angle_deg": 85, "extrapolation_margin_deg": 0 }""")
+        bad("""{ "basis": "GEOMETRIC_LOS", "max_angle_deg": 45, "extrapolation_margin_deg": 5, "typo": 1 }""")
+    }
+}
+
+/**
+ * Slope tables and ricochet: fixtures only. Every factor, probability and retention below is arithmetic, chosen to exercise the
+ * machinery (and to keep the effective thickness inside the thin calibration range); none is a measured or published value.
+ */
+class FullCaliberApSlopeAndRicochetTest {
+    private val points = loadTableA7()
+    private val fit = DeMarreCalibrator.fit(IMPERIAL_PROFILE, DIAMETER_M, FIXTURE_MASS_KG, points)
+    private val tMin = points.minOf { it.thicknessM }
+    private val tMax = points.maxOf { it.thicknessM }
+    private val t = tMin
+    private val ratio = t / DIAMETER_M
+
+    private val table = """
+        { "basis": "TABULATED", "table_source": "fixture, arithmetic only", "max_angle_deg": 40, "extrapolation_margin_deg": 0,
+          "table": { "thickness_to_diameter": [0.1, 5.0], "angles_deg": [0, 20, 40],
+                     "factors": [[1.0, 1.05, 1.2], [1.0, 1.10, 1.4]] } }
+    """.trimIndent()
+    private val geometric = """{ "basis": "GEOMETRIC_LOS", "max_angle_deg": 45, "extrapolation_margin_deg": 0 }"""
+    private val ricochet = """
+        { "angles_deg": [0, 30, 60, 75], "probability": [0, 0, 1, 1], "source": "fixture, arithmetic only",
+          "speed_retention": 0.5, "speed_retention_source": "fixture, arithmetic only" }
+    """.trimIndent()
+
+    private fun preset(obliquity: String?, ricochetJson: String? = null) = FullCaliberApPreset.fromJson(
+        PRESET_ID,
+        fixturePresetJson(fit.coefficient, tMin to tMax) { json ->
+            obliquity?.let { json.add("obliquity", JsonParser.parseString(it)) }
+            ricochetJson?.let { json.add("ricochet", JsonParser.parseString(it)) }
+        },
+        requireVerifiedMass = false,
+    )
+
+    private fun model(p: FullCaliberApPreset) = FullCaliberApModel(mapOf(PRESET_ID to p))
+
+    private fun ctx(speed: Double, deg: Double, seed: Long = 0L): ImpactContext {
+        val def = definition()
+        val a = Math.toRadians(deg)
+        val state = ProjectileState.launch(def, V3.ZERO, V3(cos(a), sin(a), 0.0), speed)
+        return ImpactContext.of(state, ApCatalog(def, material()), V3.ZERO, V3(-1.0, 0.0, 0.0), seed)
+    }
+
+    @Test
+    fun `slope table is interpolated in angle and in thickness over diameter`() {
+        val p = preset(table)
+        val r = assertIs<ModelEvaluation.Resolved>(model(p).evaluate(ctx(4000.0, 10.0), layer(t)))
+        // 10 degrees is halfway between the 0 and 20 degree columns; then linear between the two rows in T/d
+        val rt = (ratio - 0.1) / 4.9
+        val low = 1.0 + (1.05 - 1.0) * 0.5
+        val high = 1.0 + (1.10 - 1.0) * 0.5
+        val f = low + (high - low) * rt
+        assertEquals(p.ballisticLimitMps(DIAMETER_M, t * f, FIXTURE_MASS_KG), r.ballisticLimitMps!!, 1e-9)
+        assertTrue(ModelDiagnostic.OBLIQUITY_TABULATED in r.diagnostics)
+        assertEquals(setOf(ModelAxis.THICKNESS, ModelAxis.ANGLE, ModelAxis.THICKNESS_TO_DIAMETER), r.report.axes.map { it.axis }.toSet())
+    }
+
+    @Test
+    fun `the same angle costs more against a plate thick relative to the projectile`() {
+        val s = ObliquitySpec.fromJson(JsonParser.parseString(table).asJsonObject).table!!
+        val a = Math.toRadians(30.0)
+        assertTrue(s.factor(a, 4.0)!! > s.factor(a, 0.5)!!)
+        assertEquals(1.0, s.factor(0.0, 2.0)!!, 0.0)
+        assertEquals(null, s.factor(a, 6.0))
+        assertEquals(null, s.factor(Math.toRadians(41.0), 1.0))
+    }
+
+    @Test
+    fun `a table never answers outside its axes`() {
+        val narrow = preset(table.replace("[0.1, 5.0]", "[0.1, 0.2]"))
+        assertIs<ModelEvaluation.Unresolved>(model(narrow).evaluate(ctx(4000.0, 10.0), layer(t))) // ratio outside the rows
+        assertIs<ModelEvaluation.Unresolved>(model(preset(table)).evaluate(ctx(4000.0, 41.0), layer(t))) // angle beyond the table
+    }
+
+    @Test
+    fun `the slope table is validated`() {
+        fun bad(s: String) = assertFailsWith<IllegalArgumentException> { preset(s) }
+        bad(table.replace("[[1.0, 1.05, 1.2]", "[[1.01, 1.05, 1.2]")) // factor at 0 degrees is not 1
+        bad(table.replace("[1.0, 1.05, 1.2]", "[1.0, 1.2, 1.05]")) // decreasing
+        bad(table.replace("[1.0, 1.05, 1.2]", "[1.0, 0.95, 1.2]")) // below 1
+        bad(table.replace("[0.1, 5.0]", "[5.0, 0.1]")) // rows not ascending
+        bad(table.replace("[0, 20, 40]", "[5, 20, 40]")) // does not start at 0
+        bad(table.replace("\"extrapolation_margin_deg\": 0", "\"extrapolation_margin_deg\": 5")) // tables are not extrapolated
+        bad(table.replace("\"max_angle_deg\": 40", "\"max_angle_deg\": 30")) // the range is the table's own
+        bad(table.replace("\"table_source\": \"fixture, arithmetic only\", ", "")) // no source
+        bad(table.replace("\"basis\": \"TABULATED\"", "\"basis\": \"TABULATED\", \"exponent\": 1.2"))
+        bad(geometric.replace("}", ", \"table_source\": \"x\" }"))
+    }
+
+    @Test
+    fun `a certain ricochet is answered beyond the penetration angle range`() {
+        val m = model(preset(geometric, ricochet))
+        val c = ctx(800.0, 70.0)
+        val r = assertIs<ModelEvaluation.Resolved>(m.evaluate(c, layer(t)))
+        assertEquals(PenetrationOutcome.RICOCHET, r.result.outcome)
+        assertEquals(null, r.ballisticLimitMps)
+        assertTrue(ModelDiagnostic.RICOCHET_CERTAIN in r.diagnostics)
+        assertTrue(ModelDiagnostic.RICOCHET_SPECULAR_FIXED_RETENTION in r.diagnostics)
+        val a = Math.toRadians(70.0)
+        val dir = r.result.exitDirection!!
+        assertEquals(-cos(a), dir.x, 1e-12) // mirrored on the plate: the normal component flips, the tangential one stays
+        assertEquals(sin(a), dir.y, 1e-12)
+        assertEquals(400.0, r.result.residual!!.speedMps, 1e-9)
+        assertTrue(EnergyBudget.ofLayer(c.projectile.kineticEnergyJ, r.result).isSound)
+        assertEquals(ModelRegime.IN_RANGE, m.supports(c, layer(t)).regime) // supports agrees with evaluate
+    }
+
+    @Test
+    fun `an uncertain ricochet is drawn from the seed and is reproducible`() {
+        val m = model(preset(geometric, ricochet)) // 45 degrees: probability 0.5 between the 30 and 60 degree points
+        val outcomes = (0L until 1000L).map { seed -> assertIs<ModelEvaluation.Resolved>(m.evaluate(ctx(4000.0, 45.0, seed), layer(t))) }
+        outcomes.forEach { assertTrue(ModelDiagnostic.RICOCHET_DRAWN in it.diagnostics) }
+        val share = outcomes.count { it.result.outcome == PenetrationOutcome.RICOCHET } / 1000.0
+        assertTrue(share in 0.4..0.6, "ricochet share $share")
+        assertTrue(outcomes.any { it.result.outcome == PenetrationOutcome.PERFORATED })
+        repeat(3) {
+            val again = assertIs<ModelEvaluation.Resolved>(m.evaluate(ctx(4000.0, 45.0, 17L), layer(t)))
+            assertEquals(outcomes[17].result.outcome, again.result.outcome)
+        }
+    }
+
+    @Test
+    fun `no ricochet where the table says 0 and no answer beyond its last angle`() {
+        val m = model(preset(geometric, ricochet))
+        val shallow = assertIs<ModelEvaluation.Resolved>(m.evaluate(ctx(4000.0, 20.0), layer(t)))
+        assertEquals(PenetrationOutcome.PERFORATED, shallow.result.outcome)
+        assertTrue(ModelDiagnostic.RICOCHET_DRAWN !in shallow.diagnostics)
+        assertIs<ModelEvaluation.Unresolved>(m.evaluate(ctx(4000.0, 78.0), layer(t)))
+    }
+
+    @Test
+    fun `the ricochet block is validated`() {
+        fun bad(s: String) = assertFailsWith<IllegalArgumentException> { preset(geometric, s) }
+        bad(ricochet.replace("\"source\": \"fixture, arithmetic only\",", "")) // no source
+        bad(ricochet.replace("\"speed_retention\": 0.5", "\"speed_retention\": 0"))
+        bad(ricochet.replace("\"speed_retention\": 0.5", "\"speed_retention\": 1.2"))
+        bad(ricochet.replace("[0, 0, 1, 1]", "[0, 1, 0.5, 1]")) // decreasing
+        bad(ricochet.replace("[0, 0, 1, 1]", "[0, 0, 1, 1.5]")) // not a probability
+        bad(ricochet.replace("[0, 30, 60, 75]", "[10, 30, 60, 75]")) // does not start at 0
+        bad(ricochet.replace("[0, 30, 60, 75]", "[0, 30, 60, 90]"))
+        bad(ricochet.replace("\"speed_retention\": 0.5, ", "")) // no default retention
     }
 }

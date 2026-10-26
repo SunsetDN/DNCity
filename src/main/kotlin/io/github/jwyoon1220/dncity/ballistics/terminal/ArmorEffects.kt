@@ -33,6 +33,8 @@ class EffectInvocation(
     val slot: EffectSlot,
     val layerIndex: Int?,
     val layerResult: PenetrationResult?,
+    /** What this vehicle's interaction armor looks like right now (spent tiles, tears); read only. */
+    val runtime: ArmorRuntimeView = ArmorRuntimeView.PRISTINE,
 ) {
     /** True in [EffectPhase.AFTER_LAYER] when the layer did not perforate: the effect can only observe. */
     val isObservationOnly: Boolean
@@ -64,16 +66,18 @@ data class EffectInteractionResult(
     val consumeRuntimeEffect: Boolean,
     val generatedSpall: List<SpallSource> = emptyList(),
     val generatedBlast: BlastSource? = null,
+    /** Ruptures this interaction left in the interaction armor; committed to the vehicle like a spent tile, see [ArmorTear]. */
+    val tears: List<ArmorTear> = emptyList(),
 ) {
     companion object {
-        fun untouched(consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null) =
-            EffectInteractionResult(ProjectileChange.Untouched, consume, spall, blast)
+        fun untouched(consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null, tears: List<ArmorTear> = emptyList()) =
+            EffectInteractionResult(ProjectileChange.Untouched, consume, spall, blast, tears)
 
-        fun replaced(projectile: ProjectileState, consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null) =
-            EffectInteractionResult(ProjectileChange.Replaced(projectile), consume, spall, blast)
+        fun replaced(projectile: ProjectileState, consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null, tears: List<ArmorTear> = emptyList()) =
+            EffectInteractionResult(ProjectileChange.Replaced(projectile), consume, spall, blast, tears)
 
-        fun destroyed(consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null) =
-            EffectInteractionResult(ProjectileChange.Destroyed, consume, spall, blast)
+        fun destroyed(consume: Boolean = false, spall: List<SpallSource> = emptyList(), blast: BlastSource? = null, tears: List<ArmorTear> = emptyList()) =
+            EffectInteractionResult(ProjectileChange.Destroyed, consume, spall, blast, tears)
     }
 }
 

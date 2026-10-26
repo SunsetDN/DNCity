@@ -1,0 +1,21 @@
+{
+  "ammo": "125mm 3OF26 HE-FRAG-FS",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:3of26",
+  "tags": [
+    "cannon",
+    "tank",
+    "he"
+  ],
+  "caliber_mm": 125,
+  "penetration": 0.25,
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 40,
+    "filler_kg": 3.4,
+    "status": "DESIGN",
+    "source": "Wikipedia: 23 kg, 3.4 kg A-IX-2 (filler_kg, entered as is, not converted to TNT), 850 m/s. mm (what the blast breaks on contact) is DESIGN: no published figure",
+    "source_url": "https://en.wikipedia.org/wiki/125_mm_smoothbore_ammunition"
+  }
+}

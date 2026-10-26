@@ -7,5 +7,14 @@
   ],
   "caliber_mm": 25,
   "penetration": 0.5,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 90,
+    "range_m": 100,
+    "loss_per_km_mm": 30,
+    "status": "ESTIMATE",
+    "source": "25 mm M791 APDS-T: about 80-100 mm RHA at 100 m (forum compilation). AP and HE share this shell. loss_per_km_mm is DESIGN (no sourced falloff)",
+    "source_url": "https://forum.warthunder.com/t/298300"
+  }
 }

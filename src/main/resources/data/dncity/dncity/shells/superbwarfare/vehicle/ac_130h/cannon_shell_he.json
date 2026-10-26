@@ -13,5 +13,11 @@
   ],
   "caliber_mm": 105,
   "penetration": 0.25,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 30,
+    "status": "DESIGN",
+    "source": "105 mm HE blast/fragments, same as the tank HE files; no estimate"
+  }
 }

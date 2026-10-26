@@ -1,0 +1,22 @@
+{
+  "ammo": "125mm 3BK29M Tandem HEAT-FS",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:3bk29m",
+  "tags": [
+    "cannon",
+    "tank",
+    "heat"
+  ],
+  "caliber_mm": 125,
+  "penetration": 0.4,
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 800,
+    "filler_kg": 1.8,
+    "tandem": true,
+    "status": "ESTIMATE",
+    "source": "Wikipedia: estimated 800 mm tandem-charge HEAT, 915 m/s; tandem: the precursor sets off ERA. filler_kg DESIGN",
+    "source_url": "https://en.wikipedia.org/wiki/125_mm_smoothbore_ammunition"
+  }
+}

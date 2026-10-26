@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    { "id": "#c:storage_blocks/iron", "required": false },
+    { "id": "#c:storage_blocks/gold", "required": false },
+    { "id": "#c:storage_blocks/copper", "required": false },
+    { "id": "#c:storage_blocks/netherite", "required": false },
+    "#minecraft:anvil",
+    "minecraft:iron_block",
+    "minecraft:iron_door",
+    "minecraft:iron_trapdoor",
+    "minecraft:iron_bars",
+    "minecraft:heavy_weighted_pressure_plate",
+    "minecraft:cauldron",
+    "minecraft:hopper"
+  ]
+}

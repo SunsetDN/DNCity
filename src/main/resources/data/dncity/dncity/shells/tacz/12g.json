@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:12g",
   "caliber_mm": 8.4,
-  "penetration": 0.0
+  "penetration": 0.0,
+  "small_arms": {
+    "mass_gr": 54,
+    "diameter_in": 0.33,
+    "velocity_fps": 1325,
+    "velocity_note": "muzzle, per pellet",
+    "source": "Federal 12 ga 2-3/4 in 00 buck, 9 pellets, 1325 fps (retailer listings); pellet .33 in; 54 gr per pellet derived from a 1-1/8 oz charge / 9 pellets (about 55 gr) and a lead sphere of .33 in (about 54 gr)",
+    "source_kind": "DERIVED"
+  }
 }

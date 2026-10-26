@@ -1,3 +1,4 @@
+// AGENT-DONE(codex): msys2-native-toolchain
 // FMOD Studio bindings: hand-written JNI (src/main/cpp/jni_fmod.cpp, over the minimal API
 // surface declared in fmod_min.h) plus a small Java wrapper (FMODSystem.java) on top, in place
 // of this module's previous jextract-generated java.lang.foreign (Panama FFI) bindings.
@@ -56,15 +57,24 @@ val nativeLibName = "dncity_fmod.dll"
 val nativeBuildDir = layout.buildDirectory.dir("native/$nativeOs-$nativeArch")
 val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
-// Requires CMake and a C/C++ toolchain (MSVC/Visual Studio Build Tools on Windows) on PATH --
-// neither is bundled with this Gradle build. No special generator/toolchain flags needed here
-// (unlike engine/audio's clang+MinGW setup) -- CMake's default Windows generator (MSVC) is fine.
+val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+val cmakePath = (project.findProperty("cmakePath") as String?)
+    ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
+    ?: "cmake"
+val ninjaPath = (project.findProperty("ninjaPath") as String?) ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
+val clangPath = (project.findProperty("clangPath") as String?) ?: msys2UcrtBin.resolve("clang.exe").absolutePath
+val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
+val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
+
 val configureNativeFmod = tasks.register<Exec>("configureNativeFmod") {
     inputs.file("CMakeLists.txt")
     inputs.dir("src/main/cpp")
     outputs.dir(nativeBuildDir)
     workingDir = projectDir
-    commandLine("cmake", "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath, "-DCMAKE_BUILD_TYPE=Release")
+    commandLine(cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
+        "-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninjaPath", "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_C_COMPILER=$clangPath", "-DCMAKE_CXX_COMPILER=$clangCppPath",
+        "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,--whole-archive,$winpthreadStaticPath,--no-whole-archive")
 }
 
 val buildNativeFmod = tasks.register<Exec>("buildNativeFmod") {
@@ -73,10 +83,12 @@ val buildNativeFmod = tasks.register<Exec>("buildNativeFmod") {
     val destDir = nativeResourceDir.map { it.dir("$nativeOs/$nativeArch") }
     outputs.dir(destDir)
     workingDir = projectDir
-    commandLine("cmake", "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
+    commandLine(cmakePath, "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
     val libFileName = nativeLibName
     val nativeBuildDirPath = nativeBuildDir.get().asFile.absolutePath
-    val builtLibraryTree = fileTree(nativeBuildDir) { include("**/$libFileName") }
+    val builtLibraryTree = fileTree(nativeBuildDir) {
+        include("**/$libFileName", "**/lib$libFileName")
+    }
     doLast {
         val out = destDir.get().asFile
         out.mkdirs()

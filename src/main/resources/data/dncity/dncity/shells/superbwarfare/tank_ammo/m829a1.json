@@ -1,0 +1,23 @@
+{
+  "ammo": "120mm M829A1 APFSDS-T",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:m829a1",
+  "tags": [
+    "cannon",
+    "tank",
+    "apfsds"
+  ],
+  "caliber_mm": 120,
+  "penetration": 1.0,
+  "explosive": false,
+  "fracture_chance_bonus": 0.3,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 570,
+    "range_m": 2000,
+    "loss_per_km_mm": 50,
+    "status": "ESTIMATE",
+    "source": "Military Wiki (M829 article): estimated 670 mm point blank, 620 mm at 1000 m, 570 mm at 2000 m; 1575 m/s (Defense Update via Wikipedia)",
+    "source_url": "https://military-history.fandom.com/wiki/M829_(munition)"
+  }
+}

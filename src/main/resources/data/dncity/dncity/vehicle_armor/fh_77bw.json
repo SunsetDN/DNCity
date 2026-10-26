@@ -1,0 +1,75 @@
+{
+  "vehicle": "superbwarfare:fh_77bw",
+  "layout": "car",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "all": {
+        "ke": 6,
+        "ce": 6
+      }
+    },
+    "cab": {
+      "front": {
+        "ke": 15,
+        "ce": 15
+      },
+      "side": {
+        "ke": 12,
+        "ce": 12
+      },
+      "rear": {
+        "ke": 12,
+        "ce": 12
+      },
+      "top": {
+        "ke": 10,
+        "ce": 10
+      },
+      "bottom": {
+        "ke": 10,
+        "ce": 10
+      }
+    },
+    "turret": {
+      "all": {
+        "ke": 10,
+        "ce": 10
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 5,
+        "ce": 5
+      }
+    }
+  },
+  "obb_zones": {
+    "1": "cab",
+    "2": "cab",
+    "3": "cab"
+  },
+  "sources": [
+    {
+      "value": "cab STANAG 4569 level 3 (front 15, rest 10-12)",
+      "kind": "ESTIMATE",
+      "source": "armedconflicts.com vehicle database: cab ballistic protection STANAG 4569 level 3",
+      "url": "https://www.armedconflicts.com/topic/view/35064"
+    },
+    {
+      "value": "chassis 6, gun module 10, wheels",
+      "kind": "DESIGN",
+      "source": "no estimate found; truck chassis"
+    },
+    {
+      "value": "layout 'car' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    }
+  ]
+}

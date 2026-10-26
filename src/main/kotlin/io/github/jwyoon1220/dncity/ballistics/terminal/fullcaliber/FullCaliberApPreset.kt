@@ -54,6 +54,10 @@ data class FullCaliberApPreset(
     val limitDefinition: BallisticLimitDefinition,
     val residual: ResidualStrategy,
     val provenance: CalibrationProvenance,
+    /** Null = normal incidence only (the original calibration scope). */
+    val obliquity: ObliquitySpec? = null,
+    /** Null = no ricochet is modelled (every impact is judged by penetration alone, within the angle range). */
+    val ricochet: RicochetSpec? = null,
 ) {
     init {
         require(calibrationCoefficient > 0.0 && calibrationCoefficient.isFinite()) { "calibration coefficient must be positive and finite" }
@@ -117,6 +121,8 @@ data class FullCaliberApPreset(
                 residual = ResidualStrategy.entries.firstOrNull { it.name == residualName }
                     ?: throw IllegalArgumentException("unknown or unsupported residual_strategy '$residualName'"),
                 provenance = provenance,
+                obliquity = json.getAsJsonObject("obliquity")?.let { ObliquitySpec.fromJson(it) },
+                ricochet = json.getAsJsonObject("ricochet")?.let { RicochetSpec.fromJson(it) },
             )
         }
     }

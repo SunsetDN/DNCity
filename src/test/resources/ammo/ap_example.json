@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "display": { "name": "Example 75 mm AP", "rarity": "COMMON" },
+  "item": { "max_stack_size": 16 },
+  "compatibility": { "gun_caliber_mm": 75, "weapon_tags": ["dncity:75mm_guns"] },
+  "projectile": {
+    "type": "AP",
+    "construction": "FULL_CALIBER",
+    "geometry": "OGIVE",
+    "diameter_mm": 75,
+    "mass_kg": 6.8,
+    "drag_coefficient": 0.35,
+    "muzzle_velocity_mps": 750,
+    "penetrator": { "material": "dncity:steel", "length_mm": 250, "density_kg_m3": 7850, "hardness_bhn": 550 }
+  },
+  "penetration": { "mode": "PHYSICS" },
+  "terminal": { "solver": "dncity:full_caliber_ap_demarre" },
+  "provenance": { "status": "FICTIONAL", "notes": "structure example only, not data" }
+}

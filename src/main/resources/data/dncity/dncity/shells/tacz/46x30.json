@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:46x30",
   "caliber_mm": 4.6,
-  "penetration": 0.4
+  "penetration": 0.4,
+  "small_arms": {
+    "mass_g": 2.0,
+    "diameter_mm": 4.65,
+    "velocity_mps": 720,
+    "velocity_note": "muzzle",
+    "source": "Wikipedia 'HK 4.6x30mm': DM11 2.0 g projectile at 720 m/s; bullet diameter 4.65 mm (infobox)",
+    "source_kind": "ENCYCLOPEDIA"
+  }
 }

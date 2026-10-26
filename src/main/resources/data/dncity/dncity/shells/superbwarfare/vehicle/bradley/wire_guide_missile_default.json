@@ -7,5 +7,12 @@
   ],
   "caliber_mm": 127,
   "penetration": 0.9,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 900,
+    "status": "ESTIMATE",
+    "source": "TOW-2A: no official figure; community estimates range about 800-1400 mm RHA, a low-middle value taken",
+    "source_url": "https://forum.realitymod.org/viewtopic.php?p=1597377"
+  }
 }

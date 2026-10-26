@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:556x45",
   "caliber_mm": 5.56,
-  "penetration": 0.3
+  "penetration": 0.3,
+  "small_arms": {
+    "mass_gr": 62,
+    "diameter_in": 0.224,
+    "velocity_fps": 3025,
+    "velocity_note": "78 ft from muzzle",
+    "source": "TM 43-0001-27 (C1-8), Cartridge, 5.56mm, Ball, M855: projectile weight 62 gr, velocity 3025 fps 78 ft from muzzle; diameter .224 in nominal",
+    "source_kind": "MILITARY_SPEC"
+  }
 }

@@ -1,0 +1,114 @@
+{
+  "vehicle": "superbwarfare:ztz_99a",
+  "layout": "tank",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 425,
+        "ce": 300,
+        "era": {
+          "ke": 225,
+          "ce": 600
+        }
+      },
+      "side": {
+        "ke": 80,
+        "ce": 80,
+        "era": {
+          "ce_reduction": 0.52,
+          "tile_m": 0.13
+        }
+      },
+      "rear": {
+        "ke": 40,
+        "ce": 40
+      },
+      "top": {
+        "ke": 40,
+        "ce": 40
+      },
+      "bottom": {
+        "ke": 20,
+        "ce": 20
+      }
+    },
+    "turret": {
+      "front": {
+        "ke": 575,
+        "ce": 500,
+        "era": {
+          "ke": 225,
+          "ce": 600
+        }
+      },
+      "side": {
+        "ke": 300,
+        "ce": 400
+      },
+      "rear": {
+        "ke": 50,
+        "ce": 50
+      },
+      "top": {
+        "ke": 40,
+        "ce": 40,
+        "era": {
+          "ce_reduction": 0.52,
+          "tile_m": 0.13
+        }
+      },
+      "bottom": {
+        "ke": 40,
+        "ce": 40
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 30,
+        "ce": 30
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "turret front KE 800",
+      "kind": "ESTIMATE",
+      "source": "forum bug-report figure 800 mm KE (disputed)",
+      "url": "https://forum.warthunder.com/t/ztz-99a-s-armor-are-chinese-tank-designers-not-smart-or-gaijin-make-the-wrong-armor-modle/162928"
+    },
+    {
+      "value": "CE 1100",
+      "kind": "ESTIMATE",
+      "source": "commander's interview: combined protection more than 1000 mm RHA",
+      "url": "https://en.wikipedia.org/wiki/Type_99_tank"
+    },
+    {
+      "value": "hull, sides, rear, roof",
+      "kind": "DESIGN",
+      "source": "no estimate found"
+    },
+    {
+      "value": "layout 'tank' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    },
+    {
+      "value": "front ERA: +225 mm vs KE, +600 mm vs CE (taken out of the front estimates, so intact the total is unchanged)",
+      "kind": "ESTIMATE",
+      "source": "ZTZ-99A (FY-4: no public figure found, assumed Kontakt-5 class): Kontakt-5 rated 200-250 mm vs APFSDS (middle used) and 600 mm vs HEAT",
+      "url": "https://en.wikipedia.org/wiki/Kontakt-5"
+    },
+    {
+      "value": "hull side / turret roof ERA: -52 % HEAT penetration, no KE effect, 0.13 m tile",
+      "kind": "ESTIMATE",
+      "source": "Kontakt-1-type bricks assumed there (placement is DESIGN): maker's claim 52 % for tank HEAT rounds (86 % Konkurs ATGM, 92 % RPG), no effect on KE; 252x130 mm panels (half the long side as tile radius)",
+      "url": "https://en.wikipedia.org/wiki/Kontakt-1"
+    }
+  ]
+}

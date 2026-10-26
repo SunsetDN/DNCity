@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:50ae",
   "caliber_mm": 12.7,
-  "penetration": 0.08
+  "penetration": 0.08,
+  "small_arms": {
+    "mass_gr": 300,
+    "diameter_in": 0.5,
+    "velocity_fps": 1475,
+    "velocity_note": "muzzle, test barrel length not stated",
+    "source": "Hornady Custom .50 AE 300 gr XTP: 1475 fps as listed by a retailer (Lucky Gunner); another retailer lists 1450 fps",
+    "source_kind": "RETAILER_LISTING"
+  }
 }

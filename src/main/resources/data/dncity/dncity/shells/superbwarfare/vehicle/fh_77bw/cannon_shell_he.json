@@ -13,5 +13,11 @@
   ],
   "caliber_mm": 155,
   "penetration": 0.25,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 50,
+    "status": "DESIGN",
+    "source": "155 mm HE; no estimate"
+  }
 }

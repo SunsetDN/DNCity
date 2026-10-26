@@ -7,5 +7,14 @@
   ],
   "caliber_mm": 30,
   "penetration": 0.5,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 88,
+    "range_m": 300,
+    "loss_per_km_mm": 28,
+    "status": "ESTIMATE",
+    "source": "GAU-8 PGU-14/B API: 76 mm at 300 m and 59 mm at 1,000 m of BHN-300 RHA at 30 degrees from vertical; converted to a square impact by the solver's own 1/cos rule (76/cos30 = 88, 59/cos30 = 68, i.e. 28 mm per km)",
+    "source_url": "https://en.wikipedia.org/wiki/GAU-8_Avenger"
+  }
 }

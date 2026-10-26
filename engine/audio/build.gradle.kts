@@ -1,3 +1,4 @@
+// AGENT-DONE(codex): msys2-native-toolchain
 import org.gradle.internal.os.OperatingSystem
 
 // Native audio capture/playback: a small JNI bridge (src/main/cpp) over the vendored miniaudio
@@ -63,20 +64,18 @@ val nativeLibName = when (nativeOs) {
 val nativeBuildDir = layout.buildDirectory.dir("native/$nativeClassifier")
 val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
-// Requires a C/C++ toolchain and CMake to be on PATH -- neither is bundled with this Gradle
-// build. On Windows this specifically means clang + LLVM's own ld.lld, targeting MinGW-w64 (not
-// MSVC) -- see CMakeLists.txt's comment on why (codec2's C99 `_Complex` usage needs mingw's libc;
-// clang can't provide working complex-number support against the MSVC ABI). The paths below are
-// this dev machine's actual toolchain layout (LLVM install, VS-bundled Ninja, and a MinGW-w64
-// sysroot -- headers/import libs only, read-only -- staged by Cygwin's mingw64-x86_64-gcc-core
-// package at C:\cygwin64\usr\x86_64-w64-mingw32); override via -PmingwSysroot=/-PmingwGccLib=/
-// -PninjaPath= if building on a different machine.
+// codec2 needs a real MinGW libc for its C99 `_Complex` arithmetic. Prefer the complete MSYS2
+// UCRT64 toolchain on Windows; every path remains overridable for non-default installations.
+val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+val cmakePath = (project.findProperty("cmakePath") as String?)
+    ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
+    ?: "cmake"
 val ninjaPath = (project.findProperty("ninjaPath") as String?)
-    ?: "C:/Program Files/Microsoft Visual Studio/18/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
-val mingwSysroot = (project.findProperty("mingwSysroot") as String?)
-    ?: "C:/cygwin64/usr/x86_64-w64-mingw32/sys-root/mingw"
-val mingwGccLib = (project.findProperty("mingwGccLib") as String?)
-    ?: "C:/cygwin64/lib/gcc/x86_64-w64-mingw32/14"
+    ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
+val clangPath = (project.findProperty("clangPath") as String?)
+    ?: msys2UcrtBin.resolve("clang.exe").absolutePath
+val clangCppPath = (project.findProperty("clangCppPath") as String?)
+    ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
 
 val configureNativeAudio = tasks.register<Exec>("configureNativeAudio") {
     inputs.file("CMakeLists.txt")
@@ -85,22 +84,16 @@ val configureNativeAudio = tasks.register<Exec>("configureNativeAudio") {
     outputs.dir(nativeBuildDir)
     workingDir = projectDir
     val args = mutableListOf(
-        "cmake", "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
+        cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
         "-DCMAKE_BUILD_TYPE=Release",
     )
     if (OperatingSystem.current().isWindows) {
         args += listOf(
             "-G", "Ninja",
             "-DCMAKE_MAKE_PROGRAM=$ninjaPath",
-            "-DCMAKE_C_COMPILER=clang",
-            "-DCMAKE_CXX_COMPILER=clang++",
-            "-DCMAKE_C_COMPILER_TARGET=x86_64-w64-mingw32",
-            "-DCMAKE_CXX_COMPILER_TARGET=x86_64-w64-mingw32",
-            "-DCMAKE_SYSROOT=$mingwSysroot",
-            "-DCMAKE_C_FLAGS=-B$mingwGccLib",
-            "-DCMAKE_CXX_FLAGS=-B$mingwGccLib",
-            "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -L$mingwGccLib",
-            "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -L$mingwGccLib",
+            "-DCMAKE_C_COMPILER=$clangPath",
+            "-DCMAKE_CXX_COMPILER=$clangCppPath",
+            "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic",
         )
     }
     commandLine(args)
@@ -113,7 +106,7 @@ val buildNativeAudio = tasks.register<Exec>("buildNativeAudio") {
     val destDir = nativeResourceDir.map { it.dir("natives/$nativeClassifier") }
     outputs.dir(destDir)
     workingDir = projectDir
-    commandLine("cmake", "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
+    commandLine(cmakePath, "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
     // Resolved to plain local values (not script-level property references) before doLast, so
     // the stored task action doesn't capture the enclosing build script object -- accessing a
     // top-level script val from inside doLast implicitly captures the whole script instance via

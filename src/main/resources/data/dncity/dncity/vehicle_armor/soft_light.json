@@ -1,0 +1,54 @@
+{
+  "vehicles": [
+    "superbwarfare:tiny_speedboat",
+    "superbwarfare:type_63"
+  ],
+  "layout": "car",
+  "soft": true,
+  "open_top": true,
+  "status": "DESIGN",
+  "_note": [
+    "open_top (DESIGN): the riders sit in the open (pickup bed and cab windows, boat, MLRS crew), so a warhead bursting on the vehicle reaches them in free air even when the plate stops it.",
+    "Unarmored vehicle: sheet metal is 0.5 mm RHA on every face (the user's value, 2026-10-25), not converted from a sourced figure: car outer skins are 0.6-0.8 mm sheet steel (see sources) and no sourced mild-steel-to-RHA factor was found.",
+    "'soft': small-arms rounds without an armor_penetration value use the mild-steel penetration the small-arms model derives for them (ballistics/smallarms/SteelPenetration) instead of being stopped.",
+    "No engine box: one uniform sheet."
+  ],
+  "zones": {
+    "hull": {
+      "all": {
+        "ke": 0.5,
+        "ce": 0.5
+      }
+    },
+    "turret": {
+      "all": {
+        "ke": 0.5,
+        "ce": 0.5
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 0.5,
+        "ce": 0.5
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "sheet metal 0.5",
+      "kind": "DESIGN",
+      "source": "user-chosen RHA-equivalent for car body sheet metal"
+    },
+    {
+      "value": "car outer skin 0.6-0.8 mm (context, not used as a number)",
+      "kind": "ESTIMATE",
+      "source": "patent application: outer skin parts for roofs, hoods, tailgates and doors are 0.6 to 0.8 mm; GM door outer panel listing 0.75 mm",
+      "url": "https://patents.justia.com/patent/20170001670"
+    },
+    {
+      "value": "layout 'car' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    }
+  ]
+}

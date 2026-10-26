@@ -1,0 +1,83 @@
+{
+  "vehicle": "superbwarfare:lav_25",
+  "layout": "ifv",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 25,
+        "ce": 25
+      },
+      "side": {
+        "ke": 10,
+        "ce": 10
+      },
+      "rear": {
+        "ke": 8,
+        "ce": 8
+      },
+      "top": {
+        "ke": 8,
+        "ce": 8
+      },
+      "bottom": {
+        "ke": 8,
+        "ce": 8
+      }
+    },
+    "turret": {
+      "front": {
+        "ke": 15,
+        "ce": 15
+      },
+      "side": {
+        "ke": 10,
+        "ce": 10
+      },
+      "rear": {
+        "ke": 10,
+        "ce": 10
+      },
+      "top": {
+        "ke": 8,
+        "ce": 8
+      },
+      "bottom": {
+        "ke": 8,
+        "ce": 8
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 5,
+        "ce": 5
+      }
+    }
+  },
+  "obb_zones": {
+    "14": "turret"
+  },
+  "sources": [
+    {
+      "value": "hull 4.71-9.71 mm HHS (side 10); A2 appliqué vs 14.5 mm AP (front 25)",
+      "kind": "ESTIMATE",
+      "source": "Wikipedia, LAV-25",
+      "url": "https://en.wikipedia.org/wiki/LAV-25"
+    },
+    {
+      "value": "turret, wheels",
+      "kind": "DESIGN",
+      "source": "no estimate found"
+    },
+    {
+      "value": "layout 'ifv' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    }
+  ]
+}

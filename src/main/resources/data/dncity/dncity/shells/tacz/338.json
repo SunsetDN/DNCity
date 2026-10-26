@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:338",
   "caliber_mm": 8.58,
-  "penetration": 0.55
+  "penetration": 0.55,
+  "small_arms": {
+    "mass_gr": 250,
+    "diameter_in": 0.338,
+    "velocity_mps": 905,
+    "velocity_note": "muzzle, 680 mm test barrel",
+    "source": "Lapua .338 Lapua Mag Scenar 250 gr (4318017): 905 m/s from a 680 mm test barrel (lapua.com product page; same figure on nammo.com)",
+    "source_kind": "MANUFACTURER"
+  }
 }

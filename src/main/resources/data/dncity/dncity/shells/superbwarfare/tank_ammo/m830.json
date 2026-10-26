@@ -1,0 +1,21 @@
+{
+  "ammo": "120mm M830 HEAT-MP-T",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:m830",
+  "tags": [
+    "cannon",
+    "tank",
+    "heat"
+  ],
+  "caliber_mm": 120,
+  "penetration": 0.4,
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 480,
+    "filler_kg": 1.6,
+    "status": "WAR_THUNDER",
+    "source": "No public penetration figure; War Thunder reference 480 mm at every range, 1140 m/s. filler_kg DESIGN",
+    "source_url": "https://old-wiki.warthunder.com/M256_(120_mm)/Ammunition"
+  }
+}

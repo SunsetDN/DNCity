@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:30_06",
   "caliber_mm": 7.62,
-  "penetration": 0.4
+  "penetration": 0.4,
+  "small_arms": {
+    "mass_gr": 150,
+    "diameter_in": 0.308,
+    "velocity_fps": 2740,
+    "velocity_note": "78 ft from muzzle (TM); bullet weight from Wikipedia",
+    "source": "TM 43-0001-27 (C1-8), Cartridge, Caliber .30, Ball, M2: velocity 2740 fps 78 ft from muzzle (the TM card gives no projectile weight); 150 gr flat-base bullet per Wikipedia '.30-06 Springfield' (its History section says 152 gr; conflict not resolved)",
+    "source_kind": "MILITARY_SPEC"
+  }
 }

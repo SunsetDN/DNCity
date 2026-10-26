@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:762x25",
   "caliber_mm": 7.62,
-  "penetration": 0.12
+  "penetration": 0.12,
+  "small_arms": {
+    "mass_g": 5.5,
+    "diameter_in": 0.308,
+    "velocity_mps": 430,
+    "velocity_note": "muzzle, TT-33 pistol",
+    "source": "modernfirearms.net '7.62x25 TT': 57-N-134S 5.5 g at 430 m/s from a TT-33; diameter .308 in nominal (Wikipedia '7.62x25mm Tokarev')",
+    "source_kind": "ENCYCLOPEDIA"
+  }
 }

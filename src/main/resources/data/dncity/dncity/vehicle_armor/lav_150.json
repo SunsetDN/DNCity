@@ -1,0 +1,74 @@
+{
+  "vehicle": "superbwarfare:lav_150",
+  "layout": "ifv",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 12,
+        "ce": 12
+      },
+      "side": {
+        "ke": 8,
+        "ce": 8
+      },
+      "rear": {
+        "ke": 7,
+        "ce": 7
+      },
+      "top": {
+        "ke": 6,
+        "ce": 6
+      },
+      "bottom": {
+        "ke": 6,
+        "ce": 6
+      }
+    },
+    "turret": {
+      "front": {
+        "ke": 10,
+        "ce": 10
+      },
+      "side": {
+        "ke": 8,
+        "ce": 8
+      },
+      "rear": {
+        "ke": 8,
+        "ce": 8
+      },
+      "top": {
+        "ke": 6,
+        "ce": 6
+      },
+      "bottom": {
+        "ke": 6,
+        "ce": 6
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 5,
+        "ce": 5
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "all",
+      "kind": "DESIGN",
+      "source": "no armor estimate found for the V-150; thin steel against small arms"
+    },
+    {
+      "value": "layout 'ifv' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    }
+  ]
+}

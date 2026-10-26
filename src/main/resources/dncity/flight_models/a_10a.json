@@ -1,0 +1,140 @@
+{
+  "vehicle": "superbwarfare:a_10a",
+  "type": "fixed_wing",
+  "sources": [
+    "https://wiki.warthunder.com/unit/a_10a_early",
+    "https://en.wikipedia.org/wiki/Fairchild_Republic_A-10_Thunderbolt_II#Specifications_(A-10C)",
+    "https://www.ecfr.gov/current/title-14/chapter-I/subchapter-C/part-25/subpart-C/section-25.303"
+  ],
+  "notes": [
+    "Mass is the A-10C gross weight; SuperbWarfare models the A-10A, same airframe and engines.",
+    "polar.cl_max DERIVED from the sourced stall speed 120 kn at 30,000 lb: CLmax = 2 W / (rho Vs^2 S) = 1.22.",
+    "ultimate_factor 1.5: the limit-to-ultimate load factor of safety of 14 CFR 25.303 (also MIL-A-8860).",
+    "War Thunder fit (user request 2026-10-25): numbers marked WAR_THUNDER are the official wiki characteristics of the upgraded aircraft in Realistic Battles. Three targets, three knobs: the climb rate scales the thrust (fit_climb) while cd_min keeps the top speed (derive_cd_min_from), then cl_max/Oswald are fitted to the turn time (fit_turn_time). Turn time and climb are taken at sea level: the wiki gives no altitude for them. The engine figures below are the real ones before scaling.",
+    "G limit is War Thunder's wing-break load: ultimate_factor 1.0; the instructor stops at 90 % of it.",
+    "mass_kg DERIVED: War Thunder base weight 11.96 t plus 30 min of its 4.85 t / 85 min of fuel."
+  ],
+  "mass_kg": 13670,
+  "wing_area_m2": 47.0,
+  "wingspan_m": 17.53,
+  "polar": {
+    "cl0": 0.2,
+    "cl_max": 1.22,
+    "cl_min": -0.8,
+    "oswald": 0.8,
+    "stall_width_deg": 6
+  },
+  "flaps": {
+    "d_cl0": 0.3,
+    "d_cl_max": 0.5,
+    "d_cd_min": 0.03
+  },
+  "mach": {
+    "critical": 0.7,
+    "wave_drag_peak": 0.06
+  },
+  "gear_cd": 0.02,
+  "airbrake_cd": 0.08,
+  "engine": {
+    "kind": "jet",
+    "count": 2,
+    "static_thrust_n": 40320,
+    "density_exponent": 0.7,
+    "mach_lapse": 0.35,
+    "spool_time_s": 4
+  },
+  "controls": {
+    "full_authority_ias_mps": 55,
+    "compression_start_ias_mps": 210,
+    "compression_end_ias_mps": 250,
+    "compression_floor": 0.5
+  },
+  "handling": {
+    "max_roll_rate_deg_s": 120,
+    "max_pitch_rate_deg_s": 45,
+    "max_yaw_rate_deg_s": 15,
+    "yaw_stability_per_s": 2.0,
+    "aoa_response_per_s": 6.0,
+    "stall_nose_drop_deg_s": 15,
+    "side_force_per_rad": 0.6,
+    "instructor_aoa_margin": 0.85
+  },
+  "limits": {
+    "load_factor_pos": 9.0,
+    "load_factor_neg": -3.0,
+    "ultimate_factor": 1.0,
+    "vne_ias_mps": 242.8,
+    "vne_mach": 0.8,
+    "flaps_max_ias_mps": 102.8,
+    "gear_max_ias_mps": 102.8
+  },
+  "ground": {
+    "rolling_friction": 0.03,
+    "brake_friction": 0.4,
+    "lateral_friction": 0.8
+  },
+  "derive_cd_min_from": {
+    "max_speed_mps": 184.7,
+    "altitude_m": 0,
+    "with_wep": false
+  },
+  "fit_turn_time": {
+    "turn_time_s": 30.3,
+    "altitude_m": 0,
+    "with_wep": false
+  },
+  "fit_climb": {
+    "climb_mps": 20.6,
+    "altitude_m": 0
+  },
+  "provenance": {
+    "mass_kg": "DERIVED",
+    "wing_area_m2": "SOURCED",
+    "wingspan_m": "SOURCED",
+    "polar.cl0": "ESTIMATE",
+    "polar.cl_max": "DERIVED",
+    "polar.cl_min": "ESTIMATE",
+    "polar.oswald": "ESTIMATE",
+    "polar.stall_width_deg": "DESIGN",
+    "flaps.d_cl0": "ESTIMATE",
+    "flaps.d_cl_max": "ESTIMATE",
+    "flaps.d_cd_min": "ESTIMATE",
+    "mach.critical": "ESTIMATE",
+    "mach.wave_drag_peak": "ESTIMATE",
+    "gear_cd": "ESTIMATE",
+    "airbrake_cd": "ESTIMATE",
+    "engine.count": "SOURCED",
+    "engine.static_thrust_n": "SOURCED",
+    "engine.density_exponent": "ESTIMATE",
+    "engine.mach_lapse": "ESTIMATE",
+    "engine.spool_time_s": "ESTIMATE",
+    "controls.full_authority_ias_mps": "DESIGN",
+    "controls.compression_start_ias_mps": "DESIGN",
+    "controls.compression_end_ias_mps": "DESIGN",
+    "controls.compression_floor": "DESIGN",
+    "handling.max_roll_rate_deg_s": "ESTIMATE",
+    "handling.max_pitch_rate_deg_s": "DESIGN",
+    "handling.max_yaw_rate_deg_s": "DESIGN",
+    "handling.yaw_stability_per_s": "DESIGN",
+    "handling.aoa_response_per_s": "DESIGN",
+    "handling.stall_nose_drop_deg_s": "DESIGN",
+    "handling.side_force_per_rad": "ESTIMATE",
+    "handling.instructor_aoa_margin": "DESIGN",
+    "limits.load_factor_pos": "WAR_THUNDER",
+    "limits.load_factor_neg": "WAR_THUNDER",
+    "limits.ultimate_factor": "DESIGN",
+    "limits.vne_ias_mps": "WAR_THUNDER",
+    "ground.rolling_friction": "ESTIMATE",
+    "ground.brake_friction": "ESTIMATE",
+    "ground.lateral_friction": "DESIGN",
+    "derive_cd_min_from.max_speed_mps": "WAR_THUNDER",
+    "derive_cd_min_from.altitude_m": "WAR_THUNDER",
+    "fit_turn_time.turn_time_s": "WAR_THUNDER",
+    "fit_turn_time.altitude_m": "DESIGN",
+    "limits.vne_mach": "WAR_THUNDER",
+    "limits.flaps_max_ias_mps": "WAR_THUNDER",
+    "limits.gear_max_ias_mps": "WAR_THUNDER",
+    "fit_climb.climb_mps": "WAR_THUNDER",
+    "fit_climb.altitude_m": "DESIGN"
+  }
+}

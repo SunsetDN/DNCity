@@ -1,6 +1,9 @@
 // AGENT-DONE(claude): terminal-ballistics-traversal
 package io.github.jwyoon1220.dncity.ballistics.terminal
 
+import io.github.jwyoon1220.dncity.ballistics.terminal.nera.NeraBulgeModel
+import io.github.jwyoon1220.dncity.ballistics.terminal.nera.NeraParameters
+
 /** The loaded catalogs as plain collections, so validation does not care where they came from (data reload or a test). */
 class BallisticsCatalogView(
     val materials: Collection<ArmorMaterial>,
@@ -38,12 +41,24 @@ object BallisticsValidation {
         fun checkLayer(owner: Ident, layer: ArmorLayer) {
             if (layer.materialId !in view.materialIds) problems += "$owner: unknown material ${layer.materialId}"
         }
+        val effectById = view.effects.associateBy { it.id }
+        val materialById = view.materials.associateBy { it.id }
+        for (e in view.effects) if (e.solver == NeraBulgeModel.ID) {
+            try { NeraParameters.of(e) } catch (x: IllegalArgumentException) { problems += "effect ${e.id}: ${x.message}" }
+        }
         for (c in view.constructions) {
             for (e in c.elements) when (e) {
                 is ArmorElement.Solid -> checkLayer(c.id, e.layer)
                 is ArmorElement.EffectPackage -> {
                     e.layers.forEach { checkLayer(c.id, it) }
                     if (e.effectId !in view.effectIds) problems += "${c.id}: unknown effect ${e.effectId}"
+                    if (effectById[e.effectId]?.solver == NeraBulgeModel.ID) {
+                        val classes = e.layers.map { materialById[it.materialId]?.materialClass }
+                        if (e.layers.size != 3) problems += "${c.id}: NERA effect ${e.effectId} needs plate/elastomer/plate, got ${e.layers.size} layers"
+                        else if (classes[1] != MaterialClass.ELASTOMER || classes[0] == MaterialClass.ELASTOMER || classes[2] == MaterialClass.ELASTOMER) {
+                            problems += "${c.id}: NERA effect ${e.effectId} needs an elastomer between two plates, got $classes"
+                        }
+                    }
                 }
                 is ArmorElement.Gap -> Unit
                 is ArmorElement.InternalSpace -> Unit

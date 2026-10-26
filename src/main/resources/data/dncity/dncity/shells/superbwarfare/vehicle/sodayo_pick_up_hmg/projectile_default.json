@@ -1,0 +1,19 @@
+{
+  "ammo": ".50 cal machine gun (sodayo_pick_up_hmg)",
+  "entity": "superbwarfare:projectile",
+  "key": "superbwarfare:sodayo_pick_up_hmg",
+  "tags": [
+    "machine_gun"
+  ],
+  "caliber_mm": 12.7,
+  "penetration": 0.3,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 20,
+    "range_m": 500,
+    "loss_per_km_mm": 20,
+    "status": "ESTIMATE",
+    "source": ".50 M2 AP: about 20 mm RHA at 500 m (unverified secondary source, same as the cartridge catalog). SuperbWarfare's .50 gun does not name its ammunition; taken as AP. loss_per_km_mm is DESIGN",
+    "source_url": "https://modernfirearms.net/en/cartridge/50-bmg-2/"
+  }
+}

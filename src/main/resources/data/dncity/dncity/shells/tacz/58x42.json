@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:58x42",
   "caliber_mm": 5.8,
-  "penetration": 0.32
+  "penetration": 0.32,
+  "small_arms": {
+    "mass_g": 4.15,
+    "diameter_mm": 5.8,
+    "velocity_mps": 930,
+    "velocity_note": "muzzle, 463 mm barrel",
+    "source": "Wikipedia '5.8x42mm': DBP87 4.15 g FMJ at 930 m/s from a 463 mm barrel; bullet diameter 5.8 mm (infobox)",
+    "source_kind": "ENCYCLOPEDIA"
+  }
 }

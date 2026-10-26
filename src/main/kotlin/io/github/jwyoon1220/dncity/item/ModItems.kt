@@ -30,5 +30,8 @@ object ModItems {
      * placed block (see that class's doc comment), not a handheld item like the other four. */
     val RADIO_STATION by REGISTRY.register("radio_station") { -> BlockItem(ModBlocks.RADIO_STATION, Item.Properties()) }
 
+    /** One item for every ammo in the data packs; the kind is the [ModDataComponents.AMMO_ID] component, see [AmmoItem]. */
+    val AMMO by REGISTRY.register("ammo") { -> AmmoItem(Item.Properties()) }
+
     val ALL_RADIOS get() = listOf(RADIO_MW, RADIO_HF, RADIO_VHF, RADIO_RECEIVER, RADIO_STATION)
 }

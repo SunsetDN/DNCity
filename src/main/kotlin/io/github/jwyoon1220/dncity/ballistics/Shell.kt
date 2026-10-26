@@ -1,6 +1,8 @@
 // AGENT-DONE(claude): shell-ballistics
 package io.github.jwyoon1220.dncity.ballistics
 
+import io.github.jwyoon1220.dncity.ballistics.smallarms.BulletSpec
+import io.github.jwyoon1220.dncity.ballistics.vehicle.PenetratorSpec
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceLocation
 import kotlin.math.ln
@@ -39,6 +41,10 @@ data class Shell(
     val item: ResourceLocation?,
     /** Free-form labels a weapon module can ask for ("cannon", "tank", "ap"); no fixed list. */
     val tags: Set<String>,
+    /** Sourced bullet mass/diameter/velocity for small-arms penetration (blocks, body armor); null = not modelled. */
+    val smallArms: BulletSpec? = null,
+    /** What it penetrates on a SuperbWarfare vehicle (`armor_penetration`); null = no armor check, SuperbWarfare's own damage. */
+    val armorPenetration: PenetratorSpec? = null,
 ) {
     /** How much wider than a reference rifle wound this shell's wound is (square root of the caliber ratio). */
     val woundFactor: Float

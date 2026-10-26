@@ -1,0 +1,23 @@
+{
+  "ammo": "120mm M829A2 APFSDS-T",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:m829a2",
+  "tags": [
+    "cannon",
+    "tank",
+    "apfsds"
+  ],
+  "caliber_mm": 120,
+  "penetration": 1.0,
+  "explosive": false,
+  "fracture_chance_bonus": 0.3,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 700,
+    "range_m": 2000,
+    "loss_per_km_mm": 45,
+    "status": "ESTIMATE",
+    "source": "valka.cz table: about 790 mm RHAe at the muzzle, 700 +- 100 mm at 2000 m (1551 m/s), 1680 m/s; War Thunder reference 629 -> 590 mm",
+    "source_url": "https://en.valka.cz/topic/view/185004"
+  }
+}

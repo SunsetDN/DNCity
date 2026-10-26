@@ -7,5 +7,11 @@
   ],
   "caliber_mm": 25,
   "penetration": 0.5,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 8,
+    "status": "DESIGN",
+    "source": "25 mm anti-air HEI; no estimate"
+  }
 }

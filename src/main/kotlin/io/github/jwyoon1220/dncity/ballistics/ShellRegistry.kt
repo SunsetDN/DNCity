@@ -6,6 +6,8 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.mojang.serialization.JsonOps
 import io.github.jwyoon1220.dncity.Dncity
+import io.github.jwyoon1220.dncity.ballistics.smallarms.BulletSpec
+import io.github.jwyoon1220.dncity.ballistics.vehicle.PenetratorSpec
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtUtils
@@ -36,7 +38,8 @@ import java.util.concurrent.ConcurrentHashMap
  * }
  * ```
  * Optional: `key`, `nbt`, `item`, `tags`, `damage_multiplier` (1), `damage_is_limb_hp` (false), `bleed_chance_bonus` (0),
- * `heavy_bleed_hit_fraction`, `fracture_chance_bonus` (0), `overkill_factor`, `explosive` (false).
+ * `heavy_bleed_hit_fraction`, `fracture_chance_bonus` (0), `overkill_factor`, `explosive` (false), `small_arms` (sourced
+ * bullet mass/diameter/velocity, see [io.github.jwyoon1220.dncity.ballistics.smallarms.BulletSpec]).
  *
  * How a projectile gets its shell, in this order:
  * 1. a weapon (a modular tank's gun module, anything) said so when it fired: [stamp];
@@ -126,7 +129,7 @@ object ShellRegistry : SimpleJsonResourceReloadListener(Gson(), "dncity/shells")
     }
 
     /** Default key: the type of the vehicle (or vehicle module) the shooter is riding when the projectile is in flight. */
-    private fun shooterVehicleKey(entity: Entity): String? {
+    fun shooterVehicleKey(entity: Entity): String? {
         val owner = (entity as? Projectile)?.owner ?: return null
         val vehicle = owner.rootVehicle
         if (vehicle === owner) return null
@@ -175,6 +178,8 @@ object ShellRegistry : SimpleJsonResourceReloadListener(Gson(), "dncity/shells")
             explosive = flag("explosive"),
             item = if (json.has("item")) ResourceLocation.parse(json.get("item").asString) else null,
             tags = if (json.has("tags")) json.getAsJsonArray("tags").map { it.asString }.toSet() else emptySet(),
+            smallArms = json.getAsJsonObject("small_arms")?.let { BulletSpec.fromJson(it) },
+            armorPenetration = json.getAsJsonObject("armor_penetration")?.let { PenetratorSpec.fromJson(it) },
         )
     }
 }

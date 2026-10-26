@@ -7,5 +7,14 @@
   ],
   "caliber_mm": 25,
   "penetration": 0.5,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 90,
+    "range_m": 100,
+    "loss_per_km_mm": 30,
+    "status": "ESTIMATE",
+    "source": "25 mm GAU-12 taken as M791 APDS-T like the Bradley/LAV-25 files (about 80-100 mm RHA at 100 m, forum compilation); the 40 mm AP fires the same entity and shares it. loss_per_km_mm is DESIGN",
+    "source_url": "https://forum.warthunder.com/t/298300"
+  }
 }

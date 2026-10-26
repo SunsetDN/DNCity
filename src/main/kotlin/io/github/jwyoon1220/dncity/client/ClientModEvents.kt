@@ -21,6 +21,10 @@ import net.neoforged.fml.common.EventBusSubscriber
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
 import net.neoforged.neoforge.client.event.ClientTickEvent
+import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent
+import io.github.jwyoon1220.dncity.client.render.BallisticArmorBar
+import io.github.jwyoon1220.dncity.client.render.VehicleHitCamOverlay
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory
 import net.neoforged.neoforge.common.NeoForge
@@ -35,6 +39,14 @@ import org.apache.logging.log4j.Level
 @Suppress("removal")
 @EventBusSubscriber(modid = Dncity.ID, bus = EventBusSubscriber.Bus.MOD, value = [Dist.CLIENT])
 object ClientModEvents {
+    /** War Thunder-style hit camera after hitting an armored vehicle, see [VehicleHitCamOverlay]. */
+    @SubscribeEvent
+    fun onRegisterGuiLayers(event: RegisterGuiLayersEvent) {
+        event.registerAboveAll(VehicleHitCamOverlay.ID, VehicleHitCamOverlay)
+        // Red ballistic armor row above vanilla's armor row
+        event.registerAbove(VanillaGuiLayers.ARMOR_LEVEL, BallisticArmorBar.ID, BallisticArmorBar)
+    }
+
     @SubscribeEvent
     fun onRegisterKeyMappings(event: RegisterKeyMappingsEvent) {
         event.register(ModKeyMappings.RADIO_PTT)
@@ -72,6 +84,9 @@ object ClientModEvents {
         NeoForge.EVENT_BUS.addListener(::onPhoneLogout)
         NeoForge.EVENT_BUS.addListener(::onPhoneToggleKey)
         NeoForge.EVENT_BUS.addListener(::onPhoneNanoVgTick)
+
+        // Body armor wear tooltip (see compat.TaczSmallArmsBridge)
+        NeoForge.EVENT_BUS.addListener(BallisticArmorBar::onTooltip)
 
         // Makes VoiceSettingsScreen reachable from this mod's "Config" button in the Mods list.
         ModList.get().getModContainerById(Dncity.ID).ifPresent { container ->

@@ -39,6 +39,8 @@ data class TraversalState(
     val blasts: List<BlastSource>,
     val consumedEffects: List<EffectSlot>,
     val phase: TraversalPhase,
+    /** Ruptures left in interaction armor on this passage, committed by [ArmorRuntimeState.commit]. */
+    val tears: List<SlottedTear> = emptyList(),
 ) {
     val position: V3 get() = projectile.position
     val direction: V3 get() = projectile.velocity.normalize()
@@ -213,7 +215,7 @@ class ArmorTraverser(
                     return null
                 }
                 val ctx = contextAt(index, layerIndex, domainOf(phase))
-                val invocation = EffectInvocation(phase, ctx, pack, spec, slot, layerIndex, layerResult)
+                val invocation = EffectInvocation(phase, ctx, pack, spec, slot, layerIndex, layerResult, runtime)
                 val r = model.interact(invocation)
 
                 // contract: consumption is only for single-use effects
@@ -234,6 +236,7 @@ class ArmorTraverser(
                     spall = state.spall + r.generatedSpall,
                     blasts = if (r.generatedBlast != null) state.blasts + r.generatedBlast else state.blasts,
                     consumedEffects = if (r.consumeRuntimeEffect) state.consumedEffects + slot else state.consumedEffects,
+                    tears = if (r.tears.isEmpty()) state.tears else state.tears + r.tears.map { SlottedTear(slot, it) },
                 )
                 if (r.consumeRuntimeEffect) available = false
                 events += TraversalEvent(EventKind.EFFECT_CALLED, index, layerIndex, phase, null, ctx.angleFromNormalRad, 0.0)

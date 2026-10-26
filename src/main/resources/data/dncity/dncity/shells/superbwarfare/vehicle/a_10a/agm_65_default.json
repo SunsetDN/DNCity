@@ -7,5 +7,11 @@
   ],
   "caliber_mm": 305,
   "penetration": 0.8,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 1000,
+    "status": "DESIGN",
+    "source": "AGM-65 A/B/D/H: 57 kg WDU-20/B shaped charge (Wikipedia); no penetration figure is published, chosen to defeat any tank in the game"
+  }
 }

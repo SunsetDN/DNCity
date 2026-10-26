@@ -13,7 +13,7 @@
 	branch = 1.21-rewrite
 [submodule "mods/SuperbWarfare"]
 	path = mods/SuperbWarfare
-	url = https://github.com/Mercurows/SuperbWarfare
+	url = https://github.com/SunsetDN/SuperbWarfare
 	branch = 1.21
 [submodule "mods/ModernUI-MC"]
 	path = mods/ModernUI-MC

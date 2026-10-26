@@ -117,11 +117,12 @@ reuse the root project's Gradle wrapper distribution; neither has its own `gradl
   actually calls, not a general-purpose FMOD binding; extending it means hand-declaring more
   functions/structs the same way (see `fmod_min.h`'s file comment for how the current set's
   correctness was verified without the real FMOD headers on hand: cross-checked byte-for-byte
-  against this module's old jextract-generated bindings before they were deleted). Builds with
-  plain MSVC on Windows (`CMakeLists.txt`, default generator — no clang/MinGW toolchain dance
-  needed here, unlike `engine/audio`'s codec2 work, since there's no C99 `_Complex`-style
-  constraint) linked directly against the vendored `fmod_vc.lib`/`fmodstudio_vc.lib` import
-  libraries. `FModLoad` extracts this module's own DLL to a plain `File.createTempFile` location
+  against this module's old jextract-generated bindings before they were deleted). The Windows
+  build uses the MSYS2 UCRT64 CMake/Clang/Ninja toolchain (auto-detected under
+  `C:/msys64/ucrt64/bin`) and links directly against the vendored
+  `fmod_vc.lib`/`fmodstudio_vc.lib` import libraries. MinGW's C++ and pthread runtimes are linked
+  statically, so the jar does not need MSYS2 runtime DLLs. `FModLoad` extracts this module's own
+  DLL to a plain `File.createTempFile` location
   in the OS temp root, deliberately *not* into the same subdirectory as `fmod.dll`/`fmodstudio.dll`
   (unlike those, which must share a directory for Windows to resolve fmodstudio's dependency on
   fmod by name) — on this dev machine, an unsigned freshly-built DLL extracted into a *subdirectory*
@@ -155,21 +156,19 @@ reuse the root project's Gradle wrapper distribution; neither has its own `gradl
     (it only searches `java.library.path`) — `NativeLibrary.load()` extracts it to a temp file
     and `System.load`s the absolute path instead, idempotently so either class's static
     initializer can trigger it first.
-  - **Build toolchain: clang targeting `x86_64-w64-mingw32` (MinGW-w64), not MSVC** — codec2's
+  - **Build toolchain: MSYS2 UCRT64 CMake/Clang/Ninja (MinGW-w64), not MSVC** — codec2's
     sources use real C99 `_Complex` arithmetic (`fsk.c`, `fmfsk.c`, `ofdm.c`, ...), which clang
     cannot provide against the MSVC ABI (MSVC's own CRT has never supported `_Complex`, and
     clang's MSVC-target `<complex.h>` is a no-op there — confirmed by hand: `complex float`
     fails to parse at all under `--target=x86_64-pc-windows-msvc`). mingw's libc genuinely
     supports it, so the whole module (not just codec2) builds against mingw instead; see
-    `CMakeLists.txt`'s and `build.gradle.kts`'s comments for the exact flags. Linking uses only
-    `clang.exe`/LLVM's own `ld.lld.exe` plus a MinGW-w64 sysroot's headers/import libraries
-    (read-only, never executed) — no MinGW-w64-provided *binary* is invoked, which matters on
-    this dev machine specifically because its Application Control policy (AppLocker/WDAC) blocks
-    the only installed MinGW-w64 toolchain binary (`x86_64-w64-mingw32-g++`, via Cygwin) from
-    running at all. `jni_audio.cpp`'s cross-thread noise-gate fields use `__atomic_load`/
-    `__atomic_store` compiler builtins on plain fields rather than `std::atomic`, since this
-    dev machine's MinGW-w64 sysroot has no libstdc++ headers installed (C runtime only, no
-    `<atomic>`) — the builtins need no header. `./gradlew -p engine/audio build` (or the root
+    `CMakeLists.txt`'s and `build.gradle.kts`'s comments for the exact flags. Gradle auto-detects
+    a standard `C:/msys64/ucrt64` installation and invokes its Windows-native `cmake.exe`,
+    `clang.exe`, `clang++.exe`, and `ninja.exe` by absolute path, so neither an MSYS shell nor a
+    PATH change is required. `jni_audio.cpp`'s cross-thread noise-gate fields use `__atomic_load`/
+    `__atomic_store` compiler builtins on plain fields rather than `std::atomic`; the builtins
+    keep that cross-thread state independent of C++ standard-library headers. `./gradlew -p
+    engine/audio build` (or the root
     build, which depends on it) has been verified working end-to-end on this dev machine,
     including a smoke test that loads the built DLL, calls `NativeAudio.init()`, and round-trips
     a codec2 encode/decode.
@@ -227,7 +226,9 @@ of these; only the load-bearing gotchas are repeated here:
   breaking the `ChunkStatus` import for MC 1.21.1 specifically). Included in the composite
   *without* a `dependencySubstitution` (same reasoning as ModernUI-MC/VoxelMap/Sound Physics
   Remastered above — its `neoforge` subproject's `shadowJar` produces a `-all.jar` alongside
-  plain/dev/sources variants), consumed as a plain file dependency on that `-all.jar` and kept
+  plain/dev/sources variants), consumed as a plain file dependency on its **`remapJar`** output (the
+  unclassified jar: the shaded `-all.jar` plus `META-INF/accesstransformer.cfg` converted from DH's access widener; the `-all.jar`
+  alone makes DH's `MixinOptionsScreen` crash with `IllegalAccessError` on `HeaderAndFooterLayout.headerFrame`) and kept
   built via the same task-dependency pattern. Iris shader-pack compatibility: DH's own
   `RenderBufferHandler.buildRenderList` (in `coreSubProjects/core`) already detects
   `IrisApi.isRenderingShadowPass()`, but upstream always submits LOD geometry to the shadow pass
@@ -370,10 +371,9 @@ native rendering to draw into directly. No in-game feature consumes this yet; `/
   shape as `engine/audio`/`engine/fmod` (own `settings.gradle.kts`, own `build.gradle.kts`
   wired into the root via `includeBuild` + `dependencySubstitution` +
   `implementation`/`jarJar`/`additionalRuntimeClasspathConfiguration`, exactly like `engine:audio`).
-  **Windows-only today** — like `engine/fmod`, Win32 windowing needs nothing beyond the default
-  MSVC toolchain (`user32.lib`; no C99 `_Complex`-style constraint like `engine/audio`'s codec2
-  work), so it copies `engine/fmod`'s simpler CMake/Gradle shape rather than `engine/audio`'s
-  clang+MinGW one. `NativeWindowLibrary.java` mirrors `engine/audio`'s `NativeLibrary.java`
+  **Windows-only today** — like `engine/fmod`, it builds with the MSYS2 UCRT64
+  CMake/Clang/Ninja toolchain and links `user32`/`gdi32`; unlike `engine/audio`, it has no codec2
+  C99 `_Complex` constraint. `NativeWindowLibrary.java` mirrors `engine/audio`'s `NativeLibrary.java`
   exactly (`natives/<os>-<arch>/` resource layout, `File.createTempFile` straight into the OS
   temp root — not a subdirectory, for the same AppLocker/WDAC-safe-extraction reason already
   documented for `engine/fmod`'s `FModLoad`). `NativeWindow.java`'s native declarations
@@ -585,6 +585,9 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   Interception is skipped while `connection == null || tickCount <= 0` (NBT load, `ServerPlayer#restoreFrom`
   copies vanilla health *before* attachments exist) and inside `CommonUtils.runWithoutSetHealthInterception`.
   The old `SynchedEntityDataWrapper` hack was dead code (excluded in `build.gradle`) and is deleted.
+  HUD: client `vanillaHealthBarMode` defaults to `NORMAL` — vanilla hearts show the limb pool mapped onto 20 (`TOTAL_POOL`:
+  sum of limb hp / total limb max x max health); per-limb health is First Aid's own body overlay (`overlayMode` PLAYER_MODEL,
+  `overlayPosition` TOP_RIGHT, user 2026-10-26: the readout above the hotbar is gone; `HIDE` still draws it in place of the hearts).
 - **`HealthUnits`** — engine units (limb hit points) vs vanilla units (what `hurt()/heal()/setHealth()`
   and the item configs' "half heart" speak). `damageScaleMode=AUTO` (default) maps them linearly
   (`total limb hp / vanilla max health`, 20.5 for the defaults), so vanilla-balanced mods keep working;
@@ -604,6 +607,18 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
   quickly and closes every bleed. `ItemHealing#canTreat` replaced the "part is not full" checks (server
   `MessageApplyHealingItem`, `GuiHealthScreen`, `ClientEventHandler`). `/firstaid injury <player> ...` sets
   or clears bleeds/fractures; the HUD marks them `B`/`BB`/`F`.
+- **Wound care + Tarkov-level kit** (marker `realistic-wound-care`) — per part: `dressedWound` (a stopped bleed stays
+  dressed; a *new hit* on that part reopens it, moving does not; only a suture kit closes it), `tourniquetTicks` (a tourniquet
+  stops a limb's bleed at once and starts an ischemia clock: 2 h real (TCCC proposed change 25-2, SOURCED) / 6 h limb loss
+  (ESTIMATE), run `medicalTimeCompression` (default 20) times faster, i.e. 6 / 18 game minutes; past the safe time the limb
+  drains `ischemiaPercentPerSecond`, past the loss time it is destroyed; a dressing strong enough for the wound converts it
+  (bandage/plaster: light, hemostatic gauze/trauma kit: heavy), suture takes it off) and `surgeryPenalty`. A non-critical limb at
+  0 hp is *destroyed*: `heal()`, medkits, natural regen and bandages skip it; only `surgical_kit` (-30 % max) / `field_surgical_kit`
+  (-15 %) restore it to 1 hp; respawn and an external `setHealth(max)` restore everything. New items: `car_first_aid_kit`, `ifak`,
+  `afak`, `field_medkit` (`ItemMedkit`: durability = resource pool in limb hp, bleed/fracture cost paid first, then only the hp the
+  part needs; `MessageApplyHealingItem` charges the plan's cost), `cat_tourniquet`, `hemostatic_gauze`, `aluminum_splint`,
+  `suture_kit`, `surgical_kit`, `field_surgical_kit`; all counts/costs/times are DESIGN. HUD markers: `X` destroyed, `T<min>` /
+  `T!` tourniquet, `W` dressed wound. Icons/models/recipes/lang are generated (no generator script kept in the repo).
 - **Verification** — `./gradlew runGameTestServer` inside `mods/First-Aid-New` boots a real headless
   server and runs `gametest/FirstAidGameTests` (not shipped: excluded from the jar in `build.gradle`).
   The mock player is built by hand because `GameTestHelper#makeMockServerPlayerInLevel` has a connection
@@ -697,6 +712,71 @@ The player's real health is the per-limb hit points of First Aid's `PlayerDamage
     `Shell` -> `ProjectileDefinition` link. The root Gradle build and `./gradlew test` could not be run in the authoring environment; the
     package was compiled with the Kotlin compiler from Gradle's distribution (pure core with no Minecraft classes on the classpath, the
     Minecraft boundary against stubs) and the tests were run that way.
+- **Ammo data (War Thunder BLK-style, marker `ammo-data-system`)** — `ballistics/terminal/ammo/`, JSON in `data/<ns>/dncity/ammo/(any depth)/name.json`
+  (schema v1, unknown keys are errors). An `AmmoDefinition` is the catalog entry (item/display, compatibility, projectile constants, penetration
+  spec, terminal solver id, provenance); `AmmoCompiler` turns it into the frozen `ProjectileDefinition` (the penetration block is NOT part of
+  it; `terminal.solver` becomes `terminalModel`). `AmmoType` (AP/APCBC/APHE/APCR/APDS/APFSDS/HE/HEAT) selects the required fields in
+  `AmmoValidation.checkStructure` (gun caliber, body diameter and penetrator diameter are three separate numbers).
+  `penetration.mode`: **TABLE** (limit thickness by distance x angle, bilinear, `angle_convention` must be `FROM_ARMOR_NORMAL`), **PHYSICS**
+  (the `AmmoSolver` named by `terminal.solver`), **HYBRID** (table decides, physics cross-checks, every disagreement is a diagnostic;
+  `on_conflict` USE_TABLE|FAIL). `AmmoImpactResolver.resolve` returns `Resolved` or an ordinary-value `Unresolved` (never throws, never
+  substitutes another solver): unimplemented solver, material other than the table's `reference_material` (no RHA-equivalence conversion),
+  out-of-range (only the author's `out_of_range` CLAMP / EXTRAPOLATE-with-margins changes that), a worn/deformed projectile. A table gives a
+  limit only: a table perforation has no invented residual (`result == null`). Without a flight distance the table is read at the distance
+  implied by the impact speed and the ammo's own drag (`ExternalBallistics`, flagged). Not a `PenetratorModel` on purpose (same reason as
+  `FullCaliberApModel`: that contract cannot decline). Minecraft side: `AmmoRegistry` (reload listener, after `TerminalBallistics`),
+  `AmmoItem` (ONE registered item, ammo id in the `ammo_id` data component, name/stack size stamped on the stack: item registration and data
+  reload are separate lifecycles), `/ammo list|info|give|test` (`test` runs the real resolver). `-Ddncity.ballistics.production=true`
+  refuses tables without criterion/reference material/spec/source or marked FICTIONAL. **No ammo data is shipped**; the fixtures in
+  `src/test/resources/ammo` are FICTIONAL structure examples. Not yet built: `FULL_CALIBER_CAPPED_AP`, long-rod and shaped-charge solvers
+  (ammo naming them loads and answers UNRESOLVED), ricochet/shatter/spall profile evaluation (stored only), `Shell` -> ammo link.
+- **Flight + oblique AP (marker `external-ballistics-si`, `oblique-full-caliber-ap`)** — `ballistics/flight/`: SI point-mass flight
+  (`FlightIntegrator`, RK4, quadratic drag + gravity, ISA troposphere `Atmosphere`, `DragModel` Constant or sourced Tabulated Cd(Mach); a Mach or
+  altitude outside the model stops the flight as `OutOfModel`, nothing is extrapolated; no wind/Coriolis/spin drift). `MinecraftUnits` is the only
+  place for 1 block = 1 m, 1 tick = 0.05 s. Not yet wired into `ExternalBallistics`/`AmmoImpactResolver` or the TACZ/SW bullets (TACZ keeps
+  per-tick `1-friction` and per-tick gravity in blocks/tick: plan is to convert to SI at the bridge, not replace its flight). `FullCaliberApPreset`
+  has an optional `obliquity` block (`GEOMETRIC_LOS` = pure line-of-sight, flagged optimistic; `COSINE_POWER` needs a named exponent source);
+  the angle is a second axis with the author's `max_angle_deg` + margin, beyond which the model declines (no ricochet/shatter model).
+  `FullCaliberApPresetRegistry` loads `data/<ns>/dncity/full_caliber_ap_presets`; none are shipped.
+- **Slope tables + ricochet (marker `slope-ricochet-tables`)** — two optional preset blocks for `FullCaliberApModel`, structured after
+  how War Thunder's damage model organizes the same problem (per-projectile `slopeEffect`/`ricochet` presets; a slope table keyed by
+  plate thickness/caliber and angle; ricochet as a probability over angle checked before penetration). Only that *structure* was
+  taken (static reading of the game binary's config keys); no WT number, table or code is in this repo, and none may be added.
+  `obliquity.basis = TABULATED` + `SlopeTable`: `T_eff = T * f(theta, T/d)`, bilinear, `f(0) = 1`, `f >= 1`, non-decreasing in angle,
+  >= 2 rows, no extrapolation in either axis, needs `table_source`. `ricochet` (`RicochetSpec`): probability table from 0 degrees,
+  non-decreasing; probability 1 answers RICOCHET even beyond the obliquity range (`RICOCHET_CERTAIN`); 0 < p < 1 is drawn from
+  `ImpactContext.seed` (`RICOCHET_DRAWN`, own SplitMix stream); beyond the last angle the model declines. A ricochet is specular with
+  one sourced `speed_retention`; `ModelEvaluation.Resolved.ballisticLimitMps` is null for it. Not done: projectile shatter
+  (WT's `breakingCriticalSpeed`/`breakingArmorThickness`), armor-side quality/ricochet modifiers, the filler-mass correction for APHE.
+- **Small-arms penetration (TACZ bullets, marker `small-arms-penetration`)** — `ballistics/smallarms/` (plain JVM core +
+  `SmallArmsData` reload listener + `BallisticBlockCategories`) and `compat/TaczSmallArmsBridge.kt`. Separate from the
+  `terminal/` traversal on purpose (it is a first-order energy-per-area model, not a penetrator model). One idea throughout: `E/A`.
+  *Blocks*: category from tags `dncity:ballistics/<glass|foliage|wood|soil|stone|metal>` then sound type, else UNKNOWN (stops).
+  RESIST materials lose `R * A * path` over the bullet's path through the collision shape; `R` is calibrated from one depth each in
+  FM 3-06.11 Table 7-3/7-5 (7.62 mm ball, 25 m; reference round TM 43-0001-27 M80, 149 gr, 2750 fps at 78 ft) in
+  `data/dncity/dncity/small_arms/block_materials.json`. GLASS/FOLIAGE pass losslessly (a glass block is a window). *Body armor*:
+  `body_armor.json` — NIJ 0101.06 section 2 test threats (sourced) define each level's threshold (max `E/A` of its threats);
+  vanilla armor material -> level, enchantment bonus (Protection 0.04, Projectile Protection 0.08 per level) and
+  `blunt_damage_fraction` are **design**. Aramid treated as a weak NERA: absorbs `threshold * multiplier * A`, stops below it,
+  passes the rest above it. Hit slot: headshot -> HEAD, else hit height (First Aid's 0.15/0.45/0.8 boxes). Damage = TACZ damage x
+  block energy fraction x (armor energy fraction, or blunt fraction if stopped); then both TACZ damage parts are dealt as the
+  armor-piercing source so vanilla/First Aid armor does not reduce the bullet again; the armor piece loses 1 durability.
+  *Armor wear* (marker `armor-wear-suppression`): each ballistic piece carries a `dncity:ballistic_armor` data
+  component (integrity 0..1 + hit count, stamped fresh on equip by `LivingEquipmentChangeEvent` so the client knows which pieces
+  count). Integrity scales the absorbed `E/A`; each hit removes `wear.integrity_loss_at_threshold` (0.2) times the bullet's `E/A`
+  over the piece's undamaged threshold, and `wear.max_hits` (5) hits zero it (`BodyArmorTable.wornIntegrity`; both values are
+  design). The HUD draws a red 10-icon row above vanilla's armor row (`client/render/BallisticArmorBar`, head 4/chest 8/legs 6/
+  feet 2 half-icons times integrity). Suppression is First Aid's own: `compat/TaczFirstAidBridge` calls
+  `PlayerDamageModel.registerAdrenalineNearMiss` at its maximum strength on every TACZ hit on a player (DNCity has no effect of its own).
+  *Bullet data*: `small_arms` block in each `shells/tacz/*.json` (mass/diameter/velocity in the source's own units, `source`,
+  `source_kind`: MILITARY_SPEC/STANDARD/MANUFACTURER/RETAILER_LISTING/ENCYCLOPEDIA/DERIVED — several are retailer or Wikipedia
+  figures, see each file). Real speed = sourced velocity x (TACZ current speed / initial speed). No data -> TACZ default.
+  *TACZ fork changes* (`mods/TACZ-1.21.1`): `AmmoHitBlockEvent#setPenetrated(exit, speedFactor)`; `EntityKineticBullet` traces a
+  tick in segments (resumes after a penetrated block, `MAX_PENETRATION_SEGMENTS` = 16), defers the speed loss to the end of the
+  tick (TACZ's entity search box is spanned by the velocity), ends the tick at the traced end point, and exposes
+  `getInitialSpeed()`/`getCurrentSpeed()`. Known limits: no velocity dependence/yaw/break-up, AP cores = ball, non-convex shapes
+  (stairs) count their inner air gap as material, client-side tracers do not slow down. Unit tested (`smallarms/SmallArmsTest.kt`);
+  **not yet played in a client**.
 - **Kotlin gotcha**: block comments nest. A KDoc containing `dir/*.json` or `dir/**.json` opens a nested comment and the file
   fails with "Unclosed comment". Never write a slash followed by a star inside a comment (write `dir/(any depth)/name.json`).
 
@@ -704,6 +784,263 @@ Known limits: the body keeps First Aid's 8 parts (feet exist, there is no separa
 EFT-*style*, not a 7-zone copy. Absolute gun/mob damage values are the modpack's to tune (AUTO scaling only
 keeps vanilla-balanced numbers proportional). Verified on a headless server only — nothing here has been
 played in a real client (HUD markers, item models, pending-heal UI are unchecked visually).
+
+## Architecture: cartridge items (markers `cartridge-items`, `ammo-round-variants`)
+
+One item per *round* (`dncity:cartridge_<caliber>_<round>`, e.g. `cartridge_556x45_m855`), listed in their own
+"Ammunition"/"탄약" creative tab. Source of truth is `src/main/resources/dncity/cartridges.json` (classpath, read at item
+registration by `item/cartridge/CartridgeCatalog.kt`; items cannot follow a data-pack reload). Names: English
+`<caliber> <US designation> <type>` (designation only where a US military one exists, e.g. `5.56x45 M995 AP`, otherwise
+`9x19 RIP`), Korean `<caliber> <type>` (`5.56mm 철갑탄`); every caliber has at least one tracer (`TRACER`, `API_T`, `APHEI_T`;
+enforced by the parser).
+**After editing the catalog run `python tools/cartridges/generate_cartridge_assets.py`**: it draws the 64x64 icons from
+the catalog's dimensions on one shared mm-to-pixel scale (so a 9x19 is drawn at its real size next to a .50 BMG; the
+dimensions are cosmetic, not ballistic data), writes the item models and merges the names into `en_us.json`/`ko_kr.json`.
+`CartridgeCatalogTest` fails if the generated assets are out of date. 40mm grenades and the RPG rocket have no rounds.
+
+TACZ side (`mods/TACZ-1.21.1`): `compat/TaczCartridgeItem` implements TACZ's `IAmmo` (ammo id = the caliber's TACZ ammo,
+so every gun of that caliber loads it) and the new `api/item/IAmmoRound` (tracer flag). TACZ only stores a round
+*count*, so `api/item/nbt/LoadedRounds` keeps a parallel, run-length-encoded list of which rounds are in the gun (chamber
+first) in the gun's custom data. `AbstractGunItem.findAndExtractInventoryAmmo` takes rounds one at a time in a
+4-other : 1-tracer cycle (`RoundFeedCycle`, persisted on the gun) when both kinds are in the inventory, trimming the list
+to what is really in the gun first; `ModernKineticGunScriptAPI.shootOnce` pops one round per shot and uses its tracer
+flag instead of the gun's `tracer_count_interval` (shotguns: first pellet only); unknown rounds (TACZ's own ammo, ammo
+boxes, creative fills) keep TACZ's default. `dropAllAmmo` gives the recorded items back. `EntityKineticBullet.getRoundId()`
+carries the fired round's item id for future per-round ballistics; **the shell/small-arms data is still per caliber**, so
+AP/HP/FMJ of one caliber currently hit the same (no per-round sourced data yet). Rounds cannot go into TACZ ammo boxes
+(a box only stores a count). The TACZ HUD no longer shows magazine/reserve counts and no longer tints the gun icon red
+when empty (overheat still does). Not yet played in a client.
+
+## Architecture: vehicle armor penetration + hit camera (marker `vehicle-armor-penetration`)
+
+War Thunder-style outcome (penetration / non-penetration / ricochet) for SuperbWarfare vehicles, plus a hit-camera HUD for
+the shooter. Deliberately a first-order line-of-sight model in `ballistics/vehicle/` (plain JVM, `VehicleArmorTest`),
+separate from the `terminal/` traversal pipeline, which still has no solver data.
+
+- **Data.** `data/<ns>/dncity/vehicle_armor/<vehicle>.json`: zones (`hull`, `turret`, `tracks`, any other name) with one
+  `{ke, ce}` mm RHA-equivalent plate per face (`front/side/rear/top/bottom`, or `all`), as protection against a hit square to
+  that face. OBBs map to zones by SuperbWarfare part (`Turret` -> turret, `WheelLeft/Right` -> tracks, the rest hull), or
+  explicitly by index in the vehicle's SuperbWarfare `OBB` list (`obb_zones`). What a projectile penetrates is an
+  `armor_penetration` block (`kind` KE/HEAT/HE, `mm`, KE: `range_m` + `loss_per_km_mm`, optional `ricochet_deg`) in its shell
+  JSON, or per round in `dncity/cartridges.json` for TACZ rounds. **All shipped numbers are community ESTIMATEs (public
+  guesses; the real values for modern armor are not public) or DESIGN values**, each with `status`/`kind`, `source` and, for
+  estimates, a URL — the user asked for these explicitly (2026-10-16), overriding the "no invented data" rule for this
+  feature only. **War Thunder may be used as a reference** (user, 2026-10-26: its values are well balanced): what its official
+  wiki publishes, status `WAR_THUNDER` with the URL, used where no public real figure exists (or for a falloff shape); never
+  datamined game files, and a real figure wins where there is one. Shipped: M1A2, T-90A, ZTZ-99A, BMP-2, Bradley, LAV-25,
+  LAV-AD, LAV-150, PLZ-05, FH-77BW. A vehicle without a file, or a shell
+  without `armor_penetration`, keeps SuperbWarfare's damage; a TACZ round without a value cannot get through any plate.
+- **Resolution** (`compat/SbwVehicleArmorBridge`, `TaczVehicleArmorBridge`): SuperbWarfare's cancellable
+  `ProjectileHitEvent.HitEntity` (every SBW projectile goes through it) and TACZ's `EntityHurtByGunEvent.Pre`. The shot line is
+  traced against the vehicle's OBBs (not the collision box); the first box entered gives zone + face, the angle to that face
+  gives 1/cos obliquity; KE loses penetration with the shooter's distance. Non-penetration cancels the hit and stops the shell
+  (no damage). Ricochet cancels; KE glances off the plate at half speed, HEAT/HE duds. Penetration lets SuperbWarfare's own
+  damage run; a vehicle with modules then gets the damage model of `vehicle-damage-model`, one without the old part damage of
+  every module on the path inside (`depthBlocks`, DESIGN constants: engine, turret, tracks; "crew" = report only).
+- **Hit camera** (`network/VehicleHitPayloads.kt`, `client/render/VehicleHitCamOverlay`): the shooter gets the vehicle's boxes
+  in the vehicle's own frame, entry/direction/stop points and the numbers; a 2D panel on the right shows side and top views
+  with the shot path (white outside, red inside, yellow ricochet, blue stopped), plate, angle, effective armor vs penetration,
+  depth and damaged modules for 5 s. Not yet seen in a client.
+- **Soft vehicles** (marker `soft-vehicle-penetration`): `vehicle_armor/soft_*.json` (`"vehicles": [...]` lets one file cover
+  several, `"soft": true`) for trucks/pickups, aircraft/helicopters, the Ju 87, the speedboat and the rest (tiny boat, Type 63).
+  Sheet metal is 0.5 mm RHA on every face (user's value, 2026-10-25; no sourced RHA figure for car bodies, outer skins are
+  0.6-0.8 mm sheet). Engines are 12 mm (DESIGN: stops rifle ball, not .50): the front face of the cars' body box (OBB 5), the
+  Ju 87's nose box, the speedboat hull's rear face, and SuperbWarfare's MainEngine/SubEngine boxes, which now map to an `engine`
+  zone when a file has one (tank files have none, so their engine boxes stay `hull`).
+  On a soft vehicle, a TACZ round without `armor_penetration` gets `ballistics/smallarms/SteelPenetration` (mild-steel depth of
+  the `E/A` model's FM 3-06.11 calibration, at its current speed; not converted to RHA): every round goes through sheet metal,
+  rifle ball stops in an engine, .50 does not. Never used against armor plate. A vehicle without OBBs (J-16) is traced against
+  its collision box as one hull box (no hit cam).
+- **Vehicle weapons vs armor**: GAU-8 (A-10, and SuperbWarfare's J-16 gun), 2A42 (Mi-28), AC-130 25/40 mm and 105 mm HE, AH-6
+  20 mm, Hydra rockets (as M247 HEDP), Maverick (DESIGN: no published figure), Ataka, Kh-39, bombs, and the pickup/speedboat
+  .50 and Ju 87 MG 17 (`vehicle/<v>/projectile_default.json`) now have `armor_penetration`.
+- Known gaps: one plate value per box face (no real slopes, weak spots or spaced armor; ERA/NERA, spall and modules: see
+  `vehicle-damage-model`), autocannon AP/HE share one
+  shell (same entity), artillery AP/CM/WP have no penetration data; a tank's coax and .50 share one entity and keep
+  SuperbWarfare's damage; armored cockpits (A-10 tub, Mi-28) are not modelled.
+
+## Architecture: aircraft flight model (marker `aircraft-flight-model`)
+
+War Thunder RB-style flight for SuperbWarfare's real aircraft (A-10A, J-16, Ju 87, AC-130H fixed wing; AH-6, Mi-28 helicopters).
+Only the *structure* of War Thunder's flight model was borrowed (static read of config key names in `aces.exe` with REA/a string
+scan: per-configuration polars with critical AoA and post-stall branch, flaps polar blending, Mach drag, control effective speed,
+`WingCritOverload`/`Vne` limits, engine inertia, helicopter collective/cyclic, vortex ring, ground effect); formulas are textbook
+(Helmbold lift slope, parabolic polar, Viterna flat-plate post-stall, momentum theory/Glauert, Cheeseman-Bennett ground effect).
+**Numbers are fitted to War Thunder** (user request 2026-10-25): the characteristics War Thunder publishes on its official wiki
+(`wiki.warthunder.com/unit/...`, upgraded aircraft, Realistic Battles = 4th value of each row) are targets, status `WAR_THUNDER`
+in the data. Never datamined game files (Gaijin's proprietary data); the AC-130H is not in War Thunder and keeps real specs.
+
+- **Core** (`flight/aircraft/`, plain JVM, SI, tested in `src/test/.../flight/aircraft/FlightModelTest.kt`): `Aero.kt`
+  (`WingPolar`, `FlapsEffect`, `MachDrag`, `Powerplant.Jet/Propeller`, `ControlAuthority`, `StructuralLimits`), `FixedWingSim`
+  (forces in 4 sub-steps; pitch is AoA-commanded: neutral stick = 1 g AoA, the nose follows the flight path plus the AoA error;
+  the instructor caps AoA at the critical angle x margin and at the *limit* load, the manual stick (W/S) does not, so it can stall
+  and break the wing; roll/yaw rate-commanded; wheel friction on the ground), `HelicopterSim` (power-limited thrust from momentum
+  theory, so translational lift emerges; ground effect; vortex ring; two drag areas). Atmosphere: ISA plus the isothermal lower
+  stratosphere to 20 km (`FixedWingSim.density`). Loader-side fits (`FlightModelJson`), three targets for three knobs: fixed wing
+  `fit_climb` scales the thrust while `derive_cd_min_from` keeps the top speed, `fit_turn_time` fits Oswald (then `cl_max` only if
+  Oswald 0.3..1 cannot reach it) to the sustained turn time, alternated 6 rounds (`sustainedTurnTimeS`, `maxClimbRateMps`).
+  Helicopter: `fit_climb` scales engine power + derives the drag area, `fit_hover` then raises power so a 1,000 m OGE hover takes
+  <= 85 % collective (War Thunder's published heli climb alone leaves too little power to hover; the model climbs faster than
+  it: Mi-28 15.2 vs 9.5, AH-6 11.4 vs 7.1 m/s). G limit = War Thunder's wing-break load (ultimate_factor 1.0), instructor stops
+  at 90 % (`INSTRUCTOR_LOAD_MARGIN`); `vne_mach` fails the airframe past the Mach limit. Fit results are printed by the tests.
+- **Data**: classpath `src/main/resources/dncity/flight_models/*.json` + `index.json` (not a datapack: SuperbWarfare moves a
+  piloted aircraft on the pilot's client, so both sides need the same numbers). Every number needs a `provenance` entry
+  (SOURCED/DERIVED/ESTIMATE/DESIGN/WAR_THUNDER) and `sources` must be non-empty; the parser rejects unknown keys. Sourced numbers are public
+  specs (Wikipedia spec sections, cited per file); the rest are labelled estimates/design. A vehicle without a file keeps
+  SuperbWarfare's own flight.
+- **SuperbWarfare fork**: `entity/vehicle/utils/ExternalFlightModel.kt` (hook interface, `ExternalFlightModel.model`);
+  `VehicleEngineUtils.aircraftEngine` hands supported aircraft to `externalAircraftEngine` (keeps energy, throttle/WEP, flaps,
+  gear, airbrake, sounds, control-surface animation) unless the wreck threshold (health < 10 %) is reached;
+  `helicopterEngine` keeps its cyclic/attitude/collective logic and only replaces airborne drag and rotor lift. Both add back
+  SuperbWarfare's per-tick gravity, which the external model already includes.
+- **Bridge** `compat/SbwFlightModelBridge.kt`: attitude in SuperbWarfare's render convention `Ry(-yRot) Rx(xRot) Rz(roll)`
+  (nose +Z, right wing -X); the mouse-aim instructor law (bank toward the cursor, pull, level wings when centred) lives here.
+  Structural failure (over-G, > 1.08 x Vne) drops the aircraft under 10 % health so SuperbWarfare's wreck fall takes over.
+- **Controls (War Thunder style)**: throttle and helicopter collective are Shift (up) / Ctrl (down) (SuperbWarfare's
+  `MOVE_SHIFT`/`MOVE_CTRL` -> `downInputDown`/`sprintInputDown`); fixed wing W/S = manual stick (no instructor limiter),
+  helicopter W/S = manual cyclic pitch, A/D roll, Q/E rudder (SuperbWarfare's rudder keys now default to Q/E), mouse =
+  instructor. While piloting an aircraft/helicopter, Minecraft/SuperbWarfare interaction keys (inventory E, drop Q, swap hands F,
+  unload passengers U, disconnect towing Y) only work with Ctrl held (`event/PilotKeyGate.kt` drains their clicks otherwise);
+  a Ctrl+key chord sends no throttle-down/rudder/flaps input. Dismount (Alt) is never gated. The pilot's third-person camera follows heading only, not the airframe's pitch
+  (`VehicleClientUtils.pitchFreeCamera`; first-person cockpit view and other seats unchanged). The helicopter's attitude response is scaled by
+  rotor speed as a 0..1 fraction (`synchedPropellerRot / 0.1`), not the raw value (which tops out at 0.12 and made it ~10x slow).
+- **Not yet played in a client.** Known gaps: no autorotation, no torque yaw beyond SuperbWarfare's tail-damage spin, no
+  supercharger model (props lose power with density), no per-part wing damage, AoA/G not on the HUD.
+
+## Architecture: NERA (non-explosive reactive armor) and 3D spall (marker `nera-bulge-model`)
+
+`ballistics/terminal/nera/NeraBulgeModel.kt` is the first real `ArmorEffectModel` (id `dncity:nera_bulge`, registered by
+`ArmorEffectModels.registerBuiltins()` in `Dncity.kt`). It acts on a 3-layer `effect_package` (plate / elastomer / plate;
+`BallisticsValidation` enforces the shape and the elastomer material class) in two hooks on the **back plate**:
+
+- `BEFORE_LAYER`: plate speeds from an impulse balance (front plate towards the shooter, back plate away, both along the plate
+  normal, capped by `energy_cap_fraction` of the projectile's energy). The plate velocity across the line of flight is
+  `v * sin(theta)` along `normalize(n - (n.d) d)`, in 3D. The rod's head and tail get opposite sideways pushes: net push turns the
+  velocity, the couple yaws `ProjectileState.axis`, and `1 - exp(-c (u/u_fail)^2)` of the penetrator breaks off (mass, length,
+  integrity drop; the debris leaves as a `SpallSource`). A perpendicular hit has no sideways component and is not disrupted.
+- `AFTER_LAYER`: the plate strain decides how far the plates petal; the result is an elliptical `ArmorTear` (long side along the
+  trace of the flight line in the plate). A perforated sandwich also throws plug/petal spall off its back, its energy taken from the
+  residual projectile. A stopped projectile still tears the tile (the observer returns `Untouched` plus the tear, no energy).
+
+**Tears are runtime state, not data.** `EffectInteractionResult.tears` -> `TraversalState.tears` -> `ArmorRuntimeState.commit`
+(per `EffectSlot`, newest 32 kept) -> `ArmorRuntimeView.tearsOf` -> `EffectInvocation.runtime`. A hit inside a tear sees no working
+sandwich, one within 1.5 tear radii a weakened one, so NERA is multi-hit and degrades locally; it is never `single_use`.
+
+`SpallFragments.expand(SpallSource, seed, count)` turns the aggregate cone into individual `Fragment`s with a 3D velocity each
+(Mott mass distribution, uniform over the spherical cap, one common speed so energy is conserved exactly). Nothing consumes spall
+yet; the post-penetration tracer is the intended caller (use `SeedDomain.SPALL`).
+
+**Not calibrated.** Every number in `data/dncity/dncity/armor_effects/nera_bulge.json` is a placeholder in the range the open
+literature gives. Not modelled: the back plate's motion lowering the closing speed on it, bulge overlap between hits, plate thinning.
+Existing `data/dncity/armor_materials` and `resistance_presets` sit one directory above where `JsonDataRegistry("dncity/...")` looks
+(`data/dncity/dncity/...`); no construction uses them yet, so nothing has noticed. Fix before the first real construction.
+
+## Architecture: War Thunder-style vehicle damage (marker `vehicle-damage-model`)
+
+Builds on `vehicle-armor-penetration`: what happens *behind* the plate, plus reactive armor, overmatch and ricochet chance.
+Core in `ballistics/vehicle/damage/` (plain JVM, `DamageModelTest`, `M1a2LayoutTest` on SuperbWarfare's real M1A2 boxes,
+`ArmorSolverWarThunderTest`). **Constants are DESIGN unless the code cites a source** (searched 2026-10-26, user request): spall
+  cone and liner (patent EP0588212B1, Permali), HE filler per calibre (M107, M1 105 mm), blast radius (Kinney-Graham 100 kPa),
+  Kontakt-5 / Kontakt-1 ratings (Wikipedia). Everything else (damage, hp, fire, detonation chances, jet loss) is still DESIGN.
+
+- **Modules** (`Modules.kt`): `ModuleType` CREW / AMMO / FUEL / ENGINE / TRANSMISSION / BREECH / TURRET_DRIVE, each with hit points
+  and an internal thickness that eats fragments. Placed in fractions of an anchor box (`hull` = the box enclosing all hull OBBs,
+  `turret`, `engine` = SuperbWarfare's MainEngine OBB), so templates fit any vehicle. `vehicle_armor` files say `"layout"`
+  (`tank`, `ifv`, `car`, `aircraft`; generic, not real layouts) and may list `"modules"` (replace template entries by id). Crew have a
+  SuperbWarfare `seat`: the passenger in that seat is hurt with the crew module (KO = killed). Missing anchor -> `fallback` / hull.
+- **Plates**: a face may carry `"era": {ke, ce, ke_reduction, ce_reduction, tile_m}` or `"nera": {...}`: extra mm and/or a
+  share taken off the incoming penetration (counted as `r * pen` mm) while that spot is intact
+  (`VehicleDamageState.reactiveIntact`, OBB index + face + point in the box frame). HEAT and KE >= 20 mm set it off; ERA is then used
+  up within `tile_m`, NERA torn (and NERA is weakest square on: 40 % at 0 deg, full from 30 deg). T-90A / ZTZ-99A fronts carry
+  Kontakt-5 ratings (+225 KE / +600 CE, moved out of the existing totals; FY-4 has no public figure, assumed K-5 class), hull sides
+  and turret roof Kontakt-1 (-52 % HEAT, no KE, 0.13 m tiles; placement DESIGN); the M1A2's NERA split is DESIGN; M1A2 and Bradley
+  have `"spall_liner": true` on hull/turret. `ArmorSolver.solve` also takes calibre (overmatch at calibre >= 3x plate: no ricochet,
+  slope exponent down to 0.5), `normalization_deg`, and a roll: ricochet chance ramps 0 -> 1 over the last 10 deg before
+  `ricochet_deg` (default roll 1.0 keeps the old deterministic behaviour). `armor_penetration` gained `filler_kg`,
+  `fuse_delay_m`, `fuse_sensitivity_mm` (APHE); `Warhead.fillerKg` estimates HE filler from calibre when absent.
+- **Behind the plate** (`DamageModel.simulate`, pure, seeded): the shell (or HEAT jet, which loses 150 mm/m in air, max 3 m)
+  continues through modules; a spall cone (`SpallFragments.expand`: Mott masses, 3D directions; KE 45 deg half angle, overmatch 55,
+  jet 12; a liner leaves a third of the angle and 5 % of the fragments; no spall under 14 mm calibre) traces every fragment through modules
+  until the far wall (`Interior` = chain of hull/turret boxes); APHE bursts after `fuse_delay_m` if the plate armed it, HE just
+  inside: blast radius 2.75 * cbrt(kg) plus a sphere of casing fragments. Then: destroyed ammo detonates (70 %, 90 % with a blast)
+  or cooks off into a fire, fuel/engine may burn, crew get knocked out, the vehicle is out with fewer than 2 crew (or 0 of 1).
+- **State** (`VehicleDamageState`, `compat/VehicleDamageTracker`): per vehicle on the server, saved in the entity's persistent data
+  (`dncity_damage`). Fires tick every 10 ticks: hull health, crew modules + seated passengers, cook-off chance, crew put fires out
+  faster. A vehicle SuperbWarfare has repaired to full health (not burning, not a wreck) gets its modules back.
+- **Game effects** (`SbwVehicleArmorBridge.applyPenetration`, also for TACZ penetrations now): engine -> MainEngine health,
+  transmission -> SubEngine health, breech/turret drive -> turret health; ammo detonation sets health below -max (SuperbWarfare
+  wrecks, explodes and discards it in one tick); crew out sets health 0 (wreck). Tracks keep the old part damage.
+- **Hit camera** (payload protocol `"2"`): module boxes coloured by state, shell/jet/spall/blast rays, blast radius, ERA/NERA,
+  overmatch, ricochet chance, event lines (KO, fire, detonation, destroyed cause). Lang keys `dncity.hitcam.*` in en_us/ko_kr.
+- **Not yet played in a client.** Gaps: module damage is not repaired gradually (all at once on full SuperbWarfare health), no
+  turret-pop, fires do not spread between modules, crew do not swap seats, aircraft have no wing/control modules, the terminal
+  `NeraBulgeModel` is not what vehicles use (they use the mm-equivalent NERA above).
+
+## Architecture: tank rounds as TACZ ammo (marker `tank-ammo`)
+
+Tank guns load real rounds the way TACZ guns load ammo: each round is a TACZ ammo id in DNCity's namespace (`tacz:ammo` with
+`AmmoId dncity:m829`), defined in `data/dncity/index/ammo/`, `assets/dncity/display/ammo/` (slot icon only, no 3D model;
+icons are generated 32x32 pixel art), crafted at the TACZ gun smith table (`data/dncity/recipe/ammo/`, group `explosives`).
+- 120 mm (M1A2): M829, M829A1, M829A2, M829A3 (APFSDS), M830, M830A1 (HEAT); no HE (user, 2026-10-26: high explosive only
+  for the Soviet gun). 125 mm (T-90A and ZTZ-99A share it): 3BM42, 3BM46, 3BM60 (APFSDS), 3BK18M, 3BK29M (HEAT; 3BK29M is
+  `"tandem": true`: ERA adds nothing against it, NERA still does), 3OF26 (HE-FRAG, 3.4 kg A-IX-2 as `filler_kg`, not
+  converted to TNT). Each tank's SuperbWarfare `Cannon.AmmoType` (`mods/SuperbWarfare/.../sbw/vehicles/<tank>.json`) lists
+  them as `"@dncity:<id>"` with an `Override` (ShellType AP for rods, HE for HEAT/HE; velocity = 20 x real m/s / 1670;
+  damage); the generic `large_shell_ap` / `large_shell_he` are gone from all three, grapeshot stays. SuperbWarfare's
+  `TaczAmmoStrategy` (the fork) handles `@ns:id` ammo. The data is generated by a script kept outside the repo; edit the
+  JSON directly.
+- M829A1's sourced falloff (670 -> 570 mm over 2 km) is steeper than M829's (War Thunder shape), so past ~3 km the A1 dips
+  under the M829; nobody publishes data beyond 2 km.
+- **Telling rounds apart**: the fork's `GunItem.shootBullet` writes the `@ns:id` ammo into the projectile's persistent data
+  (`AmmoId`); `SbwVehicleArmorBridge` registers a key resolver for `superbwarfare:cannon_shell` that returns it (else the
+  vehicle type as before), so `shells/superbwarfare/tank_ammo/<id>.json` use `"key": "dncity:<id>"`.
+- Values: real public estimates first (Jane's/Wikipedia/valka.cz, `ESTIMATE`), War Thunder wiki where none exists (M830,
+  M830A1 penetration; KE falloff per km, `WAR_THUNDER`). Filler masses and SuperbWarfare damage are DESIGN.
+- Not yet played in a client: the gun smith table tab, the in-vehicle ammo switch and the slot icons are untested in game.
+
+## Blast injury to riders (marker `blast-injury`)
+
+A warhead with explosive (`Warhead.fillerKg`: HE, HEAT, APHE, TACZ grenades/rockets) that hits a vehicle hurts the riders by
+peak overpressure where each one sits (`ballistics/vehicle/damage/BlastInjury`, `BlastInjuryTest`; user, 2026-10-26).
+- Overpressure: Kinney-Graham free-air TNT relation (Z = R / W^(1/3), min 0.3 m). Filler masses are used as given (3OF26's
+  3.4 kg A-IX-2 is not converted to TNT). Inside a closed hull after a penetration it is doubled (CONFINED_FACTOR 2, the
+  acoustic limit of normal reflection).
+- Injury: share of max health through FM 8-9 / Glasstone anchors 22 kPa (eardrum, 0 %), 68.9 kPa (lung, 10 %), 193 kPa
+  (lethality starts, 40 %), 634 kPa (~100 % lethal, 100 %); the shares between anchors are DESIGN. Those anchors are for
+  long-duration waves, so short shell blasts err harsh.
+- Where it applies (`SbwVehicleArmorBridge.blastInjuries` / `applyBlast`, also from `TaczVehicleArmorBridge`): penetrated ->
+  the burst inside (the damage model's blast centre, else 0.15 m behind the plate); not penetrated -> the burst on the plate,
+  in full for riders of an **open-top** vehicle (`"open_top": true` in `vehicle_armor`: soft_cars, soft_speedboat, soft_light), burst on the plate,
+  plus an explosion cloud and bang. A closed hull that held still passes a share on (user: "a helmet does not make a hard
+  blow painless"): `BlastInjury.transmitted(plate mm)` = 0.1 + 0.9 exp(-mm / 25), DESIGN (no published share; the
+  mechanism -- plate flex sets up an internal wave, the jolt throws the crew -- is in KONES 2015 / Slawinski). War Thunder has
+  no such rule (its overpressure needs a breach). Ricochets do nothing. Crew modules still
+  run; each rider gets one hurt, the worse of the module damage and the blast.
+- Not covered: near misses (a shell bursting beside a vehicle without hitting it) — SuperbWarfare's own explosion handles
+  those. Not yet tried in a client.
+
+## Removed SuperbWarfare content (marker `sbw-removed-content`)
+
+`compat/SbwRemovedContent` takes out SuperbWarfare's energy / sci-fi weapons (user, 2026-10-26) — annihilator, laser_tower,
+prism_tank (+ prismatic_bolt), waveforce_tower, yx_100 (+ swarm_drone) — and **every SuperbWarfare hand-held gun** (user,
+same day: TACZ is the small-arms system; it has the RPG-7 and M320 too), with their blueprints. Kept: javelin and igla_9k38
+(guided, TACZ has nothing like them), the repair tool, and the vehicles' internal vehicle_gun / empty_gun. The lists live in
+`SbwRemovedNames` (no Minecraft classes, so `SbwRemovedContentTest` checks them against SuperbWarfare's own data).
+SuperbWarfare's registries are left alone (its code refers to them): recipes are stripped from the recipe manager on server
+start and after `/reload` (exact name or `_blueprint...` / `_smithing`, so `rpg` keeps `rpg_rocket_*`), loot through the
+`dncity:remove_sbw_content` global loot modifier (DNCity loads AFTER superbwarfare/tacz so it runs after SBW's chest
+modifiers), creative tab entries (including vehicle container items by their `EntityType`) are removed, the entities and item
+entities never join a level (ones already in a world vanish when loaded), mobs lose a removed gun from their hands (lowest
+priority, after SBW arms them), and players lose any they carry on login. The fork's `sbw/mob_guns/skeleton.json` (every
+skeleton got an M79 instead of its bow) is deleted. JEI still lists them; a `/give`n gun works until the next login.
+Kirov, Tom F6F, Happiest Ghast, Air Sheep and the wheelchair are vehicles, not future tech, and were kept.
+
+## TACZ launcher sounds (marker `tacz-launcher-sounds`)
+
+The TACZ fork plays weapon sounds through FMOD (`client/sound/SoundPlayManager` -> `FmodWeaponSoundManager`), but weapons.bank
+has no launcher takes (the RPG-7 borrowed the M32A1's). Guns of TACZ type `rpg` (RPG-7, M320) now skip FMOD for shoot,
+reload, bolt, draw and holster and play the gun pack's own OGGs through the vanilla sound engine (the pre-FMOD code), user
+request 2026-10-26. `TaczLauncherSoundTest` checks every launcher has those sounds on disk. Not yet heard in a client.
 
 ## Editing the mod metadata template
 

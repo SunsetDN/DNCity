@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:68x51fury",
   "caliber_mm": 6.8,
-  "penetration": 0.5
+  "penetration": 0.5,
+  "small_arms": {
+    "mass_gr": 135,
+    "diameter_in": 0.277,
+    "velocity_fps": 2750,
+    "velocity_note": "muzzle, 16 in test barrel",
+    "source": "SIG SAUER Elite Ball FMJ 277 SIG FURY 135 gr (sigsauer.com): 2750 fps from a 16 in test barrel (3000 fps from 24 in)",
+    "source_kind": "MANUFACTURER"
+  }
 }

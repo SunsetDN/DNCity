@@ -7,5 +7,11 @@
   ],
   "caliber_mm": 275,
   "penetration": 0.6,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 40,
+    "status": "DESIGN",
+    "source": "Kh-39 / Izdeliye 305 (LMUR): 25 kg high-explosive demolition warhead, no penetration figure"
+  }
 }

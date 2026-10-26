@@ -1,0 +1,7 @@
+{
+  "name": "dncity.ammo.m830.name",
+  "tooltip": "dncity.ammo.m830.desc",
+  "display": "dncity:m830_display",
+  "stack_size": 4,
+  "sort": 904
+}

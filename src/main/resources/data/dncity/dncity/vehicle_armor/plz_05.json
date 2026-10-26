@@ -1,0 +1,80 @@
+{
+  "vehicle": "superbwarfare:plz_05",
+  "layout": "tank",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 30,
+        "ce": 30
+      },
+      "side": {
+        "ke": 15,
+        "ce": 15
+      },
+      "rear": {
+        "ke": 12,
+        "ce": 12
+      },
+      "top": {
+        "ke": 10,
+        "ce": 10
+      },
+      "bottom": {
+        "ke": 10,
+        "ce": 10
+      }
+    },
+    "turret": {
+      "front": {
+        "ke": 30,
+        "ce": 30
+      },
+      "side": {
+        "ke": 15,
+        "ce": 15
+      },
+      "rear": {
+        "ke": 12,
+        "ce": 12
+      },
+      "top": {
+        "ke": 10,
+        "ce": 10
+      },
+      "bottom": {
+        "ke": 10,
+        "ce": 10
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 10,
+        "ce": 10
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "front 30 (frontal plates resist 14.5 mm), sides 15 (small arms and splinters)",
+      "kind": "ESTIMATE",
+      "source": "Wikipedia, PLZ-05",
+      "url": "https://en.wikipedia.org/wiki/PLZ-05"
+    },
+    {
+      "value": "rear/top/turret sides, tracks",
+      "kind": "DESIGN",
+      "source": "no estimate found"
+    },
+    {
+      "value": "layout 'tank' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    }
+  ]
+}

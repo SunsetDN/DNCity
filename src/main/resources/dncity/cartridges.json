@@ -1,0 +1,248 @@
+{
+  "_comment": [
+    "Cartridge catalog: one item per round (dncity:cartridge_<caliber>_<round>), loaded at item registration (classpath, not a data pack).",
+    "tools/cartridges/generate_cartridge_assets.py reads this same file and writes the item models, icons and en_us/ko_kr names.",
+    "Naming: English '<caliber> <US designation> <type>' (designation only where a US military one exists), Korean '<caliber> <type>'.",
+    "Every caliber has at least one tracer (TRACER, API_T, APHEI_T). A gun loads 4 other rounds, then 1 tracer, when both kinds are in the inventory.",
+    "dimensions_mm are approximate nominal cartridge dimensions used ONLY to draw and scale the icon; they are not ballistic data.",
+    "tacz_ammo is the TACZ ammo id the round counts as (the gun accepts it like that ammo); stack_size follows TACZ's own ammo index."
+  ],
+  "calibers": [
+    {
+      "id": "9x19", "tacz_ammo": "tacz:9mm", "name_en": "9x19", "name_ko": "9mm", "stack_size": 60,
+      "shape": "straight", "case": "brass", "nose": "round",
+      "dimensions_mm": { "overall": 29.7, "case_length": 19.2, "base": 9.9, "rim": 9.9, "bullet": 9.0 },
+      "rounds": [
+        { "id": "m882", "designation": "M882", "type": "FMJ" },
+        { "id": "m1153", "designation": "M1153", "type": "JHP" },
+        { "id": "rip", "type": "RIP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "45acp", "tacz_ammo": "tacz:45acp", "name_en": ".45 ACP", "name_ko": ".45 ACP", "stack_size": 60,
+      "shape": "straight", "case": "brass", "nose": "round",
+      "dimensions_mm": { "overall": 32.4, "case_length": 22.8, "base": 12.0, "rim": 12.0, "bullet": 11.5 },
+      "rounds": [
+        { "id": "m1911", "designation": "M1911", "type": "FMJ" },
+        { "id": "jhp", "type": "JHP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "357mag", "tacz_ammo": "tacz:357mag", "name_en": ".357 Magnum", "name_ko": ".357 매그넘", "stack_size": 48,
+      "shape": "straight", "case": "nickel", "nose": "flat",
+      "dimensions_mm": { "overall": 40.0, "case_length": 33.0, "base": 9.6, "rim": 11.2, "bullet": 9.1 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "jhp", "type": "JHP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "50ae", "tacz_ammo": "tacz:50ae", "name_en": ".50 AE", "name_ko": ".50 AE", "stack_size": 48,
+      "shape": "straight", "case": "brass", "nose": "flat",
+      "dimensions_mm": { "overall": 40.9, "case_length": 32.6, "base": 13.9, "rim": 13.9, "bullet": 12.7 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "jhp", "type": "JHP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "500sw", "tacz_ammo": "tacz:500mag", "name_en": ".500 S&W", "name_ko": ".500 S&W", "stack_size": 42,
+      "shape": "straight", "case": "nickel", "nose": "flat",
+      "dimensions_mm": { "overall": 57.2, "case_length": 41.3, "base": 13.4, "rim": 14.2, "bullet": 12.7 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "jsp", "type": "JSP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "762x25", "tacz_ammo": "tacz:762x25", "name_en": "7.62x25", "name_ko": "7.62x25mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "steel", "nose": "round",
+      "dimensions_mm": { "overall": 34.9, "case_length": 24.6, "base": 9.9, "rim": 9.9, "bullet": 7.9 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "jhp", "type": "JHP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#3E8E3E" }
+      ]
+    },
+    {
+      "id": "57x28", "tacz_ammo": "tacz:57x28", "name_en": "5.7x28", "name_ko": "5.7mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 40.5, "case_length": 28.9, "base": 7.9, "rim": 7.9, "bullet": 5.7 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "46x30", "tacz_ammo": "tacz:46x30", "name_en": "4.6x30", "name_ko": "4.6mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 38.5, "case_length": 30.5, "base": 8.0, "rim": 8.0, "bullet": 4.7 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "22wmr", "tacz_ammo": "tacz:22wmr", "name_en": ".22 WMR", "name_ko": ".22 WMR", "stack_size": 64,
+      "shape": "rimfire", "case": "brass", "nose": "round",
+      "dimensions_mm": { "overall": 34.0, "case_length": 26.8, "base": 6.1, "rim": 7.5, "bullet": 5.7 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "jhp", "type": "JHP" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "556x45", "tacz_ammo": "tacz:556x45", "name_en": "5.56x45", "name_ko": "5.56mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 57.4, "case_length": 44.7, "base": 9.6, "rim": 9.6, "bullet": 5.7 },
+      "rounds": [
+        { "id": "m855", "designation": "M855", "type": "FMJ", "tip": "#3E8E3E" },
+        { "id": "m193", "designation": "M193", "type": "FMJ", "name_ko": "5.56mm 보통탄 (M193)" },
+        { "id": "m995", "designation": "M995", "type": "AP", "tip": "#1E1E1E",
+          "armor_penetration": {"kind": "KE", "mm": 12, "range_m": 100, "loss_per_km_mm": 10, "status": "ESTIMATE", "source": "Nammo: penetrates 12 mm RHA (300 HB) at 100 m. loss_per_km_mm is DESIGN (no sourced falloff)", "source_url": "https://www.nammo.com/products/ammunition/small-caliber-ammunition/5-56mm-series/5-56-mm-x-45-armor-piercing-3/"} },
+        { "id": "m856", "designation": "M856", "type": "TRACER", "tip": "#E07020" }
+      ]
+    },
+    {
+      "id": "545x39", "tacz_ammo": "tacz:545x39", "name_en": "5.45x39", "name_ko": "5.45mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "steel", "nose": "spitzer",
+      "dimensions_mm": { "overall": 57.0, "case_length": 39.8, "base": 10.0, "rim": 10.0, "bullet": 5.6 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#3E8E3E" }
+      ]
+    },
+    {
+      "id": "58x42", "tacz_ammo": "tacz:58x42", "name_en": "5.8x42", "name_ko": "5.8mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "steel", "nose": "spitzer",
+      "dimensions_mm": { "overall": 58.0, "case_length": 42.0, "base": 10.4, "rim": 10.4, "bullet": 6.0 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#3E8E3E" }
+      ]
+    },
+    {
+      "id": "762x39", "tacz_ammo": "tacz:762x39", "name_en": "7.62x39", "name_ko": "7.62x39mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "steel", "nose": "spitzer",
+      "dimensions_mm": { "overall": 56.0, "case_length": 38.7, "base": 11.3, "rim": 11.3, "bullet": 7.9 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "hp", "type": "HP" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#3E8E3E" }
+      ]
+    },
+    {
+      "id": "762x51", "tacz_ammo": "tacz:308", "name_en": "7.62x51", "name_ko": "7.62mm", "stack_size": 48,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 71.1, "case_length": 51.2, "base": 11.9, "rim": 11.9, "bullet": 7.8 },
+      "rounds": [
+        { "id": "m80", "designation": "M80", "type": "FMJ" },
+        { "id": "m118lr", "designation": "M118LR", "type": "OTM" },
+        { "id": "m61", "designation": "M61", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "m62", "designation": "M62", "type": "TRACER", "tip": "#E07020" }
+      ]
+    },
+    {
+      "id": "762x54r", "tacz_ammo": "tacz:762x54", "name_en": "7.62x54R", "name_ko": "7.62x54R", "stack_size": 60,
+      "shape": "rimmed_bottleneck", "case": "steel", "nose": "spitzer",
+      "dimensions_mm": { "overall": 77.2, "case_length": 53.7, "base": 12.4, "rim": 14.4, "bullet": 7.9 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#3E8E3E" }
+      ]
+    },
+    {
+      "id": "3006", "tacz_ammo": "tacz:30_06", "name_en": ".30-06", "name_ko": ".30-06", "stack_size": 36,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 84.8, "case_length": 63.3, "base": 12.0, "rim": 12.0, "bullet": 7.8 },
+      "rounds": [
+        { "id": "m2", "designation": "M2", "type": "FMJ" },
+        { "id": "m2ap", "designation": "M2", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "m25", "designation": "M25", "type": "TRACER", "tip": "#E07020" }
+      ]
+    },
+    {
+      "id": "792x57", "tacz_ammo": "tacz:792x57", "name_en": "7.92x57", "name_ko": "7.92mm", "stack_size": 36,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 82.0, "case_length": 57.0, "base": 12.0, "rim": 12.0, "bullet": 8.2 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "68x51", "tacz_ammo": "tacz:68x51fury", "name_en": "6.8x51", "name_ko": "6.8mm", "stack_size": 60,
+      "shape": "bottleneck", "case": "nickel", "nose": "spitzer",
+      "dimensions_mm": { "overall": 71.1, "case_length": 51.2, "base": 11.9, "rim": 11.9, "bullet": 7.0 },
+      "rounds": [
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "338lm", "tacz_ammo": "tacz:338", "name_en": ".338 LM", "name_ko": ".338 라푸아", "stack_size": 30,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 93.5, "case_length": 69.2, "base": 14.9, "rim": 14.9, "bullet": 8.6 },
+      "rounds": [
+        { "id": "otm", "type": "OTM" },
+        { "id": "ap", "type": "AP", "tip": "#1E1E1E" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "4570", "tacz_ammo": "tacz:45_70", "name_en": ".45-70", "name_ko": ".45-70", "stack_size": 48,
+      "shape": "straight", "case": "brass", "nose": "flat",
+      "dimensions_mm": { "overall": 64.8, "case_length": 53.5, "base": 12.7, "rim": 15.2, "bullet": 11.6 },
+      "rounds": [
+        { "id": "jsp", "type": "JSP" },
+        { "id": "fmj", "type": "FMJ" },
+        { "id": "tracer", "type": "TRACER", "tip": "#D8402C" }
+      ]
+    },
+    {
+      "id": "50bmg", "tacz_ammo": "tacz:50bmg", "name_en": ".50 BMG", "name_ko": "12.7mm", "stack_size": 30,
+      "shape": "bottleneck", "case": "brass", "nose": "spitzer",
+      "dimensions_mm": { "overall": 138.0, "case_length": 99.0, "base": 20.4, "rim": 20.4, "bullet": 13.0 },
+      "rounds": [
+        { "id": "m33", "designation": "M33", "type": "FMJ",
+          "armor_penetration": {"kind": "KE", "mm": 8, "range_m": 500, "loss_per_km_mm": 10, "status": "DESIGN", "source": "ball; no figure"} },
+        { "id": "m2", "designation": "M2", "type": "AP", "tip": "#1E1E1E",
+          "armor_penetration": {"kind": "KE", "mm": 20, "range_m": 500, "loss_per_km_mm": 20, "status": "ESTIMATE", "source": ".50 M2 AP: about 20 mm RHA at 500 m (unverified secondary source). loss_per_km_mm is DESIGN (no sourced falloff)", "source_url": "https://modernfirearms.net/en/cartridge/50-bmg-2/"} },
+        { "id": "m8", "designation": "M8", "type": "API", "tip": "#B8BEC4",
+          "armor_penetration": {"kind": "KE", "mm": 20, "range_m": 500, "loss_per_km_mm": 20, "status": "DESIGN", "source": "taken equal to M2 AP (same hardened-steel-core class); no own figure"} },
+        { "id": "m20", "designation": "M20", "type": "API_T", "tip": "#D8402C", "ring": "#B8BEC4",
+          "armor_penetration": {"kind": "KE", "mm": 18, "range_m": 500, "loss_per_km_mm": 20, "status": "DESIGN", "source": "slightly below M8 (tracer cavity); no own figure"} },
+        { "id": "mk211", "designation": "Mk 211", "type": "HEIAP", "tip": "#3E8E3E", "ring": "#9AA0A6",
+          "armor_penetration": {"kind": "KE", "mm": 15.6, "range_m": 1000, "loss_per_km_mm": 10, "status": "ESTIMATE", "source": "Mk 211: 11 mm RHA at 45 deg from 1000 m (GlobalSecurity via Wikipedia) = 15.6 mm line of sight. loss_per_km_mm is DESIGN (no sourced falloff)", "source_url": "https://en.wikipedia.org/wiki/Raufoss_Mk_211"} },
+        { "id": "aphei_t", "type": "APHEI_T", "tip": "#D8402C", "ring": "#E0C040",
+          "armor_penetration": {"kind": "KE", "mm": 15, "range_m": 1000, "loss_per_km_mm": 10, "status": "DESIGN", "source": "taken near Mk 211; no own figure"} },
+        { "id": "m17", "designation": "M17", "type": "TRACER", "tip": "#D8402C",
+          "armor_penetration": {"kind": "KE", "mm": 7, "range_m": 500, "loss_per_km_mm": 10, "status": "DESIGN", "source": "tracer; no figure"} }
+      ]
+    },
+    {
+      "id": "12ga", "tacz_ammo": "tacz:12g", "name_en": "12ga", "name_ko": "12게이지", "stack_size": 36,
+      "shape": "shotshell", "case": "brass", "nose": "flat",
+      "dimensions_mm": { "overall": 65.0, "case_length": 65.0, "base": 20.2, "rim": 22.4, "bullet": 18.5 },
+      "rounds": [
+        { "id": "buck", "type": "BUCK", "hull": "#B8322A" },
+        { "id": "slug", "type": "SLUG", "hull": "#2F6E3A" },
+        { "id": "tracer", "type": "TRACER", "hull": "#D8732A" }
+      ]
+    }
+  ]
+}

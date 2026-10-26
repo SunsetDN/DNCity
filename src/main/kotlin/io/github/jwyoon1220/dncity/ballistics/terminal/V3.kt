@@ -15,6 +15,8 @@ data class V3(val x: Double, val y: Double, val z: Double) {
 
     fun scale(f: Double): V3 = V3(x * f, y * f, z * f)
 
+    fun cross(o: V3): V3 = V3(y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x)
+
     operator fun plus(o: V3): V3 = V3(x + o.x, y + o.y, z + o.z)
 
     operator fun minus(o: V3): V3 = V3(x - o.x, y - o.y, z - o.z)

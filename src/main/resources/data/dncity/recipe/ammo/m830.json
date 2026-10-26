@@ -1,0 +1,35 @@
+{
+  "materials": [
+    {
+      "item": {
+        "item": "superbwarfare:high_energy_explosives"
+      },
+      "count": 1
+    },
+    {
+      "item": {
+        "tag": "c:ingots/steel"
+      },
+      "count": 2
+    },
+    {
+      "item": {
+        "tag": "c:ingots/copper"
+      },
+      "count": 4
+    },
+    {
+      "item": {
+        "tag": "c:gunpowders"
+      },
+      "count": 6
+    }
+  ],
+  "result": {
+    "type": "ammo",
+    "group": "explosives",
+    "id": "dncity:m830",
+    "count": 1
+  },
+  "type": "tacz:gun_smith_table_crafting"
+}

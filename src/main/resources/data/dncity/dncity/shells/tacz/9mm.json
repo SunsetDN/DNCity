@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:9mm",
   "caliber_mm": 9.0,
-  "penetration": 0.05
+  "penetration": 0.05,
+  "small_arms": {
+    "mass_gr": 112,
+    "diameter_in": 0.355,
+    "velocity_fps": 1263,
+    "velocity_note": "15 ft from muzzle",
+    "source": "TM 43-0001-27 (C1-8), Cartridge, 9 mm, Ball, NATO, M882: projectile weight 112 gr, velocity 1263 +/- 5 fps 15 ft; diameter .355 in per NIJ 0101.06 test-bullet table (9 mm Luger)",
+    "source_kind": "MILITARY_SPEC"
+  }
 }

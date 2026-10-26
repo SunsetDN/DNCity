@@ -1,12 +1,11 @@
+// AGENT-DONE(codex): fsr2-settings-ui
 package io.github.jwyoon1220.dncity.client.render.fsr
 
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
-import net.irisshaders.iris.pipeline.Fsr2PassthroughPipelineLoader
 
 /**
  * Settings screen for FSR2 temporal upscaling, structurally mirroring
@@ -14,16 +13,13 @@ import net.irisshaders.iris.pipeline.Fsr2PassthroughPipelineLoader
  * back button, in-memory-only state via [FsrConfig]) -- see AGENTS.md's "Architecture: FSR2
  * temporal upscaling" for the overall feature design.
  *
- * Per the confirmed design decision that FSR2 must work even with no Iris shaderpack loaded (see
- * `net.irisshaders.iris.pipeline.Fsr2PassthroughPipelineLoader`'s TODO), this screen is always
- * reachable/enabled once Iris is present -- it does not gate on a real shaderpack being active.
+ * Per the confirmed design decision that FSR2 must work even with no Iris shaderpack loaded, this
+ * screen does not gate its controls on a real shaderpack being active.
  *
  * The widget layout/state-cycling here is real (not a TODO stub, unlike [FsrRenderTargets]/
  * [FsrPassDriver]) since it only touches [FsrConfig]'s plain data; what's still a stub is any
- * downstream effect of toggling these settings (e.g. forcing a resize/history-invalidate on
- * [FsrRenderTargets], or force-loading the passthrough pipeline on enable) -- those calls are
- * left as TODO markers below rather than silently omitted, so it's clear this screen alone does
- * not make FSR2 actually run yet.
+ * downstream render integration that consumes these settings. Enabling or changing quality does
+ * resize and invalidate [FsrRenderTargets], while pipeline selection remains the renderer's job.
  */
 class FsrSettingsScreen(private val parent: Screen?) : Screen(Component.literal("FSR2 Settings")) {
 
@@ -82,7 +78,6 @@ class FsrSettingsScreen(private val parent: Screen?) : Screen(Component.literal(
         FsrConfig.enabled = !FsrConfig.enabled
         enabledButton.message = enabledLabel()
         if (FsrConfig.enabled) {
-            Fsr2PassthroughPipelineLoader.ensurePipelineAvailable()
             resizeHistory()
         } else {
             FsrRenderTargets.invalidateHistory()

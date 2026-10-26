@@ -1,0 +1,23 @@
+{
+  "ammo": "120mm M829A3 APFSDS-T",
+  "entity": "superbwarfare:cannon_shell",
+  "key": "dncity:m829a3",
+  "tags": [
+    "cannon",
+    "tank",
+    "apfsds"
+  ],
+  "caliber_mm": 120,
+  "penetration": 1.0,
+  "explosive": false,
+  "fracture_chance_bonus": 0.3,
+  "armor_penetration": {
+    "kind": "KE",
+    "mm": 745,
+    "range_m": 2000,
+    "loss_per_km_mm": 28,
+    "status": "ESTIMATE",
+    "source": "Forum back-of-envelope about 745 mm RHA at 2000 m (no official figure; other forum estimates 765 mm); 1555 m/s (Defense Update / Northrop Grumman 1552.5 m/s). loss_per_km_mm: War Thunder M829 shape (3.8 %/km)",
+    "source_url": "https://www.defencetalk.com/military/goto/post?id=210549"
+  }
+}

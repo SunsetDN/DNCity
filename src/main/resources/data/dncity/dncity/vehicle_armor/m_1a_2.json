@@ -1,0 +1,112 @@
+{
+  "vehicle": "superbwarfare:m_1a_2",
+  "layout": "tank",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 560,
+        "ce": 650,
+        "nera": {
+          "ke": 120,
+          "ce": 200
+        }
+      },
+      "side": {
+        "ke": 70,
+        "ce": 150
+      },
+      "rear": {
+        "ke": 40,
+        "ce": 40
+      },
+      "top": {
+        "ke": 40,
+        "ce": 40
+      },
+      "bottom": {
+        "ke": 25,
+        "ce": 25
+      },
+      "spall_liner": true
+    },
+    "turret": {
+      "front": {
+        "ke": 620,
+        "ce": 800,
+        "nera": {
+          "ke": 150,
+          "ce": 300
+        }
+      },
+      "side": {
+        "ke": 375,
+        "ce": 450
+      },
+      "rear": {
+        "ke": 50,
+        "ce": 50
+      },
+      "top": {
+        "ke": 40,
+        "ce": 40
+      },
+      "bottom": {
+        "ke": 40,
+        "ce": 40
+      },
+      "spall_liner": true
+    },
+    "tracks": {
+      "all": {
+        "ke": 30,
+        "ce": 30
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "turret front KE 770 / CE 1100",
+      "kind": "ESTIMATE",
+      "source": "forum post quoting the GSPO/BTVT estimate for M1A2: 770 vs KE, 1000-1200 vs CE (CE taken as the middle)",
+      "url": "https://sg.hu/forum/uzenet/1074537255/30887"
+    },
+    {
+      "value": "turret side 375",
+      "kind": "ESTIMATE",
+      "source": "forum lists: turret sides 350-400 mm (SEP)",
+      "url": "https://forum.warthunder.com/t/regarding-the-hull-armor-of-the-m1a2-sep-v3/334844?page=33"
+    },
+    {
+      "value": "hull front KE 680 / CE 850",
+      "kind": "ESTIMATE",
+      "source": "forum list: hull front 680 mm (SEP); CE from the 800-850 hull figure in the same thread",
+      "url": "https://forum.warthunder.com/t/regarding-the-hull-armor-of-the-m1a2-sep-v3/334844?page=33"
+    },
+    {
+      "value": "hull side/rear/top/bottom, turret rear/top, tracks",
+      "kind": "DESIGN",
+      "source": "no estimate found; light plates plus side skirts"
+    },
+    {
+      "value": "layout 'tank' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    },
+    {
+      "value": "nera split of the front/side/roof values",
+      "kind": "DESIGN",
+      "source": "part of the listed RHA-equivalent moved into NERA arrays in the special armor: intact it adds the same back (NERA: in full from 30 deg obliquity), used up / torn where hit"
+    },
+    {
+      "value": "spall liner hull/turret",
+      "kind": "DESIGN",
+      "source": "whether this type carries a liner is DESIGN (not confirmed); its effect is sourced: cone ~30 deg instead of >90 deg (patent EP0588212B1), up to 95 % less spall (Permali)"
+    }
+  ]
+}

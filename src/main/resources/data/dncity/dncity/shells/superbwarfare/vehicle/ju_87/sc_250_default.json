@@ -7,5 +7,11 @@
   ],
   "caliber_mm": 368,
   "penetration": 0.2,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HE",
+    "mm": 40,
+    "status": "DESIGN",
+    "source": "SC 250 direct hit; blast only, no estimate"
+  }
 }

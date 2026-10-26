@@ -1,0 +1,42 @@
+{
+  "source": "levels: NIJ Standard-0101.06 (July 2008), section 2 'NIJ Body Armor Classification', velocities for new and unworn armor; bullet diameters from the same standard's test-bullet table (nominal bullet diameter column).",
+  "design_note": "materials, enchantment_bonus and blunt_damage_fraction are game design, not measurements. Armor is treated as aramid acting like a weak NERA: it takes a fixed energy per area out of the bullet (the largest E/A among its level's test threats, times the enchantment multiplier). Diamond and netherite stand for plate-backed vests (NIJ III / IV). enchantment_bonus follows vanilla's ratio: Projectile Protection counts twice what Protection does against projectiles (4% / 8% per level). wear (design): a hit takes 0.2 of a piece's ballistic integrity per unit of the bullet's E/A relative to the piece's threshold (a bullet at the threshold: 5 hits to empty), and any piece hit 5 times stops nothing.",
+  "levels": {
+    "IIA": [
+      { "name": "9 mm FMJ RN", "mass_g": 8.0, "diameter_in": 0.355, "velocity_mps": 373 },
+      { "name": ".40 S&W FMJ", "mass_g": 11.7, "diameter_in": 0.400, "velocity_mps": 352 }
+    ],
+    "II": [
+      { "name": "9 mm FMJ RN", "mass_g": 8.0, "diameter_in": 0.355, "velocity_mps": 398 },
+      { "name": ".357 Magnum JSP", "mass_g": 10.2, "diameter_in": 0.357, "velocity_mps": 436 }
+    ],
+    "IIIA": [
+      { "name": ".357 SIG FMJ FN", "mass_g": 8.1, "diameter_in": 0.355, "velocity_mps": 448 },
+      { "name": ".44 Magnum SJHP", "mass_g": 15.6, "diameter_in": 0.429, "velocity_mps": 436 }
+    ],
+    "III": [
+      { "name": "7.62 mm NATO FMJ (M80)", "mass_g": 9.6, "diameter_in": 0.308, "velocity_mps": 847 }
+    ],
+    "IV": [
+      { "name": ".30 caliber M2 AP", "mass_g": 10.8, "diameter_in": 0.308, "velocity_mps": 878 }
+    ]
+  },
+  "materials": {
+    "minecraft:leather": "IIA",
+    "minecraft:gold": "IIA",
+    "minecraft:turtle": "IIA",
+    "minecraft:chainmail": "II",
+    "minecraft:iron": "IIIA",
+    "minecraft:diamond": "III",
+    "minecraft:netherite": "IV"
+  },
+  "enchantment_bonus": {
+    "minecraft:protection": 0.04,
+    "minecraft:projectile_protection": 0.08
+  },
+  "blunt_damage_fraction": 0.15,
+  "wear": {
+    "max_hits": 5,
+    "integrity_loss_at_threshold": 0.2
+  }
+}

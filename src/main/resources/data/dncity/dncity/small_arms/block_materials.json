@@ -1,0 +1,46 @@
+{
+  "reference_note": "Every RESIST depth below is FM 3-06.11 (Jan 2002), Chapter 7, for a single 7.62-mm NATO ball round at 25 m. The reference round's velocity is TM 43-0001-27's M80 figure, measured 78 ft (23.8 m) from the muzzle, i.e. at the same range as the FM table.",
+  "reference_round": {
+    "mass_gr": 149,
+    "diameter_in": 0.308,
+    "velocity_fps": 2750,
+    "velocity_note": "78 ft from muzzle",
+    "source": "TM 43-0001-27 (C1-8), Cartridge, 7.62mm, Ball, M80: projectile weight 149 gr, velocity 2750 fps 78 ft from muzzle; diameter .308 in per NIJ Standard-0101.06 Table (7.62 mm NATO FMJ, .308 in)",
+    "source_kind": "MILITARY_SPEC"
+  },
+  "materials": {
+    "wood": {
+      "behavior": "RESIST",
+      "reference_depth_in": 13,
+      "source": "FM 3-06.11 Table 7-3, pine board, 25 m: 13 in"
+    },
+    "soil": {
+      "behavior": "RESIST",
+      "reference_depth_in": 5,
+      "source": "FM 3-06.11 Table 7-3, dry loose sand, 25 m: 5 in"
+    },
+    "stone": {
+      "behavior": "RESIST",
+      "reference_depth_in": 2,
+      "source": "FM 3-06.11 Table 7-3, concrete, 25 m: 2 in"
+    },
+    "metal": {
+      "behavior": "RESIST",
+      "reference_depth_in": 0.375,
+      "depth_is_lower_bound": true,
+      "source": "FM 3-06.11 Table 7-5, mild steel door 3/8 in, 1 round to penetrate at 25 m: the round got through, so 3/8 in is a lower bound on its depth"
+    },
+    "glass": {
+      "behavior": "PASS",
+      "source": "FM 3-06.11 para 7-3c: the 7.62-mm round can penetrate a windowpane at a 45-degree obliquity. A glass block is treated as a window, not as a metre of solid glass; no loss is modelled."
+    },
+    "foliage": {
+      "behavior": "PASS",
+      "source": "Design: leaves and plants are concealment, not cover. No measured loss."
+    },
+    "unknown": {
+      "behavior": "STOP",
+      "source": "No data: a block of an unrecognised material stops the bullet (no wall is made shoot-through by guessing)."
+    }
+  }
+}

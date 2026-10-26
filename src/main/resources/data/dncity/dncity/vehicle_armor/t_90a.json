@@ -1,0 +1,113 @@
+{
+  "vehicle": "superbwarfare:t_90a",
+  "layout": "tank",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 375,
+        "ce": 300,
+        "era": {
+          "ke": 225,
+          "ce": 600
+        }
+      },
+      "side": {
+        "ke": 80,
+        "ce": 80,
+        "era": {
+          "ce_reduction": 0.52,
+          "tile_m": 0.13
+        }
+      },
+      "rear": {
+        "ke": 40,
+        "ce": 40
+      },
+      "top": {
+        "ke": 40,
+        "ce": 40
+      },
+      "bottom": {
+        "ke": 20,
+        "ce": 20
+      }
+    },
+    "turret": {
+      "front": {
+        "ke": 525,
+        "ce": 500,
+        "era": {
+          "ke": 225,
+          "ce": 600
+        }
+      },
+      "side": {
+        "ke": 300,
+        "ce": 400
+      },
+      "rear": {
+        "ke": 50,
+        "ce": 50
+      },
+      "top": {
+        "ke": 40,
+        "ce": 40,
+        "era": {
+          "ce_reduction": 0.52,
+          "tile_m": 0.13
+        }
+      },
+      "bottom": {
+        "ke": 40,
+        "ce": 40
+      }
+    },
+    "tracks": {
+      "all": {
+        "ke": 30,
+        "ce": 30
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "turret front KE 750 / CE 1100",
+      "kind": "ESTIMATE",
+      "source": "forum figure for T-90MS 850 KE / 1200 CE, taken lower for the older T-90A; composite and Kontakt-5 performance are not public",
+      "url": "https://defencetalk.com/military/goto/post?id=153211"
+    },
+    {
+      "value": "hull front KE 600 / CE 900",
+      "kind": "DESIGN",
+      "source": "no hull estimate found; kept below the turret like the other MBTs here"
+    },
+    {
+      "value": "sides/rear/roof, ERA on sides (CE 250) and roof (CE 150)",
+      "kind": "DESIGN",
+      "source": "no estimate found"
+    },
+    {
+      "value": "layout 'tank' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    },
+    {
+      "value": "front ERA: +225 mm vs KE, +600 mm vs CE (taken out of the front estimates, so intact the total is unchanged)",
+      "kind": "ESTIMATE",
+      "source": "T-90A: Kontakt-5 rated 200-250 mm vs APFSDS (middle used) and 600 mm vs HEAT",
+      "url": "https://en.wikipedia.org/wiki/Kontakt-5"
+    },
+    {
+      "value": "hull side / turret roof ERA: -52 % HEAT penetration, no KE effect, 0.13 m tile",
+      "kind": "ESTIMATE",
+      "source": "Kontakt-1-type bricks assumed there (placement is DESIGN): maker's claim 52 % for tank HEAT rounds (86 % Konkurs ATGM, 92 % RPG), no effect on KE; 252x130 mm panels (half the long side as tile radius)",
+      "url": "https://en.wikipedia.org/wiki/Kontakt-1"
+    }
+  ]
+}

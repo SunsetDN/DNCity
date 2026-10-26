@@ -1,0 +1,7 @@
+{
+  "name": "dncity.ammo.3bm60.name",
+  "tooltip": "dncity.ammo.3bm60.desc",
+  "display": "dncity:3bm60_display",
+  "stack_size": 4,
+  "sort": 908
+}

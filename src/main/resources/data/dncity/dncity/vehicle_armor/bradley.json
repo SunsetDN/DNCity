@@ -1,0 +1,93 @@
+{
+  "vehicle": "superbwarfare:bradley",
+  "layout": "ifv",
+  "status": "ESTIMATE",
+  "_note": [
+    "Community ESTIMATEs (public RHA-equivalent guesses, not official data) and DESIGN values (no estimate found, chosen for play).",
+    "One mm RHA-equivalent per box face, as protection against a hit square to that face; obliquity to the face adds 1/cos.",
+    "Every value says which it is in 'sources'. No War Thunder game data is used."
+  ],
+  "zones": {
+    "hull": {
+      "front": {
+        "ke": 60,
+        "ce": 90
+      },
+      "side": {
+        "ke": 35,
+        "ce": 60
+      },
+      "rear": {
+        "ke": 30,
+        "ce": 45
+      },
+      "top": {
+        "ke": 20,
+        "ce": 20
+      },
+      "bottom": {
+        "ke": 15,
+        "ce": 15
+      },
+      "spall_liner": true
+    },
+    "turret": {
+      "front": {
+        "ke": 40,
+        "ce": 60
+      },
+      "side": {
+        "ke": 30,
+        "ce": 45
+      },
+      "rear": {
+        "ke": 25,
+        "ce": 25
+      },
+      "top": {
+        "ke": 15,
+        "ce": 15
+      },
+      "bottom": {
+        "ke": 15,
+        "ce": 15
+      },
+      "spall_liner": true
+    },
+    "tracks": {
+      "all": {
+        "ke": 10,
+        "ce": 10
+      }
+    }
+  },
+  "sources": [
+    {
+      "value": "sides 35 (spaced laminate vs 14.5 mm AP all round)",
+      "kind": "ESTIMATE",
+      "source": "Wikipedia: 25.4 mm aluminium hull with spaced steel appliqué, protection up to 14.5x114 mm AP",
+      "url": "https://en.wikipedia.org/wiki/M2_Bradley"
+    },
+    {
+      "value": "front 60 (M2A2 front appliqué vs 30 mm AP)",
+      "kind": "ESTIMATE",
+      "source": "later variants credited with 30 mm AP protection; front appliqué added on the M2A2",
+      "url": "https://en.wikipedia.org/wiki/Bradley_Fighting_Vehicle"
+    },
+    {
+      "value": "CE bonus of spaced armor, rear/top/turret",
+      "kind": "DESIGN",
+      "source": "no estimate found"
+    },
+    {
+      "value": "layout 'ifv' (crew, ammunition, fuel, engine, transmission positions)",
+      "kind": "DESIGN",
+      "source": "generic module template scaled to the vehicle's boxes, not this vehicle's real internal layout"
+    },
+    {
+      "value": "spall liner hull/turret",
+      "kind": "DESIGN",
+      "source": "whether this type carries a liner is DESIGN (not confirmed); its effect is sourced: cone ~30 deg instead of >90 deg (patent EP0588212B1), up to 95 % less spall (Permali)"
+    }
+  ]
+}

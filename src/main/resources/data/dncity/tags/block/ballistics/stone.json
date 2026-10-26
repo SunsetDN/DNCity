@@ -1,0 +1,20 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:base_stone_overworld",
+    "#minecraft:base_stone_nether",
+    "#minecraft:stone_bricks",
+    "#minecraft:terracotta",
+    "#minecraft:walls",
+    { "id": "#c:cobblestones", "required": false },
+    { "id": "#c:stones", "required": false },
+    { "id": "#c:concretes", "required": false },
+    { "id": "#c:sandstone_blocks", "required": false },
+    "minecraft:bricks",
+    "minecraft:cobblestone",
+    "minecraft:mossy_cobblestone",
+    "minecraft:smooth_stone",
+    "minecraft:obsidian",
+    "minecraft:crying_obsidian"
+  ]
+}

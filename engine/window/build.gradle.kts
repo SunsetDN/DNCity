@@ -1,3 +1,4 @@
+// AGENT-DONE(codex): msys2-native-toolchain
 // Win32 native child-window bridge: creates a real HWND parented directly to the Minecraft/GLFW
 // window, either handed back raw (for external native rendering) or reparented with an AWT
 // Frame/JFrame embedded inside it (found via a unique-title FindWindowW lookup, not JDK internal
@@ -46,15 +47,24 @@ val nativeLibName = "dncity_window.dll"
 val nativeBuildDir = layout.buildDirectory.dir("native/$nativeOs-$nativeArch")
 val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
-// Requires CMake and a C/C++ toolchain (MSVC/Visual Studio Build Tools on Windows) on PATH.
-// No special generator/toolchain flags needed (unlike engine/audio's clang+MinGW setup) --
-// CMake's default Windows generator (MSVC) is fine, same as engine/fmod.
+val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+val cmakePath = (project.findProperty("cmakePath") as String?)
+    ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
+    ?: "cmake"
+val ninjaPath = (project.findProperty("ninjaPath") as String?) ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
+val clangPath = (project.findProperty("clangPath") as String?) ?: msys2UcrtBin.resolve("clang.exe").absolutePath
+val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
+val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
+
 val configureNativeWindow = tasks.register<Exec>("configureNativeWindow") {
     inputs.file("CMakeLists.txt")
     inputs.dir("src/main/cpp")
     outputs.dir(nativeBuildDir)
     workingDir = projectDir
-    commandLine("cmake", "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath, "-DCMAKE_BUILD_TYPE=Release")
+    commandLine(cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
+        "-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninjaPath", "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_C_COMPILER=$clangPath", "-DCMAKE_CXX_COMPILER=$clangCppPath",
+        "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,--whole-archive,$winpthreadStaticPath,--no-whole-archive")
 }
 
 val buildNativeWindow = tasks.register<Exec>("buildNativeWindow") {
@@ -63,10 +73,12 @@ val buildNativeWindow = tasks.register<Exec>("buildNativeWindow") {
     val destDir = nativeResourceDir.map { it.dir("natives/$nativeOs-$nativeArch") }
     outputs.dir(destDir)
     workingDir = projectDir
-    commandLine("cmake", "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
+    commandLine(cmakePath, "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
     val libFileName = nativeLibName
     val nativeBuildDirPath = nativeBuildDir.get().asFile.absolutePath
-    val builtLibraryTree = fileTree(nativeBuildDir) { include("**/$libFileName") }
+    val builtLibraryTree = fileTree(nativeBuildDir) {
+        include("**/$libFileName", "**/lib$libFileName")
+    }
     doLast {
         val out = destDir.get().asFile
         out.mkdirs()

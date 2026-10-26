@@ -3,5 +3,13 @@
   "entity": "tacz:bullet",
   "key": "tacz:357mag",
   "caliber_mm": 9.07,
-  "penetration": 0.1
+  "penetration": 0.1,
+  "small_arms": {
+    "mass_g": 10.2,
+    "diameter_in": 0.357,
+    "velocity_mps": 436,
+    "velocity_note": "NIJ reference test velocity, not a measured muzzle velocity",
+    "source": "NIJ Standard-0101.06 section 2.2: .357 Magnum JSP 10.2 g (158 gr) at 436 m/s; diameter .357 in from the standard's test-bullet table",
+    "source_kind": "STANDARD"
+  }
 }

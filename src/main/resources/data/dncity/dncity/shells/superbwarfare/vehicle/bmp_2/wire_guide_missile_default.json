@@ -7,5 +7,12 @@
   ],
   "caliber_mm": 127,
   "penetration": 0.9,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 600,
+    "status": "ESTIMATE",
+    "source": "9M113 Konkurs: about 600 mm RHA (original single-charge warhead)",
+    "source_url": "https://en.wikipedia.org/wiki/9M113_Konkurs"
+  }
 }

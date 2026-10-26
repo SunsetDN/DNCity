@@ -7,5 +7,12 @@
   ],
   "caliber_mm": 70,
   "penetration": 0.4,
-  "explosive": true
+  "explosive": true,
+  "armor_penetration": {
+    "kind": "HEAT",
+    "mm": 300,
+    "status": "ESTIMATE",
+    "source": "Hydra 70 M247 HEDP: similar penetration to the M72 LAW, about 300 mm RHA. SuperbWarfare has one small rocket for every launcher and does not tell HE from HEDP, so every small rocket is taken as M247",
+    "source_url": "https://en.wikipedia.org/wiki/Hydra_70"
+  }
 }
