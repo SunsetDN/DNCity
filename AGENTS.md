@@ -1044,6 +1044,44 @@ has no launcher takes (the RPG-7 borrowed the M32A1's). Guns of TACZ type `rpg` 
 reload, bolt, draw and holster and play the gun pack's own OGGs through the vanilla sound engine (the pre-FMOD code), user
 request 2026-10-26. `TaczLauncherSoundTest` checks every launcher has those sounds on disk. Not yet heard in a client.
 
+## Far players over LOD terrain (marker `far-entity-render`)
+
+User request 2026-10-27: longer entity distance, and players standing in Distant Horizons' LOD terrain drawn as real models
+("Tarkov-style": EFT ties player draw distance to its terrain "Overall Visibility" setting; the same rule here, a player is
+drawn as far as the terrain under them).
+- **Why vanilla cannot**: `ChunkMap.TrackedEntity.updatePlayer` (1.21.1) only sends an entity within min(tracking range, view
+  distance x 16) whose chunk the viewer has (`isChunkTracked`); on the client `Entity.shouldRenderAtSqrDistance` stops at
+  bounding-box size x 64 x view scale (a player: 96 blocks at 12 chunks), the entity loop needs a compiled section, Sodium
+  culls entities outside its visible sections (`EntityRendererMixin` -> `isEntityVisible`), and the projection's far plane is
+  4 x render distance (`GameRenderer.getDepthFar`).
+- **Vanilla range** (`client/farentity/EntityRenderDistance` + `mixin/MixinEntityRenderDistance`): living entities, entities
+  with passengers and boxes >= 2 blocks render out to the chunk render distance. Tracking ranges are untouched (server
+  `entity-broadcast-range-percentage` still governs mobs).
+- **Beyond it** (`farentity/FarEntityServer`, `network/FarEntityPayloads.kt`): the client reports DH's LOD radius
+  (`FarEntityRangePayload`, 0 without DH); every server tick each viewer gets snapshots (position, body/head/pitch, pose,
+  invisibility, light at the feet, root vehicle with its seat; name + 6 equipment slots only when they change) of the players
+  in that radius that vanilla does not track (`vanillaTracks` repeats vanilla's test), every 2/4/8 ticks by distance
+  (<512/<1024/beyond, DESIGN), plus explicit removals. Cap: `-Ddncity.farEntities.maxBlocks` (default 4096, 0 = off).
+- **Drawing** (`client/farentity/FarEntityClient`, `mixin/MixinLevelRendererFarEntities`): each far player is a `RemotePlayer`
+  never added to the level, drawn by the normal `EntityRenderDispatcher` just before the entity loop's `endLastBatch()` with
+  vanilla's buffer source (so Iris shades it like any entity). Snapshot interpolation lags 2 send intervals; walk animation is
+  vanilla's `calculateEntityAnimation` on the interpolated path. Past 90 % of the far plane a proxy is drawn nearer and smaller
+  by the same factor (same pixels). Frustum-tested at that compressed position; Sodium's section culling is bypassed. A player
+  the level has is always left to vanilla. Riders: the vehicle is made client-side (`EntityType.create`) and the proxy mounted
+  on it; SuperbWarfare seats by mounting order and hides crew by seat, so `compat/SbwFarEntityCompat` sends the real seat and
+  pins it with `entityIndexOverride`. A vehicle type or proxy whose renderer throws is dropped, never the frame.
+- **Occlusion** (`client/farentity/DhLodTerrain`, `FarEntityMath.isOccluded`): DH renders LODs into its own colour+depth
+  framebuffer and copies only colour into Minecraft's (`coreSubProjects/.../shaders/apply.frag`), so the depth buffer cannot hide
+  a proxy behind a far hill. A background thread marches eye -> head/chest/feet through DH's column data
+  (`IDhApiTerrainDataRepo.getColumnDataAtBlockPos`, which blocks, hence the thread) from the vanilla radius to 1.5 blocks short of
+  the target, 4 times a second; hidden only if all three lines hit solid LOD (air/liquid ignored; a column without data never
+  occludes). New proxies start hidden until their first answer.
+- **Not covered / known limits**: positions of everyone in the radius reach the client whether visible or not (occlusion is
+  client-side), so a modified client could use them as a wallhack. No shadows in Iris's shadow pass for proxies, no swim/elytra
+  animation, vehicles keep their default turret/rotor state (only position, yaw, pitch are sent), name tags stay at vanilla's
+  64 blocks. Compiled against the real 1.21.1/NeoForge 21.1.248 classes and DH's API; `FarEntityMathTest` passes; the payload
+  codec round trip and everything visual are **not yet tried in a client**.
+
 ## Editing the mod metadata template
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in
