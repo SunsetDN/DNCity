@@ -207,8 +207,10 @@ of these; only the load-bearing gotchas are repeated here:
   defaults to `fabric,neoforge`; the fabric loader there needs fabric-loom 1.10, which requires
   Gradle 8.12+, one minor version ahead of this repo's Gradle 8.11 — dropping it avoids bumping
   the whole repo's Gradle version for a loader DNCity never uses). DH's own core logic lives in a
-  **second, GitLab-hosted submodule** nested inside it
-  (`mods/distant-horizons/coreSubProjects` → `gitlab.com/jeseibel/distant-horizons-core`, LGPL) —
+  **second submodule** nested inside it (`mods/distant-horizons/coreSubProjects`, LGPL). Upstream
+  hosts it on GitLab (`gitlab.com/jeseibel/distant-horizons-core`), but the patched copy DNCity
+  pins lives in the same GitHub fork, on branch `codex/dncity-core-1.21.1`
+  (`mods/distant-horizons/.gitmodules` → `github.com/SunsetDN/distant-horizons.git`) —
   `git submodule update --init --recursive` is required, same as this repo's own top-level
   submodules. The vendored commit is pinned to a specific SHA from *before* upstream's own
   Gradle-9 migration (composite builds run every included build under the root's Gradle version,
