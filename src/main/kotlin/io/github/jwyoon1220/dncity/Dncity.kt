@@ -122,6 +122,7 @@ object Dncity {
         NeoForge.EVENT_BUS.addListener(FarEntityServer::onServerTick)
         NeoForge.EVENT_BUS.addListener(FarEntityServer::onLoggedOut)
         NeoForge.EVENT_BUS.addListener(FarEntityServer::onChangedDimension)
+        NeoForge.EVENT_BUS.addListener(FarEntityServer::onServerStopping)
         // Loaded lazily: these reference TACZ and First Aid classes
         if (ModList.get().isLoaded("tacz")) {
             TaczShellKeys.register()

@@ -142,6 +142,41 @@ object FarEntityMath {
         return false
     }
 
+    /** How far a viewer may lean or step out from cover before the server has looked again, blocks. DESIGN. */
+    const val PEEK_SIDEWAYS = 1.0
+
+    /** How far a viewer's eye may rise (a jump, standing up) before the server has looked again, blocks. DESIGN. */
+    const val PEEK_UP = 1.0
+
+    /**
+     * The eye positions a viewer could look from before the next visibility check: where it is, [sideways] to either side
+     * across the line of sight (horizontal, so around a corner or a ridge's shoulder) and [up] above it. Checking all of
+     * them makes a player that is about to come into view arrive a little early instead of popping in late.
+     */
+    fun peekEyes(eye: DoubleArray, target: DoubleArray, sideways: Double = PEEK_SIDEWAYS, up: Double = PEEK_UP): List<DoubleArray> {
+        val dx = target[0] - eye[0]
+        val dz = target[2] - eye[2]
+        val length = sqrt(dx * dx + dz * dz)
+        val eyes = ArrayList<DoubleArray>(4)
+        eyes += eye
+        if (length > 0.0 && sideways > 0.0) {
+            // (-dz, dx) is the horizontal perpendicular of the sight line
+            val px = -dz / length * sideways
+            val pz = dx / length * sideways
+            eyes += doubleArrayOf(eye[0] + px, eye[1], eye[2] + pz)
+            eyes += doubleArrayOf(eye[0] - px, eye[1], eye[2] - pz)
+        }
+        if (up > 0.0) eyes += doubleArrayOf(eye[0], eye[1] + up, eye[2])
+        return eyes
+    }
+
+    /** Whether at least one line from any of [eyes] to any of [targets] is clear ([isOccluded] with the same arguments). */
+    fun isVisibleFromAny(
+        eyes: List<DoubleArray>, targets: List<DoubleArray>,
+        startDistance: Double, endMargin: Double,
+        columns: ColumnSource,
+    ): Boolean = eyes.any { eye -> targets.any { target -> !isOccluded(eye, target, startDistance, endMargin, columns) } }
+
     /** Horizontal distance (vanilla tracking measures players in x/z only). */
     fun horizontalDistance(ax: Double, az: Double, bx: Double, bz: Double): Double {
         val dx = ax - bx

@@ -1075,11 +1075,21 @@ drawn as far as the terrain under them).
   a proxy behind a far hill. A background thread marches eye -> head/chest/feet through DH's column data
   (`IDhApiTerrainDataRepo.getColumnDataAtBlockPos`, which blocks, hence the thread) from the vanilla radius to 1.5 blocks short of
   the target, 4 times a second; hidden only if all three lines hit solid LOD (air/liquid ignored; a column without data never
-  occludes). New proxies start hidden until their first answer.
-- **Not covered / known limits**: positions of everyone in the radius reach the client whether visible or not (occlusion is
-  client-side), so a modified client could use them as a wallhack. No shadows in Iris's shadow pass for proxies, no swim/elytra
+  occludes). New proxies start hidden until their first answer. That test is for drawing only; what reaches the client is
+  decided by the server (next point).
+- **Anti-wallhack** (`farentity/FarEntityVisibility`, user 2026-10-27, long range only): the server sends a far player only
+  while a line from the viewer's eye -- or a step to either side across the line of sight, or a jump up
+  (`FarEntityMath.peekEyes`, 1 block each, DESIGN) -- to the target's head, chest or feet is clear through the *server's* DH
+  terrain (`farentity/DhTerrainColumns` on `SERVER_LEVEL`, built from real chunks; DH's lookup only reads its database, it never
+  queues generation), re-checked every 200 ms (500 ms beyond 1024 blocks) on a background thread, sent for 1.5 s after the
+  last clear line; hidden again -> the viewer gets a removal. Fails closed: nothing is sent before the first "visible", or
+  for a dimension DH has no world for, or at all without DH on the server (logged once);
+  `-Ddncity.farEntities.serverOcclusion=false` turns the check off. Vanilla tracking range (near players) is not filtered.
+- **Not covered / known limits**: both sight tests only tell air and liquid from solid (`IDhApiBlockStateWrapper`), so glass
+  and leaves block them: a far player seen only through a window or foliage is not sent. A freshly built wall counts once DH
+  has re-read the chunk. Near players inside vanilla tracking range are still sent whatever is between. No shadows in Iris's shadow pass for proxies, no swim/elytra
   animation, vehicles keep their default turret/rotor state (only position, yaw, pitch are sent), name tags stay at vanilla's
-  64 blocks. Compiled against the real 1.21.1/NeoForge 21.1.248 classes and DH's API; `FarEntityMathTest` passes; the payload
+  64 blocks. Compiled against the real 1.21.1/NeoForge 21.1.248 classes and DH's API; `FarEntityMathTest` (10) passes; the payload
   codec round trip and everything visual are **not yet tried in a client**.
 
 ## Editing the mod metadata template

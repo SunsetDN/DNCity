@@ -84,6 +84,30 @@ class FarEntityMathTest {
     }
 
     @Test
+    fun `peek eyes step across the sight line and up, not along it`() {
+        val eye = doubleArrayOf(0.0, 70.0, 0.0)
+        val eyes = FarEntityMath.peekEyes(eye, doubleArrayOf(1000.0, 70.0, 0.0), sideways = 1.0, up = 1.0)
+        assertEquals(4, eyes.size)
+        // looking along +x, the side steps are along z
+        assertTrue(eyes.any { it[2] == 1.0 && it[0] == 0.0 })
+        assertTrue(eyes.any { it[2] == -1.0 && it[0] == 0.0 })
+        assertTrue(eyes.any { it[1] == 71.0 })
+        // straight up or down at the target: no horizontal direction, only the eye and the jump
+        assertEquals(2, FarEntityMath.peekEyes(eye, doubleArrayOf(0.0, 10.0, 0.0)).size)
+    }
+
+    @Test
+    fun `a player behind a ridge is hidden, but shows once the viewer could lean or step past its end`() {
+        // cover 80 blocks high at x = 100..110 that ends at z = -1 (columns z <= -2); open ground elsewhere
+        val ridge = FarEntityMath.ColumnSource { x, z -> if (x in 100..110 && z <= -2) intArrayOf(-64, 80) else intArrayOf(-64, 60) }
+        val target = listOf(doubleArrayOf(1000.0, 61.6, -1.5), doubleArrayOf(1000.0, 61.0, -1.5), doubleArrayOf(1000.0, 60.2, -1.5))
+        val hidden = doubleArrayOf(0.0, 70.0, -1.5)
+        assertFalse(FarEntityMath.isVisibleFromAny(listOf(hidden), target, 0.5, 1.5, ridge))
+        // one step to the side clears the ridge's end: the server already sends the player
+        assertTrue(FarEntityMath.isVisibleFromAny(FarEntityMath.peekEyes(hidden, target[0]), target, 0.5, 1.5, ridge))
+    }
+
+    @Test
     fun `columns without data never occlude, and overhangs only where the ray is inside them`() {
         val eye = doubleArrayOf(0.0, 70.0, 0.5)
         val target = doubleArrayOf(1000.0, 70.0, 0.5)

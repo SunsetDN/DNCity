@@ -10,6 +10,7 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.LightLayer
 import net.neoforged.neoforge.event.entity.player.PlayerEvent
+import net.neoforged.neoforge.event.server.ServerStoppingEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import net.neoforged.neoforge.network.PacketDistributor
 import java.util.UUID
@@ -23,9 +24,9 @@ import java.util.UUID
  * horizontal distance <= min(tracking range, view distance x 16) **and** `isChunkTracked`. [vanillaTracks] repeats that
  * test, so a player is in exactly one of the two systems (the client also prefers a real entity when it has one).
  *
- * Note: this hands each client the positions of everyone in its radius, whether or not they are visible from there.
- * Occlusion is decided on the client (against the LOD terrain), so a modified client could use the data as a wallhack;
- * the radius cap ([maxRadiusBlocks]) is the only server-side limit.
+ * Anti-wallhack: a far player is only sent while [FarEntityVisibility] (server-side line of sight over the server's own
+ * Distant Horizons terrain) says the viewer could see them; when that stops, the viewer gets a removal, so a modified
+ * client never holds the position of someone hidden behind terrain out there.
  */
 object FarEntityServer {
     /**
@@ -37,6 +38,9 @@ object FarEntityServer {
     private class ViewerState(var radiusBlocks: Int) {
         /** Far players this viewer currently has a proxy for, with the gear hash it last got. */
         val sent = HashMap<UUID, Int>()
+
+        /** Line-of-sight state for every far player in the radius, visible or not. */
+        val visibility = HashMap<UUID, FarEntityVisibility.PairState>()
     }
 
     private val viewers = HashMap<UUID, ViewerState>()
@@ -59,7 +63,15 @@ object FarEntityServer {
 
     fun onChangedDimension(event: PlayerEvent.PlayerChangedDimensionEvent) {
         // the client drops every proxy when its level changes (FarEntityClient.onClientTick); start this viewer over
-        viewers[event.entity.uuid]?.sent?.clear()
+        viewers[event.entity.uuid]?.let {
+            it.sent.clear()
+            it.visibility.clear()
+        }
+    }
+
+    fun onServerStopping(event: ServerStoppingEvent) {
+        viewers.clear()
+        FarEntityVisibility.clear()
     }
 
     fun onServerTick(event: ServerTickEvent.Post) {
@@ -70,6 +82,7 @@ object FarEntityServer {
         val playerTrackingRange = server.getScaledTrackingDistance(EntityType.PLAYER.clientTrackingRange() * 16)
         // one gear hash per player per tick, not one per (viewer, player) pair
         val gearHashes = HashMap<UUID, Int>()
+        val now = System.nanoTime()
 
         for (viewer in server.playerList.players) {
             val state = viewers[viewer.uuid] ?: continue
@@ -77,12 +90,19 @@ object FarEntityServer {
             val viewDistanceBlocks = Mth.clamp(viewer.requestedViewDistance(), 2, serverViewDistance) * 16.0
             val snapshots = ArrayList<FarPlayerSnapshot>()
             val stillFar = HashSet<UUID>()
+            val inRadius = HashSet<UUID>()
+            val dimension = viewer.serverLevel().dimension().location().toString()
+            val eye = viewer.eyePosition.let { doubleArrayOf(it.x, it.y, it.z) }
 
             for (target in viewer.serverLevel().players()) {
                 if (target === viewer || !target.broadcastToPlayer(viewer)) continue
                 val distance = FarEntityMath.horizontalDistance(viewer.x, viewer.z, target.x, target.z)
                 if (distance > radius) continue
                 if (vanillaTracks(viewer, target, distance, viewDistanceBlocks, playerTrackingRange)) continue
+                inRadius += target.uuid
+                val sight = state.visibility.getOrPut(target.uuid) { FarEntityVisibility.PairState() }
+                FarEntityVisibility.schedule(sight, dimension, eye, doubleArrayOf(target.x, target.y, target.z), distance, now)
+                if (!FarEntityVisibility.isVisible(sight, now)) continue
                 stillFar += target.uuid
 
                 val interval = FarEntityMath.updateIntervalTicks(distance)
@@ -95,6 +115,7 @@ object FarEntityServer {
                 state.sent[target.uuid] = gearHash
             }
 
+            state.visibility.keys.retainAll(inRadius)
             val removed = state.sent.keys.filter { it !in stillFar }
             removed.forEach { state.sent.remove(it) }
             if (snapshots.isNotEmpty() || removed.isNotEmpty()) {
