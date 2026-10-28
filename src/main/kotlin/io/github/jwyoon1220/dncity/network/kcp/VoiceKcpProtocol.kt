@@ -32,7 +32,34 @@ object VoiceKcpProtocol {
      * audio frame is, so there's nothing to drop on a late/retransmitted arrival. */
     const val TYPE_LOD_DATA: Byte = 7
 
+    /** One chunk of a paced bulk file transfer (music soundfont/MIDI/audio), server -> client -- see
+     * [io.github.jwyoon1220.dncity.music.MusicAssetSender] and [encodeAssetChunk]. */
+    const val TYPE_ASSET_CHUNK: Byte = 8
+
     const val STALE_MS = 250L
+
+    /**
+     * Second byte-4 value next to KCP's own `kCmdPush` (81) / `kCmdAck` (82): a datagram
+     * `[conv (int32 LE)][RAW_DATAGRAM_CMD][message]` is *not* a KCP segment but one whole message sent
+     * once, with no sequence number, ack or retransmit (see [wrapRaw]). Audio rides this lane: KCP
+     * delivers in order, so one lost segment used to hold every later audio frame back until its
+     * retransmit (RTO 30 ms at best, 200 ms before the first RTT sample) -- the same head-of-line
+     * blocking TCP has. A lost voice frame is better dropped than late; the receiver's [FreshnessGate]
+     * drops frames that arrive behind a newer one.
+     */
+    const val RAW_DATAGRAM_CMD: Byte = 90
+
+    /** Largest message sent raw: one datagram, same MTU as `DncityKcp`'s 1200 minus the 5-byte raw header.
+     * Anything bigger falls back to the reliable KCP lane. */
+    const val MAX_RAW_MESSAGE_BYTES = 1200 - 5
+
+    /**
+     * Largest message the reliable KCP lane can deliver. `DncityKcp` only reassembles a message once
+     * every fragment sits in its receive queue, which holds `kRcvWnd` = 128 segments of `kMss` = 1176
+     * bytes (150,528 bytes), and a fragment index is one byte -- a bigger message never completes and
+     * stalls the session for good. 128 KiB (112 segments) leaves room for the header.
+     */
+    const val MAX_RELIABLE_MESSAGE_BYTES = 128 * 1024
 
     /** Same cap the old [net.minecraft.network.codec.StreamCodec]-based payloads enforced (see git
      * history's `VoicePayloads`/`RadioVoicePayloads`/`PhonePayloads`) -- without it, a message
@@ -41,8 +68,13 @@ object VoiceKcpProtocol {
     private const val MAX_AUDIO_FRAME_BYTES = 2048
 
     /** Distant Horizons LOD/terrain payloads are legitimately much larger than an audio frame, but
-     * still need *some* cap so a malformed/hostile message can't force an unbounded allocation. */
-    private const val MAX_LOD_PAYLOAD_BYTES = 1 shl 20
+     * must fit one reliable message (this used to be 1 MiB, which `DncityKcp` can never reassemble --
+     * see [MAX_RELIABLE_MESSAGE_BYTES]). */
+    const val MAX_LOD_PAYLOAD_BYTES = MAX_RELIABLE_MESSAGE_BYTES - 1
+
+    /** Data bytes per [TYPE_ASSET_CHUNK] message (28 KCP segments). */
+    const val ASSET_CHUNK_BYTES = 32 * 1024
+    private const val MAX_EXTENSION_BYTES = 16
 
     private class MalformedMessageException(message: String) : Exception(message)
 
@@ -80,6 +112,54 @@ object VoiceKcpProtocol {
     fun encodeAudio(type: Byte, audio: ByteArray): ByteArray =
         ByteBuffer.allocate(1 + 8 + audio.size).put(type).putLong(System.currentTimeMillis()).put(audio).array()
 
+    /** Peeks the send timestamp every audio message carries right after its type byte, for [FreshnessGate]. */
+    fun sentAtMs(data: ByteArray): Long? {
+        if (data.size < 9) return null
+        return ByteBuffer.wrap(data, 1, 8).long
+    }
+
+    /** `[conv LE][RAW_DATAGRAM_CMD][message]` -- see [RAW_DATAGRAM_CMD]. */
+    fun wrapRaw(conv: Int, message: ByteArray): ByteArray {
+        val out = ByteArray(5 + message.size)
+        out[0] = conv.toByte(); out[1] = (conv shr 8).toByte(); out[2] = (conv shr 16).toByte(); out[3] = (conv shr 24).toByte()
+        out[4] = RAW_DATAGRAM_CMD
+        System.arraycopy(message, 0, out, 5, message.size)
+        return out
+    }
+
+    /** Whether a datagram is a raw message ([wrapRaw]) rather than KCP segments. */
+    fun isRaw(datagram: ByteArray): Boolean = datagram.size > 5 && datagram[4] == RAW_DATAGRAM_CMD
+
+    fun unwrapRaw(datagram: ByteArray): ByteArray = datagram.copyOfRange(5, datagram.size)
+
+    /** Whether a message type is real-time audio (sent raw, gated by [FreshnessGate]). */
+    fun isAudio(type: Byte): Boolean = type in TYPE_VOICE_AUDIO..TYPE_PHONE_CALL_AUDIO_RELAY
+
+    /**
+     * Drops an audio frame that arrives after a newer one of the same stream (raw datagrams can be
+     * reordered on the way). Streams are keyed by the caller ([key]: message type plus the speaker for
+     * relays), times are the stream's own sender clock, so clock skew between machines does not matter.
+     */
+    class FreshnessGate(private val maxStreams: Int = 4096) {
+        private val newest = HashMap<Long, Long>()
+
+        @Synchronized
+        fun accept(key: Long, sentAtMs: Long): Boolean {
+            val previous = newest[key]
+            if (previous != null && sentAtMs < previous) return false
+            if (previous == null && newest.size >= maxStreams) newest.clear()
+            newest[key] = sentAtMs
+            return true
+        }
+
+        @Synchronized
+        fun clear() = newest.clear()
+
+        companion object {
+            fun key(type: Byte, stream: Int): Long = (type.toLong() shl 32) or (stream.toLong() and 0xFFFFFFFFL)
+        }
+    }
+
     class TimedAudio(sentAtMs: Long, val audio: ByteArray) {
         val isStale = System.currentTimeMillis() - sentAtMs > STALE_MS
     }
@@ -97,13 +177,45 @@ object VoiceKcpProtocol {
     // comment). No addressing or timestamp: the payload's own format (e.g. Distant Horizons'
     // already-compressed FullDataPayload bytes) is meaningless to this transport layer. ----
 
-    fun encodeLodData(payload: ByteArray): ByteArray =
-        ByteBuffer.allocate(1 + payload.size).put(TYPE_LOD_DATA).put(payload).array()
+    fun encodeLodData(payload: ByteArray): ByteArray {
+        require(payload.size <= MAX_LOD_PAYLOAD_BYTES) { "LOD payload of ${payload.size} bytes exceeds ${MAX_LOD_PAYLOAD_BYTES}; split it" }
+        return ByteBuffer.allocate(1 + payload.size).put(TYPE_LOD_DATA).put(payload).array()
+    }
 
     fun decodeLodData(data: ByteArray): ByteArray {
         val buf = ByteBuffer.wrap(data)
         buf.get()
         return readBoundedPayload(buf, MAX_LOD_PAYLOAD_BYTES, "LOD payload")
+    }
+
+    // ---- Paced bulk file transfer chunk (server -> client), see MusicAssetSender. ----
+
+    class AssetChunk(val kind: Int, val transferId: Int, val chunkIndex: Int, val totalChunks: Int, val extension: String, val data: ByteArray)
+
+    fun encodeAssetChunk(chunk: AssetChunk): ByteArray {
+        val ext = chunk.extension.toByteArray(Charsets.UTF_8)
+        require(ext.size <= MAX_EXTENSION_BYTES && chunk.data.size <= ASSET_CHUNK_BYTES)
+        return ByteBuffer.allocate(1 + 1 + 4 + 4 + 4 + 1 + ext.size + chunk.data.size)
+            .put(TYPE_ASSET_CHUNK).put(chunk.kind.toByte())
+            .putInt(chunk.transferId).putInt(chunk.chunkIndex).putInt(chunk.totalChunks)
+            .put(ext.size.toByte()).put(ext).put(chunk.data)
+            .array()
+    }
+
+    fun decodeAssetChunk(data: ByteArray): AssetChunk {
+        val buf = ByteBuffer.wrap(data)
+        buf.get()
+        requireRemaining(buf, 1 + 4 + 4 + 4 + 1, "asset chunk")
+        val kind = buf.get().toInt()
+        val transferId = buf.int
+        val chunkIndex = buf.int
+        val totalChunks = buf.int
+        val extLength = buf.get().toInt() and 0xFF
+        if (extLength > MAX_EXTENSION_BYTES) throw MalformedMessageException("asset chunk: extension of $extLength bytes")
+        if (totalChunks <= 0 || chunkIndex !in 0 until totalChunks) throw MalformedMessageException("asset chunk: index $chunkIndex of $totalChunks")
+        requireRemaining(buf, extLength, "asset chunk extension")
+        val ext = ByteArray(extLength).also { buf.get(it) }
+        return AssetChunk(kind, transferId, chunkIndex, totalChunks, String(ext, Charsets.UTF_8), readBoundedPayload(buf, ASSET_CHUNK_BYTES, "asset chunk"))
     }
 
     // ---- Close-range voice relay (server -> one in-range listener): needs the speaker's entity

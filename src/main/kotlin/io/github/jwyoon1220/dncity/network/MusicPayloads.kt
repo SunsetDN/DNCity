@@ -54,6 +54,25 @@ class MusicAssetChunkPayload(
     }
 }
 
+/**
+ * Client -> server: chunk [chunkIndex] of [transferId] arrived (over either lane), so the server may send
+ * one more -- the flow control of [io.github.jwyoon1220.dncity.music.MusicAssetSender].
+ */
+class MusicAssetAckPayload(val transferId: Int, val chunkIndex: Int) : CustomPacketPayload {
+    override fun type() = TYPE
+
+    companion object {
+        val TYPE: CustomPacketPayload.Type<MusicAssetAckPayload> =
+            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath(Dncity.ID, "music_asset_ack"))
+
+        val STREAM_CODEC: StreamCodec<io.netty.buffer.ByteBuf, MusicAssetAckPayload> = StreamCodec.composite(
+            ByteBufCodecs.VAR_INT, MusicAssetAckPayload::transferId,
+            ByteBufCodecs.VAR_INT, MusicAssetAckPayload::chunkIndex,
+            ::MusicAssetAckPayload,
+        )
+    }
+}
+
 /** Tells the client to stop whatever track is currently playing (MIDI or direct audio file).
  * No fields -- just a signal. */
 class MusicStopPayload : CustomPacketPayload {

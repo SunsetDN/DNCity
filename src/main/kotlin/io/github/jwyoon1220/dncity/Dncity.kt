@@ -14,6 +14,7 @@ import io.github.jwyoon1220.dncity.ballistics.terminal.ammo.AmmoSolvers
 import io.github.jwyoon1220.dncity.command.AmmoCommand
 import io.github.jwyoon1220.dncity.ballistics.terminal.fullcaliber.FullCaliberApPresetRegistry
 import io.github.jwyoon1220.dncity.compat.FirstAidShellBridge
+import io.github.jwyoon1220.dncity.compat.SbwFarEntityCompat
 import io.github.jwyoon1220.dncity.compat.SbwFlightModelBridge
 import io.github.jwyoon1220.dncity.compat.SbwRemovedContent
 import io.github.jwyoon1220.dncity.compat.SbwVehicleArmorBridge
@@ -22,12 +23,15 @@ import io.github.jwyoon1220.dncity.compat.TaczVehicleArmorBridge
 import io.github.jwyoon1220.dncity.compat.TaczFirstAidBridge
 import io.github.jwyoon1220.dncity.compat.TaczShellKeys
 import io.github.jwyoon1220.dncity.compat.TaczSmallArmsBridge
+import io.github.jwyoon1220.dncity.farentity.FarEntityServer
 import io.github.jwyoon1220.dncity.command.PhoneNumberCommand
 import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
 import io.github.jwyoon1220.dncity.item.component.ModDataComponents
 import io.github.jwyoon1220.dncity.command.MusicCommand
+import io.github.jwyoon1220.dncity.music.MusicAssetSender
 import io.github.jwyoon1220.dncity.music.MusicServerEvents
+import io.github.jwyoon1220.dncity.network.FarEntityNetworking
 import io.github.jwyoon1220.dncity.network.MusicNetworking
 import io.github.jwyoon1220.dncity.network.PgpNetworking
 import io.github.jwyoon1220.dncity.network.PhoneNetworking
@@ -92,6 +96,8 @@ object Dncity {
         NeoForge.EVENT_BUS.addListener(PhoneNumberCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(PgpCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicServerEvents::onPlayerLoggedIn)
+        NeoForge.EVENT_BUS.addListener(MusicAssetSender::onServerTick)
+        NeoForge.EVENT_BUS.addListener(MusicAssetSender::onPlayerLoggedOut)
         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedIn)
         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedOut)
         NeoForge.EVENT_BUS.addListener(RadioStationServerEvents::onPlayerLoggedOut)
@@ -115,6 +121,11 @@ object Dncity {
         NeoForge.EVENT_BUS.addListener(AmmoCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(VehicleArmorRegistry::onAddReloadListeners)
         MOD_BUS.addListener(VehicleHitNetworking::onRegisterPayloadHandlers)
+        MOD_BUS.addListener(FarEntityNetworking::onRegisterPayloadHandlers)
+        NeoForge.EVENT_BUS.addListener(FarEntityServer::onServerTick)
+        NeoForge.EVENT_BUS.addListener(FarEntityServer::onLoggedOut)
+        NeoForge.EVENT_BUS.addListener(FarEntityServer::onChangedDimension)
+        NeoForge.EVENT_BUS.addListener(FarEntityServer::onServerStopping)
         // Loaded lazily: these reference TACZ and First Aid classes
         if (ModList.get().isLoaded("tacz")) {
             TaczShellKeys.register()
@@ -133,6 +144,8 @@ object Dncity {
             // War Thunder-style flight model for SuperbWarfare's aircraft that have data in dncity/flight_models
             SbwFlightModelBridge.register()
             SbwVehicleArmorBridge.register()
+            // far-player proxies sit in the real seat (hidden tank crew stays hidden)
+            SbwFarEntityCompat.register()
             if (ModList.get().isLoaded("tacz")) TaczVehicleArmorBridge.register()
         }
         // SuperbWarfare's energy / sci-fi weapons: no recipes, loot, creative entries or entities. No SuperbWarfare classes

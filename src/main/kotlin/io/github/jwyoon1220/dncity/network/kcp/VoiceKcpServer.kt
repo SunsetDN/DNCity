@@ -34,6 +34,11 @@ import java.util.concurrent.TimeUnit
  * Each session's [Kcp.update] is driven by a task scheduled directly on the channel's own Netty
  * event loop (see [start]) rather than Minecraft's server tick, so voice latency isn't bounded by
  * the game's 50ms tick rate.
+ *
+ * Two lanes share the socket: audio goes as single unacknowledged datagrams
+ * ([VoiceKcpProtocol.RAW_DATAGRAM_CMD]) so a lost frame never holds the next ones back, everything
+ * else (HELLO, LOD data, file chunks) through the reliable, ordered KCP session. A raw datagram is
+ * only accepted from an authenticated session's current address.
  */
 object VoiceKcpServer {
     const val DEFAULT_PORT = 25577
@@ -48,6 +53,9 @@ object VoiceKcpServer {
         var authenticated = false
         var lastActivityMs = System.currentTimeMillis()
         lateinit var kcp: NativeKcpSession
+
+        /** Uplink audio streams of this player, keyed by message type. */
+        val freshness = VoiceKcpProtocol.FreshnessGate()
     }
 
     private var group: NioEventLoopGroup? = null
@@ -129,7 +137,7 @@ object VoiceKcpServer {
     }
 
     fun sendVoiceRelay(playerUuid: UUID, senderEntityId: Int, opusData: ByteArray) {
-        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeVoiceRelay(senderEntityId, opusData))
+        authenticatedSession(playerUuid)?.let { sendAudio(it, VoiceKcpProtocol.encodeVoiceRelay(senderEntityId, opusData)) }
     }
 
     fun sendRadioRelay(
@@ -141,13 +149,31 @@ object VoiceKcpServer {
         senderPosition: io.github.jwyoon1220.dncity.network.RadioSenderPosition,
         rangeInfo: io.github.jwyoon1220.dncity.network.RadioRangeInfo,
     ) {
-        authenticatedSession(playerUuid)?.kcp?.send(
-            VoiceKcpProtocol.encodeRadioRelay(senderEntityId, audioData, frequencyKhz, modeName, senderPosition, rangeInfo)
-        )
+        authenticatedSession(playerUuid)?.let {
+            sendAudio(it, VoiceKcpProtocol.encodeRadioRelay(senderEntityId, audioData, frequencyKhz, modeName, senderPosition, rangeInfo))
+        }
     }
 
     fun sendPhoneCallRelay(playerUuid: UUID, opusData: ByteArray) {
-        authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY, opusData))
+        authenticatedSession(playerUuid)?.let { sendAudio(it, VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY, opusData)) }
+    }
+
+    /** Sends one file chunk over the reliable lane; false (nothing sent) if the player has no session. */
+    fun sendAssetChunk(playerUuid: UUID, chunk: VoiceKcpProtocol.AssetChunk): Boolean {
+        val session = authenticatedSession(playerUuid) ?: return false
+        session.kcp.send(VoiceKcpProtocol.encodeAssetChunk(chunk))
+        return true
+    }
+
+    /** One audio message as a raw datagram ([VoiceKcpProtocol.RAW_DATAGRAM_CMD]); too big for one datagram -> reliable lane. */
+    private fun sendAudio(session: ServerSession, message: ByteArray) {
+        val remote = session.remote
+        val ch = channel
+        if (remote == null || ch == null || message.size > VoiceKcpProtocol.MAX_RAW_MESSAGE_BYTES) {
+            session.kcp.send(message)
+            return
+        }
+        ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(VoiceKcpProtocol.wrapRaw(session.conv, message)), remote))
     }
 
     /** Sends an opaque bulk payload (e.g. Distant Horizons LOD/terrain data) to one player over
@@ -169,6 +195,17 @@ object VoiceKcpServer {
         if (bytes.size < 4) return
         val conv = (bytes[0].toInt() and 0xFF) or ((bytes[1].toInt() and 0xFF) shl 8) or
             ((bytes[2].toInt() and 0xFF) shl 16) or ((bytes[3].toInt() and 0xFF) shl 24)
+
+        if (VoiceKcpProtocol.isRaw(bytes)) {
+            // raw messages are never a session's first contact: only an authenticated session, only from
+            // the address its (reliable, HELLO-checked) KCP traffic comes from
+            val raw = sessionsByConv[conv] ?: return
+            if (!raw.authenticated || raw.remote != sender) return
+            raw.lastActivityMs = System.currentTimeMillis()
+            val msg = VoiceKcpProtocol.unwrapRaw(bytes)
+            if (msg.isNotEmpty() && msg[0] != VoiceKcpProtocol.TYPE_HELLO) handleMessage(raw, msg)
+            return
+        }
 
         var session = sessionsByConv[conv]
         if (session == null) {
@@ -214,6 +251,11 @@ object VoiceKcpServer {
         }
 
         if (!session.authenticated) return
+        val type = msg[0]
+        if (VoiceKcpProtocol.isAudio(type)) {
+            val sentAt = VoiceKcpProtocol.sentAtMs(msg) ?: return
+            if (!session.freshness.accept(VoiceKcpProtocol.FreshnessGate.key(type, 0), sentAt)) return
+        }
         val server = mcServer ?: return
         // Hop onto the server's own main thread -- these calls touch ServerLevel/player state
         // that (like the IPayloadHandler.enqueueWork bodies this replaced) isn't meant to be

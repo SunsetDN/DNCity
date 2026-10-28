@@ -2,6 +2,8 @@ package io.github.jwyoon1220.dncity.network.kcp
 
 import io.github.jwyoon1220.dncity.Dncity
 import io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver
+import io.github.jwyoon1220.dncity.music.MusicClientReceiver
+import io.github.jwyoon1220.dncity.network.MusicAssetChunkPayload
 import io.github.jwyoon1220.dncity.voice.ClientRadioReceiver
 import io.github.jwyoon1220.dncity.voice.ClientVoiceReceiver
 import io.netty.bootstrap.Bootstrap
@@ -22,7 +24,8 @@ import java.util.concurrent.TimeUnit
  * Opens its own UDP socket as soon as the server's one-time handshake payload arrives
  * (`network.VoiceKcpHandshakePayload`, sent on login), authenticates with a signed
  * [VoiceKcpProtocol.encodeHello], then carries every close-range voice/radio/phone-call audio
- * frame in both directions for the rest of the session.
+ * frame in both directions for the rest of the session. Audio goes out (and comes in) as raw
+ * datagrams, everything else over the reliable KCP lane -- see [VoiceKcpServer]'s doc comment.
  */
 object VoiceKcpClient {
     private const val TICK_INTERVAL_MS = 10L
@@ -30,6 +33,11 @@ object VoiceKcpClient {
     private var group: NioEventLoopGroup? = null
     private var channel: Channel? = null
     private var kcp: NativeKcpSession? = null
+    private var conv = 0
+    private var remoteAddress: InetSocketAddress? = null
+
+    /** Downlink audio streams, keyed by message type and speaker. */
+    private val freshness = VoiceKcpProtocol.FreshnessGate()
 
     fun connect(host: String, port: Int, conv: Int, secret: Long) {
         disconnect()
@@ -46,6 +54,12 @@ object VoiceKcpClient {
                             override fun channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
                                 val bytes = ByteArray(msg.content().readableBytes())
                                 msg.content().readBytes(bytes)
+                                if (VoiceKcpProtocol.isRaw(bytes)) {
+                                    // the socket is connected to the server, so only it can be the sender
+                                    val raw = VoiceKcpProtocol.unwrapRaw(bytes)
+                                    if (raw.isNotEmpty() && VoiceKcpProtocol.isAudio(raw[0])) handleMessage(raw)
+                                    return
+                                }
                                 kcp?.input(bytes)
                                 drainReceived()
                             }
@@ -60,6 +74,8 @@ object VoiceKcpClient {
             channel = ch
             val session = NativeKcpSession(conv) { out -> ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(out), remote)) }
             kcp = session
+            this.conv = conv
+            remoteAddress = remote
             session.send(VoiceKcpProtocol.encodeHello(conv, secret))
             eventLoopGroup.next().scheduleAtFixedRate({ tick() }, 0, TICK_INTERVAL_MS, TimeUnit.MILLISECONDS)
         } catch (e: Throwable) {
@@ -79,6 +95,8 @@ object VoiceKcpClient {
         group = null
         kcp?.close()
         kcp = null
+        remoteAddress = null
+        freshness.clear()
     }
 
     /** Same host the game's own TCP connection uses -- an integrated (singleplayer) server has no
@@ -90,16 +108,22 @@ object VoiceKcpClient {
         return minecraft.currentServer?.ip?.substringBeforeLast(':') ?: "127.0.0.1"
     }
 
-    fun sendVoiceAudio(opusData: ByteArray) {
-        kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_VOICE_AUDIO, opusData))
-    }
+    fun sendVoiceAudio(opusData: ByteArray) = sendAudio(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_VOICE_AUDIO, opusData))
 
-    fun sendRadioAudio(audioData: ByteArray) {
-        kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_RADIO_AUDIO, audioData))
-    }
+    fun sendRadioAudio(audioData: ByteArray) = sendAudio(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_RADIO_AUDIO, audioData))
 
-    fun sendPhoneCallAudio(opusData: ByteArray) {
-        kcp?.send(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO, opusData))
+    fun sendPhoneCallAudio(opusData: ByteArray) = sendAudio(VoiceKcpProtocol.encodeAudio(VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO, opusData))
+
+    /** Raw datagram ([VoiceKcpProtocol.RAW_DATAGRAM_CMD]); a message too big for one goes over the reliable lane. */
+    private fun sendAudio(message: ByteArray) {
+        val session = kcp ?: return
+        val ch = channel
+        val remote = remoteAddress
+        if (ch == null || remote == null || message.size > VoiceKcpProtocol.MAX_RAW_MESSAGE_BYTES) {
+            session.send(message)
+            return
+        }
+        ch.writeAndFlush(DatagramPacket(Unpooled.wrappedBuffer(VoiceKcpProtocol.wrapRaw(conv, message)), remote))
     }
 
     /** Sends an opaque bulk payload (e.g. a Distant Horizons LOD/terrain request) to the server
@@ -113,6 +137,17 @@ object VoiceKcpClient {
      * messages sent by the server (e.g. a future Distant Horizons LOD response) -- invoked on the
      * render/client thread, same as every other message handler here. */
     var onLodDataReceived: ((ByteArray) -> Unit)? = null
+
+    /** [VoiceKcpProtocol.FreshnessGate] per stream: the type, plus the speaker for relays (bytes 9..12). */
+    private fun isFresh(msg: ByteArray): Boolean {
+        val type = msg[0]
+        if (!VoiceKcpProtocol.isAudio(type)) return true
+        val sentAt = VoiceKcpProtocol.sentAtMs(msg) ?: return false
+        val speaker = if (type != VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY && msg.size >= 13) {
+            java.nio.ByteBuffer.wrap(msg, 9, 4).int
+        } else 0
+        return freshness.accept(VoiceKcpProtocol.FreshnessGate.key(type, speaker), sentAt)
+    }
 
     private fun tick() {
         kcp?.update(System.currentTimeMillis())
@@ -129,6 +164,7 @@ object VoiceKcpClient {
 
     private fun handleMessage(msg: ByteArray) {
         if (msg.isEmpty()) return
+        if (!isFresh(msg)) return
         // Hop onto the render/client thread -- these calls feed VoiceAudioMixer, which
         // VoiceClientLoop also drains from that same thread every client tick; like the
         // IPayloadHandler.enqueueWork bodies this replaced, they're not meant to run on an
@@ -155,6 +191,11 @@ object VoiceKcpClient {
                     }
                     VoiceKcpProtocol.TYPE_LOD_DATA -> {
                         onLodDataReceived?.invoke(VoiceKcpProtocol.decodeLodData(msg))
+                    }
+                    VoiceKcpProtocol.TYPE_ASSET_CHUNK -> {
+                        MusicClientReceiver.handleChunk(VoiceKcpProtocol.decodeAssetChunk(msg).let {
+                            MusicAssetChunkPayload(it.kind, it.transferId, it.chunkIndex, it.totalChunks, it.extension, it.data)
+                        })
                     }
                 }
             } catch (e: Exception) {

@@ -13,7 +13,9 @@ import net.neoforged.neoforge.network.handling.IPayloadHandler
 object VoiceNetworking {
 
     fun onRegisterPayloadHandlers(event: RegisterPayloadHandlersEvent) {
-        val registrar = event.registrar("1")
+        // "2": audio moved to raw datagrams (VoiceKcpProtocol.RAW_DATAGRAM_CMD), which a "1" peer would feed
+        // into KCP as garbage segments -- a version mismatch now refuses the connection instead
+        val registrar = event.registrar("2")
 
         registrar.playToClient(VoiceKcpHandshakePayload.TYPE, VoiceKcpHandshakePayload.STREAM_CODEC, IPayloadHandler { payload, context ->
             context.enqueueWork {

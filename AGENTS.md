@@ -1044,6 +1044,84 @@ has no launcher takes (the RPG-7 borrowed the M32A1's). Guns of TACZ type `rpg` 
 reload, bolt, draw and holster and play the gun pack's own OGGs through the vanilla sound engine (the pre-FMOD code), user
 request 2026-10-26. `TaczLauncherSoundTest` checks every launcher has those sounds on disk. Not yet heard in a client.
 
+## Far players over LOD terrain (marker `far-entity-render`)
+
+User request 2026-10-27: longer entity distance, and players standing in Distant Horizons' LOD terrain drawn as real models
+("Tarkov-style": EFT ties player draw distance to its terrain "Overall Visibility" setting; the same rule here, a player is
+drawn as far as the terrain under them).
+- **Why vanilla cannot**: `ChunkMap.TrackedEntity.updatePlayer` (1.21.1) only sends an entity within min(tracking range, view
+  distance x 16) whose chunk the viewer has (`isChunkTracked`); on the client `Entity.shouldRenderAtSqrDistance` stops at
+  bounding-box size x 64 x view scale (a player: 96 blocks at 12 chunks), the entity loop needs a compiled section, Sodium
+  culls entities outside its visible sections (`EntityRendererMixin` -> `isEntityVisible`), and the projection's far plane is
+  4 x render distance (`GameRenderer.getDepthFar`).
+- **Vanilla range** (`client/farentity/EntityRenderDistance` + `mixin/MixinEntityRenderDistance`): living entities, entities
+  with passengers and boxes >= 2 blocks render out to the chunk render distance. Tracking ranges are untouched (server
+  `entity-broadcast-range-percentage` still governs mobs).
+- **Beyond it** (`farentity/FarEntityServer`, `network/FarEntityPayloads.kt`): the client reports DH's LOD radius
+  (`FarEntityRangePayload`, 0 without DH); every server tick each viewer gets snapshots (position, body/head/pitch, pose,
+  invisibility, light at the feet, root vehicle with its seat; name + 6 equipment slots only when they change) of the players
+  in that radius that vanilla does not track (`vanillaTracks` repeats vanilla's test), every 2/4/8 ticks by distance
+  (<512/<1024/beyond, DESIGN), plus explicit removals. Cap: `-Ddncity.farEntities.maxBlocks` (default 4096, 0 = off).
+- **Drawing** (`client/farentity/FarEntityClient`, `mixin/MixinLevelRendererFarEntities`): each far player is a `RemotePlayer`
+  never added to the level, drawn by the normal `EntityRenderDispatcher` just before the entity loop's `endLastBatch()` with
+  vanilla's buffer source (so Iris shades it like any entity). Snapshot interpolation lags 2 send intervals; walk animation is
+  vanilla's `calculateEntityAnimation` on the interpolated path. Past 90 % of the far plane a proxy is drawn nearer and smaller
+  by the same factor (same pixels). Frustum-tested at that compressed position; Sodium's section culling is bypassed. A player
+  the level has is always left to vanilla. Riders: the vehicle is made client-side (`EntityType.create`) and the proxy mounted
+  on it; SuperbWarfare seats by mounting order and hides crew by seat, so `compat/SbwFarEntityCompat` sends the real seat and
+  pins it with `entityIndexOverride`. A vehicle type or proxy whose renderer throws is dropped, never the frame.
+- **Occlusion** (`client/farentity/DhLodTerrain`, `FarEntityMath.isOccluded`): DH renders LODs into its own colour+depth
+  framebuffer and copies only colour into Minecraft's (`coreSubProjects/.../shaders/apply.frag`), so the depth buffer cannot hide
+  a proxy behind a far hill. A background thread marches eye -> head/chest/feet through DH's column data
+  (`IDhApiTerrainDataRepo.getColumnDataAtBlockPos`, which blocks, hence the thread) from the vanilla radius to 1.5 blocks short of
+  the target, 4 times a second; hidden only if all three lines hit solid LOD (air/liquid ignored; a column without data never
+  occludes). New proxies start hidden until their first answer. That test is for drawing only; what reaches the client is
+  decided by the server (next point).
+- **Anti-wallhack** (`farentity/FarEntityVisibility`, user 2026-10-27, long range only): the server sends a far player only
+  while a line from the viewer's eye -- or a step to either side across the line of sight, or a jump up
+  (`FarEntityMath.peekEyes`, 1 block each, DESIGN) -- to the target's head, chest or feet is clear through the *server's* DH
+  terrain (`farentity/DhTerrainColumns` on `SERVER_LEVEL`, built from real chunks; DH's lookup only reads its database, it never
+  queues generation), re-checked every 200 ms (500 ms beyond 1024 blocks) on a background thread, sent for 1.5 s after the
+  last clear line; hidden again -> the viewer gets a removal. Fails closed: nothing is sent before the first "visible", or
+  for a dimension DH has no world for, or at all without DH on the server (logged once);
+  `-Ddncity.farEntities.serverOcclusion=false` turns the check off. Vanilla tracking range (near players) is not filtered.
+- **Not covered / known limits**: both sight tests only tell air and liquid from solid (`IDhApiBlockStateWrapper`), so glass
+  and leaves block them: a far player seen only through a window or foliage is not sent. A freshly built wall counts once DH
+  has re-read the chunk. Near players inside vanilla tracking range are still sent whatever is between. No shadows in Iris's shadow pass for proxies, no swim/elytra
+  animation, vehicles keep their default turret/rotor state (only position, yaw, pitch are sent), name tags stay at vanilla's
+  64 blocks. Compiled against the real 1.21.1/NeoForge 21.1.248 classes and DH's API; `FarEntityMathTest` (10) passes; the payload
+  codec round trip and everything visual are **not yet tried in a client**.
+
+## Network lanes: no head-of-line blocking (marker `network-lanes`)
+
+User request 2026-10-28 ("remove the TCP blocking"). Both of DNCity's transports deliver in order, so one big or lost thing
+held everything behind it. Three changes, plus one bug found on the way:
+- **Audio off the reliable stream** (`network/kcp/VoiceKcpProtocol`, `VoiceKcpServer`, `VoiceKcpClient`): voice, radio and
+  phone audio used to go through the per-player KCP session, which is reliable *and ordered*: one lost segment held every later
+  frame until its retransmit (`DncityKcp` RTO >= 30 ms, 200 ms before the first RTT sample). Audio now goes as single datagrams
+  `[conv LE][90][message]` (`RAW_DATAGRAM_CMD`; KCP segments carry 81/82 in that byte), never acked or resent; a message over
+  1195 bytes falls back to KCP. The server takes a raw datagram only from an authenticated session's current address (and never a
+  HELLO). `FreshnessGate` drops a frame that arrives behind a newer one of the same stream (type + speaker, compared on the
+  sender's own clock); the old 250 ms staleness check stays. Voice payload registrar is now `"2"` (a `"1"` peer would feed raw
+  datagrams into KCP).
+- **Music files paced** (`music/MusicAssetSender`): `send` used to queue every 250 KB chunk of a file onto the player's Minecraft
+  connection in one loop (soundfont on login, `/music play` for everyone), so game packets waited behind the whole file. Now:
+  per-player FIFO of 32 KiB chunks, at most 4 unacknowledged (`MusicAssetAckPayload`, sent by `MusicClientReceiver.handleChunk`
+  for every chunk, whichever lane it came on), over the player's UDP session (`TYPE_ASSET_CHUNK`, off the TCP connection) when
+  it has one, the Minecraft connection otherwise. A transfer with no ack for 30 s is dropped. Music registrar is `"2"`.
+- **Distant Horizons' LOD stream** (`client/network/DhNetworkTuning`): DH sends LODs over the same TCP connection at a fixed
+  500 KB/s per player by default. DNCity turns on DH's own `Config.Server.enableAdaptiveTransferSpeed` (off upstream) as an API
+  override (`setApiValue`, the user's config file is untouched; `-Ddncity.dhAdaptiveTransfer=false` keeps DH's setting): the client
+  measures the LOD bytes it gets each second and asks for that rate (`ClientCongestionControl`, AIMD +50 / -25 KB/s), so the stream
+  follows the link. This uses DH's internal `core` package (not relocated in its jar), not its public API.
+- **Bug fixed**: `DncityKcp` reassembles a message only when all its fragments fit its 128-segment receive queue (128 x 1176 =
+  150,528 bytes); a bigger one never arrives and blocks the session. Verified with a C++ loopback harness on `DncityKcp.h`: 128
+  segments delivered, 129 never. `TYPE_LOD_DATA` allowed 1 MiB; reliable messages are now capped at 128 KiB
+  (`MAX_RELIABLE_MESSAGE_BYTES`, `encodeLodData` refuses more).
+- Not changed: `FarPlayersPayload` and the rest of DNCity's small game payloads stay on the Minecraft connection; DH's own
+  network code (it still uses TCP, only paced). Unit tests: `VoiceKcpProtocolTest`. Compiled against 1.21.1/NeoForge with the
+  voice/phone/MIDI receivers stubbed; **not yet run in a client or against a real server**.
+
 ## Editing the mod metadata template
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in
