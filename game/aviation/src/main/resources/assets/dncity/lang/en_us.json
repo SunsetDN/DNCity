@@ -1,0 +1,7 @@
+{
+  "message.dncity.flight.wing_overload": "Wings failed: %s G",
+  "message.dncity.flight.rotor_overload": "Rotor failed: %s G",
+  "message.dncity.flight.overspeed": "Airframe failed: overspeed (%s km/h IAS)",
+  "message.dncity.flight.flaps_overspeed": "Flaps retracted: too fast",
+  "message.dncity.flight.gear_overspeed": "Gear overspeed!"
+}

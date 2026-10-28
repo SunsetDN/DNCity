@@ -17,6 +17,7 @@
 # Native module build output and caches (including new engine modules)
 /engine/*/build/
 /engine/*/.gradle/
+/game/*/build/
 
 # CMake generated build directories and metadata
 cmake-build*/

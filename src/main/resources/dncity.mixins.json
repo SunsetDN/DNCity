@@ -6,9 +6,7 @@
   "mixins": [
   ],
   "client": [
-    "MixinEntityRenderDispatcher",
-    "MixinEntityRenderDistance",
-    "MixinLevelRendererFarEntities"
+    "MixinEntityRenderDispatcher"
   ],
   "injectors": {
     "defaultRequire": 1

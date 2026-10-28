@@ -44,7 +44,7 @@ into the main build.
 Use the Gradle wrapper (`./gradlew` on bash, `gradlew.bat` on cmd/PowerShell — PowerShell can
 also invoke `./gradlew`).
 
-- `./gradlew build` — compile and build the mod jar.
+- `./gradlew build` — compile and build the core and feature mod jars (see "Feature mods").
 - `./gradlew runClient` — launch a dev client (`run/` game directory).
 - `./gradlew runClient2` — launch a second dev client with a distinct username/UUID and its
   own game directory (`run-client2/`), for testing multiplayer-only features (radio,
@@ -61,6 +61,55 @@ also invoke `./gradlew`).
 
 There is no separate lint/test task beyond `runGameTestServer`; this is a Minecraft mod, so
 most verification is done by running a dev client.
+
+## Feature mods (marker `feature-mods`)
+
+User request 2026-10-28 ("split the game code into modules", chose "one mod per feature"). DNCity is now a core mod plus
+six feature mods, each its own NeoForge mod and jar, built from one Gradle build:
+
+| Mod id | Directory | Contents |
+|---|---|---|
+| `dncity` (core) | `src/` | UDP transport (`network.kcp`, `network.VoiceNetworking`), window overlay/browser host and overlay entity culling (`client.window`, `mixin`), FSR2 scaffold, DH network tuning, the FMOD banks TACZ plays from |
+| `dncity_comms` | `game/comms` | radio, radio station, close-range voice, phone (`radio`, `voice`, `phone`, `block`, `item`, `command`, `client`, `client.phone`; payloads in `radio.network`) |
+| `dncity_music` | `game/music` | `/music` (`music`, `music.command`, `music.network`) |
+| `dncity_security` | `game/security` | PGP login gate (`security`, `security.command`, `security.network`, `client.security`) |
+| `dncity_ballistics` | `game/ballistics` | shells, terminal ballistics, ammo, small arms, vehicle armor/damage, cartridges, TACZ/First Aid/SuperbWarfare bridges, removed SBW content (`ballistics.*`, `compat`, `item.cartridge`, `item.component`, `client.render`) |
+| `dncity_aviation` | `game/aviation` | aircraft flight model (`flight.aircraft`, `flight.compat`); needs `dncity_ballistics` (`ballistics.flight`) |
+| `dncity_farview` | `game/farview` | far players over LOD terrain (`farentity`, `farentity.compat`, `farentity.network`, `farentity.mixin`, `client.farentity`) |
+
+- **Every feature mod requires `dncity`** and loads after it. Content keeps the `dncity` namespace (`dncity:radio`,
+  `dncity:ammo`, payload ids, data paths `data/dncity/...`): NeoForge does not tie a registry/payload namespace to the
+  mod id (it only refuses `minecraft`), so worlds, data packs and resource keys are unchanged. Lang files are split per
+  mod; Minecraft merges every pack's `assets/dncity/lang`.
+- **No package spans two mods** (each mod jar is a JPMS module). Files that had to leave a shared package moved into
+  their mod's tree: e.g. `command.AmmoCommand` -> `ballistics.command`, `network.RadioPayloads` -> `radio.network`,
+  `network.FarEntityPayloads` -> `farentity.network`, `command.WindowCommand` -> `client.window`. Keep it that way when
+  adding files.
+- **Audio over the core transport**: the core no longer knows radios or phones. `VoiceKcpServer.registerHandler(type)` /
+  `VoiceKcpClient.registerHandler(type)` map a message type byte to a handler (registered by `DncityComms` /
+  `ClientModEvents`, `MusicClientEvents` for asset chunks), and `VoiceKcpServer.sendAudio` sends any audio message on the
+  raw datagram lane; the radio relay codec lives in `radio.network.RadioKcpMessages`. The freshness/staleness checks stay
+  in the transport.
+- **Gradle**: `settings.gradle.kts` includes `:game:<name>`; the root `build.gradle.kts` (`featureMods`) applies
+  ModDevGradle + Kotlin to each, sets the toolchain, NeoForge/Parchment, `implementation(rootProject)`, KFF, test deps and
+  a per-mod `generateModMetadata` from `game/<name>/src/main/templates`. Each `game/<name>/build.gradle.kts` only lists
+  that mod's own libraries (jarJar'd into its jar: engine:audio/Opus/NanoVG in comms, engine:fmod in music, BouncyCastle in
+  security) and compile-only mods (TACZ/First Aid/SBW in ballistics, DH in farview, ModernUI-MC/VoxelMap in comms).
+  The root's dev runs load every feature mod from its compiled classes (`mods {}` + `additionalRuntimeClasspath`), never as
+  a project dependency (a jar of the same mod next to its classes would load it twice). `collectDistributionJars` copies
+  `dncity_<name>-*.jar` next to `dncity-*.jar`.
+- **Tests** run from `game/<name>` (`./gradlew :game:ballistics:test`), so repository paths in them are `../../mods/...`
+  and `../../docs/...`; `src/main/resources/...` means the mod's own resources.
+- **Dev runs**: engine:fmod is deliberately not in `additionalRuntimeClasspath` -- TACZ already brings it, and a second
+  copy fails module resolution ("Modules engine.fmod and fmod export package com.iwei20.fmod.studio").
+- **Verified (2026-10-28, Linux container)**: all seven mods compile; the tests match the pre-split run (32 classes,
+  272 tests, 0 failures); each jar holds only its own packages (no package in two jars) and its own jarJar libraries;
+  `runGameTestServer` discovers all seven mods with valid metadata and mixin configs. That run then stops at FML's
+  dependency check on `fabric_api_base` (pulled in through Iris) requiring NeoForge 21.1.262 while this build uses
+  21.1.248 -- not a DNCity mod -- so the mods' constructors and registrations have **not** been run in a game yet.
+  (The container also needed: the engine/* native tasks disabled (Windows MSYS2 toolchain), and ModernUI-MC compiled
+  with a JDK 25 javac at `--release 21`, because modernui-core 3.13.0's `Resources$Theme` constructor has fewer
+  parameter annotations than parameters, which JDK 21's javac rejects -- JDK-8334870, fixed in JDK 24.)
 
 ## Toolchain
 
@@ -790,7 +839,7 @@ played in a real client (HUD markers, item models, pending-heal UI are unchecked
 ## Architecture: cartridge items (markers `cartridge-items`, `ammo-round-variants`)
 
 One item per *round* (`dncity:cartridge_<caliber>_<round>`, e.g. `cartridge_556x45_m855`), listed in their own
-"Ammunition"/"탄약" creative tab. Source of truth is `src/main/resources/dncity/cartridges.json` (classpath, read at item
+"Ammunition"/"탄약" creative tab. Source of truth is `game/ballistics/src/main/resources/dncity/cartridges.json` (classpath, read at item
 registration by `item/cartridge/CartridgeCatalog.kt`; items cannot follow a data-pack reload). Names: English
 `<caliber> <US designation> <type>` (designation only where a US military one exists, e.g. `5.56x45 M995 AP`, otherwise
 `9x19 RIP`), Korean `<caliber> <type>` (`5.56mm 철갑탄`); every caliber has at least one tracer (`TRACER`, `API_T`, `APHEI_T`;
@@ -1030,7 +1079,7 @@ same day: TACZ is the small-arms system; it has the RPG-7 and M320 too), with th
 `SbwRemovedNames` (no Minecraft classes, so `SbwRemovedContentTest` checks them against SuperbWarfare's own data).
 SuperbWarfare's registries are left alone (its code refers to them): recipes are stripped from the recipe manager on server
 start and after `/reload` (exact name or `_blueprint...` / `_smithing`, so `rpg` keeps `rpg_rocket_*`), loot through the
-`dncity:remove_sbw_content` global loot modifier (DNCity loads AFTER superbwarfare/tacz so it runs after SBW's chest
+`dncity:remove_sbw_content` global loot modifier (`dncity_ballistics` loads AFTER superbwarfare/tacz so it runs after SBW's chest
 modifiers), creative tab entries (including vehicle container items by their `EntityType`) are removed, the entities and item
 entities never join a level (ones already in a world vanish when loaded), mobs lose a removed gun from their hands (lowest
 priority, after SBW arms them), and players lose any they carry on login. The fork's `sbw/mob_guns/skeleton.json` (every
@@ -1126,4 +1175,6 @@ held everything behind it. Three changes, plus one bug found on the way:
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in
 `src/main/templates/META-INF/neoforge.mods.toml` directly — the template only has `${...}`
-placeholders expanded by the `generateModMetadata` task.
+placeholders expanded by the `generateModMetadata` task. Each feature mod has its own template in
+`game/<name>/src/main/templates/META-INF/neoforge.mods.toml` (same properties; mod id/name come from the root
+build's `featureMods`).

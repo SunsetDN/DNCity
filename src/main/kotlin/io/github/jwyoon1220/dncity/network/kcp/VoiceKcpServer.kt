@@ -1,9 +1,6 @@
 package io.github.jwyoon1220.dncity.network.kcp
 
 import io.github.jwyoon1220.dncity.Dncity
-import io.github.jwyoon1220.dncity.phone.PhoneCallSession
-import io.github.jwyoon1220.dncity.voice.RadioRelay
-import io.github.jwyoon1220.dncity.voice.VoiceRelay
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
@@ -14,6 +11,7 @@ import io.netty.channel.nio.NioEventLoopGroup
 import io.netty.channel.socket.DatagramPacket
 import io.netty.channel.socket.nio.NioDatagramChannel
 import net.minecraft.server.MinecraftServer
+import net.minecraft.server.level.ServerPlayer
 import java.net.InetSocketAddress
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -140,18 +138,12 @@ object VoiceKcpServer {
         authenticatedSession(playerUuid)?.let { sendAudio(it, VoiceKcpProtocol.encodeVoiceRelay(senderEntityId, opusData)) }
     }
 
-    fun sendRadioRelay(
-        playerUuid: UUID,
-        senderEntityId: Int,
-        audioData: ByteArray,
-        frequencyKhz: Double,
-        modeName: String,
-        senderPosition: io.github.jwyoon1220.dncity.network.RadioSenderPosition,
-        rangeInfo: io.github.jwyoon1220.dncity.network.RadioRangeInfo,
-    ) {
-        authenticatedSession(playerUuid)?.let {
-            sendAudio(it, VoiceKcpProtocol.encodeRadioRelay(senderEntityId, audioData, frequencyKhz, modeName, senderPosition, rangeInfo))
-        }
+    /**
+     * Sends one audio message (any [VoiceKcpProtocol.isAudio] type, starting with the type byte and the send time,
+     * e.g. built by `dncity_comms`' radio relay encoder) over the raw lane. No-op without a session.
+     */
+    fun sendAudio(playerUuid: UUID, message: ByteArray) {
+        authenticatedSession(playerUuid)?.let { sendAudio(it, message) }
     }
 
     fun sendPhoneCallRelay(playerUuid: UUID, opusData: ByteArray) {
@@ -183,10 +175,18 @@ object VoiceKcpServer {
         authenticatedSession(playerUuid)?.kcp?.send(VoiceKcpProtocol.encodeLodData(payload))
     }
 
-    /** Set by whichever feature wants to receive [TYPE_LOD_DATA][VoiceKcpProtocol.TYPE_LOD_DATA]
-     * messages sent by a client (e.g. a future Distant Horizons request payload) -- invoked on the
-     * server's main thread, same as every other message handler here. */
-    var onLodDataReceived: ((java.util.UUID, ByteArray) -> Unit)? = null
+    private val handlers = ConcurrentHashMap<Byte, (ServerPlayer, ByteArray) -> Unit>()
+
+    /**
+     * Who handles client messages of [type] (one of [VoiceKcpProtocol]'s `TYPE_` bytes): feature mods register here
+     * (`dncity_comms` its uplink audio, for instance), so the transport knows nothing about them. The handler runs on
+     * the server thread and gets the whole message, type byte first; audio arrives already freshness- and
+     * staleness-checked. One handler per type, the last registration wins.
+     */
+    fun registerHandler(type: Byte, handler: (ServerPlayer, ByteArray) -> Unit) {
+        require(type != VoiceKcpProtocol.TYPE_HELLO) { "HELLO is the transport's own" }
+        handlers[type] = handler
+    }
 
     private fun authenticatedSession(playerUuid: UUID): ServerSession? =
         sessionsByPlayer[playerUuid]?.takeIf { it.authenticated }
@@ -255,7 +255,9 @@ object VoiceKcpServer {
         if (VoiceKcpProtocol.isAudio(type)) {
             val sentAt = VoiceKcpProtocol.sentAtMs(msg) ?: return
             if (!session.freshness.accept(VoiceKcpProtocol.FreshnessGate.key(type, 0), sentAt)) return
+            if (System.currentTimeMillis() - sentAt > VoiceKcpProtocol.STALE_MS) return
         }
+        val handler = handlers[type] ?: return
         val server = mcServer ?: return
         // Hop onto the server's own main thread -- these calls touch ServerLevel/player state
         // that (like the IPayloadHandler.enqueueWork bodies this replaced) isn't meant to be
@@ -264,23 +266,7 @@ object VoiceKcpServer {
         server.execute {
             val player = server.playerList.getPlayer(session.playerUuid) ?: return@execute
             try {
-                when (msg[0]) {
-                    VoiceKcpProtocol.TYPE_VOICE_AUDIO -> {
-                        val audio = VoiceKcpProtocol.decodeAudio(msg)
-                        if (!audio.isStale) VoiceRelay.relay(player, audio.audio)
-                    }
-                    VoiceKcpProtocol.TYPE_RADIO_AUDIO -> {
-                        val audio = VoiceKcpProtocol.decodeAudio(msg)
-                        if (!audio.isStale) RadioRelay.relay(player, audio.audio)
-                    }
-                    VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO -> {
-                        val audio = VoiceKcpProtocol.decodeAudio(msg)
-                        if (!audio.isStale) PhoneCallSession.relayAudio(player, audio.audio)
-                    }
-                    VoiceKcpProtocol.TYPE_LOD_DATA -> {
-                        onLodDataReceived?.invoke(session.playerUuid, VoiceKcpProtocol.decodeLodData(msg))
-                    }
-                }
+                handler(player, msg)
             } catch (e: Exception) {
                 Dncity.LOGGER.warn("VoiceKcpServer: dropping malformed message (type {}) from {}", msg[0], player.gameProfile.name, e)
             }

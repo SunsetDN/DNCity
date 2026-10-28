@@ -200,3 +200,7 @@ includeBuild("mods/distant-horizons")
 // "components/mixin-config-plugin" included build, used only by Lithium's own neoforge subproject
 // to auto-generate its mixin config at build time -- no action needed here, it resolves on its own.
 includeBuild("mods/lithium")
+
+// DNCity's feature mods (each its own NeoForge mod and jar, `dncity_<name>`, on top of the core in this project's own
+// src/) -- configured by the root build.gradle.kts (featureMods); see AGENTS.md, "Feature mods".
+include(":game:comms", ":game:music", ":game:security", ":game:ballistics", ":game:aviation", ":game:farview")

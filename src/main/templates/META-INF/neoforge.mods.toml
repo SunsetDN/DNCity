@@ -72,22 +72,6 @@ versionRange = "${minecraft_version_range}"
 ordering = "NONE"
 side = "BOTH"
 
-# Loaded after superbwarfare so our data (loot modifiers, recipe filters) comes after its own
-[[dependencies."${mod_id}"]]
-modId = "superbwarfare"
-type = "optional"
-versionRange = "*"
-ordering = "AFTER"
-side = "BOTH"
-
-# Loaded after tacz so our data (loot modifiers, recipe filters) comes after its own
-[[dependencies."${mod_id}"]]
-modId = "tacz"
-type = "optional"
-versionRange = "*"
-ordering = "AFTER"
-side = "BOTH"
-
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

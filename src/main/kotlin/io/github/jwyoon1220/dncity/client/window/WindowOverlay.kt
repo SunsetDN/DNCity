@@ -1,7 +1,7 @@
 package io.github.jwyoon1220.dncity.client.window
 
 import io.github.jwyoon1220.dncity.Dncity
-import io.github.jwyoon1220.dncity.client.render.OverlayCullingManager
+import io.github.jwyoon1220.dncity.client.window.OverlayCullingManager
 import io.github.jwyoon1220.dncity.window.NativeWindow
 import java.util.UUID
 import javax.swing.JFrame

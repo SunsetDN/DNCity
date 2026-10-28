@@ -1,7 +1,7 @@
 package io.github.jwyoon1220.dncity.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import io.github.jwyoon1220.dncity.client.render.OverlayCullingManager;
+import io.github.jwyoon1220.dncity.client.window.OverlayCullingManager;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.world.entity.Entity;
