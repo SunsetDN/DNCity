@@ -16,6 +16,8 @@
 // actually needs, which is itself only what TACZ's com.tacz.guns.client.sound.fmod package
 // actually calls -- not a general-purpose FMOD binding. FMODSystem's public API was kept
 // identical to the previous FFM-backed version on purpose, so TACZ needed no changes at all.
+import org.gradle.internal.os.OperatingSystem
+
 plugins {
     `java-library`
 }
@@ -45,42 +47,59 @@ dependencies {
     implementation("commons-io:commons-io:2.18.0")
 }
 
-// Identifies the native build both by output directory and by the resource path FModLoad's
-// System.load lookup expects. Unlike engine/audio's "natives/<os>-<arch>/" (hyphenated)
-// convention, this matches FModLoad.resourcePath()'s existing "<os>/<arch>/" (underscored, no
-// "natives/" prefix) layout, since the vendored fmod.dll/fmodstudio.dll/etc. already sit there
-// and dncity_fmod.dll needs to be findable the same way.
-val nativeOs = "windows" // Only Windows is built today -- see CMakeLists.txt's comment.
-val nativeArch = "x86_64"
-val nativeLibName = "dncity_fmod.dll"
+
+// Built for the host: Windows with the MSYS2 UCRT64 toolchain (paths below), Linux with the system's
+// cmake and C++ compiler. A jar built anywhere also carries the Linux x86-64 library: a Linux x86-64
+// host builds it fresh, any other host takes the committed copy in prebuilt/ (refresh it on Linux
+// with `./gradlew -p engine/fmod updateLinuxPrebuilt` after changing the C++ sources).
+// Linux links libstdc++ dynamically (it is already needed by FMOD's own Linux libraries), which keeps
+// the floor at what the code itself uses instead of the build machine's glibc.
+val hostOs = OperatingSystem.current()
+val nativeOs = when {
+    hostOs.isWindows -> "windows"
+    hostOs.isLinux -> "linux"
+    else -> "unsupported"
+}
+val nativeArch = System.getProperty("os.arch").let { if (it == "amd64" || it == "x86_64") "x86_64" else it }
+val nativeLibName = if (nativeOs == "windows") "dncity_fmod.dll" else "libdncity_fmod.so"
+// Unlike engine/audio's "natives/<os>-<arch>/" (hyphenated) convention, this matches
+// FModLoad.resourcePath()'s existing "<os>/<arch>/" (underscored, no "natives/" prefix) layout,
+// since the vendored FMOD libraries already sit there and dncity_fmod needs to be findable the same way.
+val nativeResourcePath = "$nativeOs/$nativeArch"
 
 val nativeBuildDir = layout.buildDirectory.dir("native/$nativeOs-$nativeArch")
 val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
-val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+// MSYS2 paths only mean something on Windows (file("C:/...") fails to resolve elsewhere).
+val msys2UcrtBin = if (hostOs.isWindows) file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin") else null
 val cmakePath = (project.findProperty("cmakePath") as String?)
-    ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
+    ?: msys2UcrtBin?.resolve("cmake.exe")?.takeIf { it.isFile }?.absolutePath
     ?: "cmake"
-val ninjaPath = (project.findProperty("ninjaPath") as String?) ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
-val clangPath = (project.findProperty("clangPath") as String?) ?: msys2UcrtBin.resolve("clang.exe").absolutePath
-val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
-val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
 
 val configureNativeFmod = tasks.register<Exec>("configureNativeFmod") {
+    onlyIf { nativeOs != "unsupported" }
     inputs.file("CMakeLists.txt")
     inputs.dir("src/main/cpp")
     outputs.dir(nativeBuildDir)
     workingDir = projectDir
-    commandLine(cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
-        "-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninjaPath", "-DCMAKE_BUILD_TYPE=Release",
-        "-DCMAKE_C_COMPILER=$clangPath", "-DCMAKE_CXX_COMPILER=$clangCppPath",
-        "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,--whole-archive,$winpthreadStaticPath,--no-whole-archive")
+    val args = mutableListOf(cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath, "-DCMAKE_BUILD_TYPE=Release")
+    if (msys2UcrtBin != null) {
+        val ninjaPath = (project.findProperty("ninjaPath") as String?) ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
+        val clangPath = (project.findProperty("clangPath") as String?) ?: msys2UcrtBin.resolve("clang.exe").absolutePath
+        val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
+        val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
+        args += listOf("-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninjaPath",
+            "-DCMAKE_C_COMPILER=$clangPath", "-DCMAKE_CXX_COMPILER=$clangCppPath",
+            "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,--whole-archive,$winpthreadStaticPath,--no-whole-archive")
+    }
+    commandLine(args)
 }
 
 val buildNativeFmod = tasks.register<Exec>("buildNativeFmod") {
+    onlyIf { nativeOs != "unsupported" }
     dependsOn(configureNativeFmod)
     inputs.dir("src/main/cpp")
-    val destDir = nativeResourceDir.map { it.dir("$nativeOs/$nativeArch") }
+    val destDir = nativeResourceDir.map { it.dir(nativeResourcePath) }
     outputs.dir(destDir)
     workingDir = projectDir
     commandLine(cmakePath, "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
@@ -101,4 +120,18 @@ val buildNativeFmod = tasks.register<Exec>("buildNativeFmod") {
 sourceSets["main"].resources.srcDir(nativeResourceDir)
 tasks.named("processResources") {
     dependsOn(buildNativeFmod)
+}
+
+val buildsLinuxX64 = nativeOs == "linux" && nativeArch == "x86_64"
+if (buildsLinuxX64) {
+    tasks.register<Copy>("updateLinuxPrebuilt") {
+        group = "build"
+        description = "Copies the freshly built Linux x86-64 library into prebuilt/, which is committed."
+        dependsOn(buildNativeFmod)
+        from(nativeResourceDir)
+        include("$nativeResourcePath/$nativeLibName")
+        into("prebuilt")
+    }
+} else {
+    sourceSets["main"].resources.srcDir("prebuilt")
 }

@@ -1,8 +1,5 @@
 package io.github.jwyoon1220.dncity.network.kcp
 
-import io.github.jwyoon1220.dncity.network.RadioRangeInfo
-import io.github.jwyoon1220.dncity.network.RadioSenderPosition
-import io.github.jwyoon1220.dncity.radio.RadioMode
 import java.nio.ByteBuffer
 
 /**
@@ -65,7 +62,7 @@ object VoiceKcpProtocol {
      * history's `VoicePayloads`/`RadioVoicePayloads`/`PhonePayloads`) -- without it, a message
      * claiming a huge `buf.remaining()` would force an unbounded server- or client-side allocation
      * per packet. */
-    private const val MAX_AUDIO_FRAME_BYTES = 2048
+    const val MAX_AUDIO_FRAME_BYTES = 2048
 
     /** Distant Horizons LOD/terrain payloads are legitimately much larger than an audio frame, but
      * must fit one reliable message (this used to be 1 MiB, which `DncityKcp` can never reassemble --
@@ -76,13 +73,13 @@ object VoiceKcpProtocol {
     const val ASSET_CHUNK_BYTES = 32 * 1024
     private const val MAX_EXTENSION_BYTES = 16
 
-    private class MalformedMessageException(message: String) : Exception(message)
+    class MalformedMessageException(message: String) : Exception(message)
 
-    private fun requireRemaining(buf: ByteBuffer, bytes: Int, what: String) {
+    fun requireRemaining(buf: ByteBuffer, bytes: Int, what: String) {
         if (buf.remaining() < bytes) throw MalformedMessageException("truncated $what: need $bytes more bytes, have ${buf.remaining()}")
     }
 
-    private fun readBoundedPayload(buf: ByteBuffer, max: Int, what: String): ByteArray {
+    fun readBoundedPayload(buf: ByteBuffer, max: Int, what: String): ByteArray {
         val size = buf.remaining()
         if (size > max) throw MalformedMessageException("$what too large: $size > $max bytes")
         val payload = ByteArray(size)
@@ -238,65 +235,5 @@ object VoiceKcpProtocol {
         val senderEntityId = buf.int
         val audio = readBoundedPayload(buf, MAX_AUDIO_FRAME_BYTES, "voice relay")
         return VoiceRelay(sentAt, senderEntityId, audio)
-    }
-
-    // ---- Radio relay (server -> one qualifying listener, handheld or station broadcast alike --
-    // see io.github.jwyoon1220.dncity.voice.RadioRelay): the richest message, carrying everything
-    // io.github.jwyoon1220.dncity.voice.ClientRadioReceiver.handleRelayedFrame needs. ----
-
-    fun encodeRadioRelay(
-        senderEntityId: Int,
-        audio: ByteArray,
-        frequencyKhz: Double,
-        modeName: String,
-        senderPosition: RadioSenderPosition,
-        rangeInfo: RadioRangeInfo,
-    ): ByteArray {
-        val modeCode = RadioMode.entries.indexOfFirst { it.name.equals(modeName, ignoreCase = true) }
-        require(modeCode >= 0) { "Unknown RadioMode: $modeName" }
-        return ByteBuffer.allocate(1 + 8 + 4 + 8 + 1 + 8 + 8 + 8 + 8 + 1 + audio.size)
-            .put(TYPE_RADIO_AUDIO_RELAY)
-            .putLong(System.currentTimeMillis())
-            .putInt(senderEntityId)
-            .putDouble(frequencyKhz)
-            .put(modeCode.toByte())
-            .putDouble(senderPosition.x).putDouble(senderPosition.y).putDouble(senderPosition.z)
-            .putDouble(rangeInfo.effectiveMaxRangeBlocks)
-            .put(RadioRangeInfo.flagsOf(rangeInfo).toByte())
-            .put(audio)
-            .array()
-    }
-
-    class RadioRelay(
-        sentAtMs: Long,
-        val senderEntityId: Int,
-        val audio: ByteArray,
-        val frequencyKhz: Double,
-        val modeName: String,
-        val senderPosition: RadioSenderPosition,
-        val rangeInfo: RadioRangeInfo,
-    ) {
-        val isStale = System.currentTimeMillis() - sentAtMs > STALE_MS
-    }
-
-    fun decodeRadioRelay(data: ByteArray): RadioRelay {
-        val buf = ByteBuffer.wrap(data)
-        buf.get()
-        requireRemaining(buf, 8 + 4 + 8 + 1 + 8 + 8 + 8 + 8 + 1, "radio relay")
-        val sentAt = buf.long
-        val senderEntityId = buf.int
-        val frequencyKhz = buf.double
-        val modeCode = buf.get().toInt()
-        val x = buf.double; val y = buf.double; val z = buf.double
-        val effectiveMaxRangeBlocks = buf.double
-        val flags = buf.get().toInt()
-        val audio = readBoundedPayload(buf, MAX_AUDIO_FRAME_BYTES, "radio relay")
-        val mode = RadioMode.entries.getOrNull(modeCode)
-            ?: throw MalformedMessageException("radio relay: mode code $modeCode out of range")
-        return RadioRelay(
-            sentAt, senderEntityId, audio, frequencyKhz, mode.name,
-            RadioSenderPosition(x, y, z),
-            RadioRangeInfo.of(effectiveMaxRangeBlocks, (flags and 1) != 0, (flags and 2) != 0),
-        )
     }
 }

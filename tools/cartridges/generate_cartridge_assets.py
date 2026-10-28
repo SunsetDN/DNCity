@@ -1,5 +1,5 @@
 # AGENT-DONE(claude): cartridge-items
-"""Generates item assets for every round in src/main/resources/dncity/cartridges.json.
+"""Generates item assets for every round in game/ballistics/src/main/resources/dncity/cartridges.json.
 
 Writes, for each round (item id dncity:cartridge_<caliber>_<round>):
   assets/dncity/textures/item/cartridge/<caliber>_<round>.png   64x64 icon
@@ -21,7 +21,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-RES = ROOT / "src" / "main" / "resources"
+RES = ROOT / "game" / "ballistics" / "src" / "main" / "resources"
 CATALOG = RES / "dncity" / "cartridges.json"
 ASSETS = RES / "assets" / "dncity"
 

@@ -1,4 +1,6 @@
 import org.gradle.language.jvm.tasks.ProcessResources
+import net.neoforged.moddevgradle.dsl.NeoForgeExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.slf4j.event.Level
 
 plugins {
@@ -36,109 +38,112 @@ val mods_superbwarfare_version: String by project
 version = mod_version
 group = mod_group_id
 
-// Minecraft's own dependency set (via net.neoforged:minecraft-dependencies) pins
-// commons-io to 2.15.1 with a strict constraint. engine/fmod requests 2.18.0, which
-// conflicts with that constraint; force everything onto the version Minecraft ships,
-// since commons-io is source/binary compatible across these minor releases.
-//
-configurations.all {
-    resolutionStrategy.force(
-        "commons-io:commons-io:2.15.1",
-    )
-}
-
-repositories {
-    mavenLocal()
-    mavenCentral()
-    maven {
-        name = "Kotlin for Forge"
-        url = uri("https://thedarkcolour.github.io/KotlinForForge/")
-        content { includeGroup("thedarkcolour") }
+// The feature mods in game/ (see featureMods below) resolve against the same repositories and pins.
+allprojects {
+    // Minecraft's own dependency set (via net.neoforged:minecraft-dependencies) pins
+    // commons-io to 2.15.1 with a strict constraint. engine/fmod requests 2.18.0, which
+    // conflicts with that constraint; force everything onto the version Minecraft ships,
+    // since commons-io is source/binary compatible across these minor releases.
+    //
+    configurations.all {
+        resolutionStrategy.force(
+            "commons-io:commons-io:2.15.1",
+        )
     }
 
-    // Required to resolve TACZ's (mods/TACZ-1.21.1) own dependencies, since
-    // Gradle resolves the whole project graph using the consuming project's
-    // (this one's) repositories rather than the included build's.
-    maven {
-        url = uri("https://jitpack.io")
-        content {
-            includeGroup("com.github.rtyley")
-            includeGroup("com.github.FiguraMC.luaj")
-            includeGroup("com.github.mcmodderanchor")
-            includeGroup("com.github.MCModderAnchor")
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven {
+            name = "Kotlin for Forge"
+            url = uri("https://thedarkcolour.github.io/KotlinForForge/")
+            content { includeGroup("thedarkcolour") }
         }
-    }
-    maven { url = uri("https://maven.shedaniel.me") }
-    maven { url = uri("https://maven.kosmx.dev") }
-    maven { url = uri("https://maven.blamejared.com") }
-    // Required to resolve SuperbWarfare's (mods/SuperbWarfare) own dependencies, for the same
-    // reason as the jitpack/shedaniel/blamejared repos above.
-    maven {
-        name = "GeckoLib"
-        url = uri("https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/")
-        content {
-            includeGroupByRegex("software\\.bernie.*")
-            includeGroup("com.eliotlash.mclib")
-        }
-    }
-    maven {
-        url = uri("https://maven.theillusivec4.top/")
-        content { includeGroup("top.theillusivec4.curios") }
-    }
-    maven { url = uri("https://maven.createmod.net") }
-    maven { url = uri("https://raw.githubusercontent.com/Fuzss/modresources/main/maven/") }
-    maven { url = uri("https://maven.ryanhcode.dev/releases") }
-    // opus-jni-rust (com.plasmoverse:opus-jni-rust) -- existing Rust/jni-rs Opus JNI binding
-    // (github.com/plasmoapp/opus-jni-rust, from the Plasmo Voice team) used for the close-range
-    // voice chat tier's Opus codec, in place of hand-writing new JNI bindings.
-    maven {
-        url = uri("https://repo.plasmoverse.com/releases")
-        content { includeGroup("com.plasmoverse") }
-    }
-    maven {
-        url = uri("https://maven.architectury.dev")
-        content { includeGroup("dev.architectury") }
-    }
-    maven {
-        url = uri("https://maven.latvian.dev/releases")
-        content {
-            includeGroup("dev.latvian.mods")
-            includeGroup("dev.latvian.apps")
-        }
-    }
-    // Required to resolve Sodium's (mods/sodium) and Iris's (mods/Iris) own dependencies, for the
-    // same reason as the jitpack/shedaniel/blamejared repos above -- su5ed.dev hosts the
-    // forgified-fabric-api modules both jarJar-embed, and caffeinemc.net hosts the published
-    // Sodium artifact Iris compiles against (compileOnly, not substituted -- see
-    // settings.gradle.kts's comment on this includeBuild).
-    maven {
-        url = uri("https://maven.su5ed.dev/releases")
-        content { includeGroup("org.sinytra.forgified-fabric-api") }
-    }
-    maven {
-        url = uri("https://maven.caffeinemc.net/releases")
-        content { includeGroup("net.caffeinemc") }
-    }
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = "Modrinth"
-                url = uri("https://api.modrinth.com/maven")
+
+        // Required to resolve TACZ's (mods/TACZ-1.21.1) own dependencies, since
+        // Gradle resolves the whole project graph using the consuming project's
+        // (this one's) repositories rather than the included build's.
+        maven {
+            url = uri("https://jitpack.io")
+            content {
+                includeGroup("com.github.rtyley")
+                includeGroup("com.github.FiguraMC.luaj")
+                includeGroup("com.github.mcmodderanchor")
+                includeGroup("com.github.MCModderAnchor")
             }
         }
-        filter { includeGroup("maven.modrinth") }
-    }
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = "CurseForge"
-                url = uri("https://cursemaven.com")
+        maven { url = uri("https://maven.shedaniel.me") }
+        maven { url = uri("https://maven.kosmx.dev") }
+        maven { url = uri("https://maven.blamejared.com") }
+        // Required to resolve SuperbWarfare's (mods/SuperbWarfare) own dependencies, for the same
+        // reason as the jitpack/shedaniel/blamejared repos above.
+        maven {
+            name = "GeckoLib"
+            url = uri("https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/")
+            content {
+                includeGroupByRegex("software\\.bernie.*")
+                includeGroup("com.eliotlash.mclib")
             }
         }
-        filter { includeGroup("curse.maven") }
+        maven {
+            url = uri("https://maven.theillusivec4.top/")
+            content { includeGroup("top.theillusivec4.curios") }
+        }
+        maven { url = uri("https://maven.createmod.net") }
+        maven { url = uri("https://raw.githubusercontent.com/Fuzss/modresources/main/maven/") }
+        maven { url = uri("https://maven.ryanhcode.dev/releases") }
+        // opus-jni-rust (com.plasmoverse:opus-jni-rust) -- existing Rust/jni-rs Opus JNI binding
+        // (github.com/plasmoapp/opus-jni-rust, from the Plasmo Voice team) used for the close-range
+        // voice chat tier's Opus codec, in place of hand-writing new JNI bindings.
+        maven {
+            url = uri("https://repo.plasmoverse.com/releases")
+            content { includeGroup("com.plasmoverse") }
+        }
+        maven {
+            url = uri("https://maven.architectury.dev")
+            content { includeGroup("dev.architectury") }
+        }
+        maven {
+            url = uri("https://maven.latvian.dev/releases")
+            content {
+                includeGroup("dev.latvian.mods")
+                includeGroup("dev.latvian.apps")
+            }
+        }
+        // Required to resolve Sodium's (mods/sodium) and Iris's (mods/Iris) own dependencies, for the
+        // same reason as the jitpack/shedaniel/blamejared repos above -- su5ed.dev hosts the
+        // forgified-fabric-api modules both jarJar-embed, and caffeinemc.net hosts the published
+        // Sodium artifact Iris compiles against (compileOnly, not substituted -- see
+        // settings.gradle.kts's comment on this includeBuild).
+        maven {
+            url = uri("https://maven.su5ed.dev/releases")
+            content { includeGroup("org.sinytra.forgified-fabric-api") }
+        }
+        maven {
+            url = uri("https://maven.caffeinemc.net/releases")
+            content { includeGroup("net.caffeinemc") }
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "Modrinth"
+                    url = uri("https://api.modrinth.com/maven")
+                }
+            }
+            filter { includeGroup("maven.modrinth") }
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "CurseForge"
+                    url = uri("https://cursemaven.com")
+                }
+            }
+            filter { includeGroup("curse.maven") }
+        }
+        flatDir { dirs(rootDir.resolve("mods/TACZ-1.21.1/libs")) }
+        flatDir { dirs(rootDir.resolve("mods/SuperbWarfare/libs")) }
     }
-    flatDir { dirs("mods/TACZ-1.21.1/libs") }
-    flatDir { dirs("mods/SuperbWarfare/libs") }
 }
 
 base {
@@ -159,6 +164,81 @@ tasks.withType<JavaCompile> {
     options.release.set(21)
 }
 kotlin.jvmToolchain(21)
+
+// Feature mods (see AGENTS.md, "Feature mods"): each game/<name> is its own NeoForge mod and jar, `dncity_<name>`, on
+// top of this project (DNCity core, mod id `dncity`). The shared setup is here; each game/<name>/build.gradle.kts only
+// lists that mod's own dependencies. Their content keeps the `dncity` namespace, so worlds and data packs did not change.
+val featureMods = mapOf(
+    "comms" to "DNCity Comms",
+    "music" to "DNCity Music",
+    "security" to "DNCity Security",
+    "ballistics" to "DNCity Ballistics",
+    "aviation" to "DNCity Aviation",
+    "farview" to "DNCity Farview",
+)
+val featureProjects = featureMods.keys.map { project(":game:$it") }
+
+featureMods.forEach { (name, displayName) ->
+    project(":game:$name") {
+        apply(plugin = "java-library")
+        apply(plugin = "net.neoforged.moddev")
+        apply(plugin = "org.jetbrains.kotlin.jvm")
+
+        val featureModId = "dncity_$name"
+        version = mod_version
+        group = mod_group_id
+        extensions.configure<BasePluginExtension> { archivesName.set(featureModId) }
+        extensions.configure<JavaPluginExtension> { toolchain.languageVersion.set(JavaLanguageVersion.of(21)) }
+        tasks.withType<JavaCompile> { options.release.set(21) }
+        extensions.configure<KotlinJvmProjectExtension> { jvmToolchain(21) }
+
+        val featureSourceSets = the<SourceSetContainer>()
+        extensions.configure<NeoForgeExtension> {
+            version = neo_version
+            parchment {
+                mappingsVersion = parchment_mappings_version
+                minecraftVersion = parchment_minecraft_version
+            }
+            mods {
+                create(featureModId) {
+                    sourceSet(featureSourceSets["main"])
+                }
+            }
+        }
+
+        dependencies {
+            "implementation"(rootProject)
+            "implementation"("thedarkcolour:kotlinforforge-neoforge:5.3.0")
+            "testImplementation"(kotlin("test"))
+            "testImplementation"("com.google.code.gson:gson:2.10.1")
+        }
+        // Plain JVM unit tests, same as the core's. They run from game/<name>, so repo paths are "../../mods/...".
+        tasks.withType<Test>().configureEach { useJUnitPlatform() }
+
+        // Same as the core's generateModMetadata below, from this mod's own src/main/templates.
+        val featureMetadata = tasks.register<ProcessResources>("generateModMetadata") {
+            val replaceProperties = mapOf(
+                "minecraft_version" to minecraft_version,
+                "minecraft_version_range" to minecraft_version_range,
+                "neo_version" to neo_version,
+                "neo_version_range" to neo_version_range,
+                "loader_version_range" to loader_version_range,
+                "mod_id" to featureModId,
+                "mod_name" to displayName,
+                "mod_license" to mod_license,
+                "mod_version" to mod_version,
+                "mod_authors" to mod_authors,
+                "mod_description" to mod_description,
+            )
+            inputs.properties(replaceProperties)
+            expand(replaceProperties)
+            from("src/main/templates")
+            into(layout.buildDirectory.dir("generated/sources/modMetadata"))
+        }
+        featureSourceSets["main"].resources.srcDir(featureMetadata)
+        extensions.configure<NeoForgeExtension> { ideSyncTask(featureMetadata) }
+    }
+}
 
 neoForge {
     // Specify the version of NeoForge to use.
@@ -302,6 +382,15 @@ neoForge {
             // (compileKotlin/jarJar packaging don't need this; only the dev-run classpath does).
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.lwjgl:lwjgl-nanovg:3.3.3")
             project.dependencies.add(additionalRuntimeClasspathConfiguration.name, "org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
+            // engine/fmod (dncity_music's FMOD Core player) is not listed: TACZ already puts it on the run classpath, and a
+            // second copy fails module resolution ("Modules engine.fmod and fmod export package com.iwei20.fmod.studio").
+
+            // The feature mods load from their compiled classes and resources (grouped into one mod each by the
+            // `mods` block below), never from a project dependency: a jar of the same mod next to its classes would
+            // load it twice.
+            featureProjects.forEach { feature ->
+                project.dependencies.add(additionalRuntimeClasspathConfiguration.name, files(feature.the<SourceSetContainer>()["main"].output))
+            }
         }
     }
 
@@ -312,6 +401,11 @@ neoForge {
         // but multi mod projects should define one per mod
         create(mod_id) {
             sourceSet(sourceSets["main"])
+        }
+        featureProjects.forEach { feature ->
+            create("dncity_${feature.name}") {
+                sourceSet(feature.the<SourceSetContainer>()["main"])
+            }
         }
     }
 }
@@ -377,39 +471,6 @@ dependencies {
     // reason as TACZ/First Aid/Automobility.
     implementation("com.atsuishio.superbwarfare:superbwarfare:${mods_superbwarfare_version}")
 
-    // engine/audio (miniaudio JNI capture/playback bridge), wired in via includeBuild in
-    // settings.gradle.kts -- see io.github.jwyoon1220.dncity.audio.NativeAudio. jarJar embeds it
-    // (same pattern TACZ uses for engine/fmod) so it's not just a dev-run classpath artifact --
-    // it ships inside the mod jar and reaches players. jarJar's embedding only actually takes
-    // effect for an already-packaged mod jar (FML's jar-in-jar extraction runs against a real
-    // jar file) -- on MC 1.21.1's ModDevGradle, runClient/runClient2/runServer instead launch
-    // straight from this project's compiled classes directory, which has no jar to extract from,
-    // so a plain library dependency (not a mod, so FML's own mod-file loader won't pick it up
-    // either) silently never reaches the dev-run classpath without *also* being added to each
-    // run's `additionalRuntimeClasspath` below (see the `runs { configureEach { ... } }` block).
-    // (Confirmed by a NoClassDefFoundError on NativeAudio when that was missing; see
-    // https://docs.neoforged.net/toolchain/docs/dependencies/nonmclibs/ -- fixed in 1.21.9+,
-    // where jarJar deps are added to run classpaths automatically.)
-    implementation("engine:audio:1.0")
-    jarJar("engine:audio:1.0")
-
-    // Opus codec (close-range voice chat tier -- see io.github.jwyoon1220.dncity.audio.OpusCodec)
-    // via opus-jni-rust, a prebuilt multi-platform (win/linux/mac, x86/x86_64/aarch64) JNI
-    // binding, jarJar'd for the same reason as engine:audio above (also needs
-    // additionalRuntimeClasspath, see the `runs` block).
-    implementation("com.plasmoverse:opus-jni-rust:1.0.4")
-    jarJar("com.plasmoverse:opus-jni-rust:1.0.4")
-
-    // engine/fmod (hand-written JNI FMOD bindings, see AGENTS.md) -- was already an indirect
-    // dependency via TACZ's own jarJar, but that's TACZ's private copy; depending on it directly
-    // here gives DNCity its own FMODCoreSystem instance (io.github.jwyoon1220.dncity.music.
-    // AudioPlayer) for direct OGG/FLAC/MP3/Opus file playback, independent of TACZ being
-    // installed at all. Same version as TACZ's own dependency (1.0), so FML's jar-in-jar
-    // deduplication (same group:artifact:version embedded by two mods resolves to one shared
-    // copy) applies rather than loading the native library twice.
-    implementation("engine:fmod:1.0")
-    jarJar("engine:fmod:1.0")
-
     // engine/window (Win32 child-window/AWT-reparenting JNI bridge, see
     // io.github.jwyoon1220.dncity.client.window and AGENTS.md). Same jarJar +
     // additionalRuntimeClasspath requirement as engine:audio above -- see that entry's comment
@@ -423,6 +484,10 @@ dependencies {
     // entry's comment (also plain Java, no external dependencies of its own).
     implementation("engine:kcp:1.0")
     jarJar("engine:kcp:1.0")
+
+    // Libraries only one feature mod uses are declared, and jarJar'd, by that mod's game/<name>/build.gradle.kts:
+    // engine:audio, Opus and NanoVG (dncity_comms), engine:fmod (dncity_music), BouncyCastle (dncity_security). The
+    // mods below stay here because the dev runs load them; dncity_comms compiles against ModernUI-MC and VoxelMap.
 
     // ModernUI-MC (mods/ModernUI-MC), for the phone screen's Fragment/View host (see
     // io.github.jwyoon1220.dncity.client.phone.PhoneFragment). Not a dependencySubstitution like TACZ/First
@@ -489,30 +554,6 @@ dependencies {
         include("*.jar")
     })
 
-    // NanoVG (phone screen's chrome/keypad rendering, see
-    // io.github.jwyoon1220.dncity.client.phone.nanovg) -- LWJGL's own prebuilt bindings, classic
-    // JNI like the rest of LWJGL 3.3.x (no java.lang.foreign/Panama, so no Java-24-floor risk --
-    // see AGENTS.md's "Toolchain" section). Pinned to exactly 3.3.3 since Minecraft 1.21.1's own
-    // dependency management pins org.lwjgl:lwjgl itself to `strictly 3.3.3`; lwjgl-nanovg:3.3.3's
-    // own POM depends on org.lwjgl:lwjgl:3.3.3, which satisfies that constraint exactly, so no
-    // resolutionStrategy.force is needed here (unlike the commons-io force above). natives-windows
-    // only, matching this project's existing Windows-only precedent (see engine/window's
-    // build.gradle.kts). jarJar'd the same way com.plasmoverse:opus-jni-rust is above, so the
-    // natives actually ship inside the distributed mod jar, not just runClient.
-    implementation("org.lwjgl:lwjgl-nanovg:3.3.3")
-    runtimeOnly("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
-    jarJar("org.lwjgl:lwjgl-nanovg:3.3.3")
-    jarJar("org.lwjgl:lwjgl-nanovg:3.3.3:natives-windows")
-
-    // BouncyCastle OpenPGP (io.github.jwyoon1220.dncity.security's login-gate PGP
-    // challenge/response, see PgpCrypto) -- not shipped by NeoForge/Minecraft, so jarJar'd the
-    // same way as the other plain-library deps above (also needs additionalRuntimeClasspath, see
-    // the `runs` block, for the same ModDevGradle-doesn't-jarJar-onto-dev-runs reason documented
-    // on engine:audio's dependency above).
-    implementation("org.bouncycastle:bcpg-jdk18on:1.78.1")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    jarJar("org.bouncycastle:bcpg-jdk18on:1.78.1")
-    jarJar("org.bouncycastle:bcprov-jdk18on:1.78.1")
 }
 
 // The ModernUI-MC universal jar (see the fileTree dependency above) has to actually be built
@@ -611,7 +652,7 @@ idea {
 // this run's `from(...)` set.
 val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     group = "distribution"
-    description = "Copies this project's jar, the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered/Distant Horizons/Lithium submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
+    description = "Copies this project's jar, the feature mod jars (game/*), the TACZ/First Aid/Automobility/SuperbWarfare/ModernUI-MC/Sodium/Iris/VoxelMap/Sound Physics Remastered/Distant Horizons/Lithium submodule jars, and SuperbWarfare's own externally-published mod dependencies (Create/Create: Aeronautics/Sable) into the root build/libs."
 
     dependsOn(gradle.includedBuild("TACZ-1.21.1").task(":jar"))
     dependsOn(gradle.includedBuild("First-Aid-New").task(":jar"))
@@ -713,6 +754,8 @@ val collectDistributionJars = tasks.register<Sync>("collectDistributionJars") {
     // SuperbWarfare's own externally-published (Create/Create: Aeronautics/Sable) runtime
     // dependencies -- see this file's `bundledExternalMods` configuration declaration above for why.
     from(bundledExternalMods)
+    // The feature mods (game/*), one jar each next to dncity-*.jar.
+    featureProjects.forEach { feature -> from(feature.tasks.named("jar")) }
     into(layout.buildDirectory.dir("libs"))
     // The destination is also where this project's own `jar` task writes dncity-*.jar -- Sync
     // would otherwise delete it whenever this task happens to run after `jar` (task ordering

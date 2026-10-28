@@ -1,0 +1,7 @@
+{
+  "message.dncity.flight.wing_overload": "날개 파손: %s G",
+  "message.dncity.flight.rotor_overload": "로터 파손: %s G",
+  "message.dncity.flight.overspeed": "기체 파손: 속도 초과 (지시대기속도 %s km/h)",
+  "message.dncity.flight.flaps_overspeed": "플랩 강제 수납: 속도 초과",
+  "message.dncity.flight.gear_overspeed": "랜딩기어 속도 초과!"
+}

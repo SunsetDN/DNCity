@@ -19,11 +19,8 @@ import java.nio.file.Files;
  * {@code NativeWindowLibrary} for the same lesson (an unsigned freshly-built DLL extracted into a
  * temp-root *subdirectory* got silently blocked by this dev machine's Application Control policy).
  *
- * <p>Windows-only today: {@link #load} throws {@link UnsupportedOperationException} on any other
- * platform, since this module's native code is compiled only for Windows and no
- * {@code natives/<os>-<arch>/} resource exists for other platforms yet -- see build.gradle.kts's
- * comment for why extending this is low-effort whenever it's actually needed (the algorithm
- * itself has no OS-specific calls).
+ * <p>Windows ({@code dncity_kcp.dll}) and Linux ({@code libdncity_kcp.so}, x86-64 always shipped);
+ * {@link #load} throws {@link UnsupportedOperationException} on any other OS.
  */
 final class NativeKcpLibrary {
 
@@ -36,12 +33,18 @@ final class NativeKcpLibrary {
         if (loaded) return;
 
         String osName = System.getProperty("os.name").toLowerCase();
-        if (!osName.contains("win")) {
+        String platform;
+        String libFileName;
+        if (osName.contains("win")) {
+            platform = "windows";
+            libFileName = "dncity_kcp.dll";
+        } else if (osName.contains("linux")) {
+            platform = "linux";
+            libFileName = "libdncity_kcp.so";
+        } else {
             throw new UnsupportedOperationException(
-                "engine/kcp is Windows-only today (os.name=" + osName + ")");
+                "engine/kcp is built for Windows and Linux only (os.name=" + osName + ")");
         }
-        String platform = "windows";
-        String libFileName = "dncity_kcp.dll";
 
         String rawArch = System.getProperty("os.arch");
         String arch = (rawArch.equals("amd64") || rawArch.equals("x86_64")) ? "x86-64" : rawArch;

@@ -66,16 +66,13 @@ val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
 // codec2 needs a real MinGW libc for its C99 `_Complex` arithmetic. Prefer the complete MSYS2
 // UCRT64 toolchain on Windows; every path remains overridable for non-default installations.
-val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+// MSYS2 paths only mean something on Windows (file("C:/...") fails to resolve elsewhere).
+val msys2UcrtBin = if (OperatingSystem.current().isWindows) {
+    file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+} else null
 val cmakePath = (project.findProperty("cmakePath") as String?)
-    ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
+    ?: msys2UcrtBin?.resolve("cmake.exe")?.takeIf { it.isFile }?.absolutePath
     ?: "cmake"
-val ninjaPath = (project.findProperty("ninjaPath") as String?)
-    ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
-val clangPath = (project.findProperty("clangPath") as String?)
-    ?: msys2UcrtBin.resolve("clang.exe").absolutePath
-val clangCppPath = (project.findProperty("clangCppPath") as String?)
-    ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
 
 val configureNativeAudio = tasks.register<Exec>("configureNativeAudio") {
     inputs.file("CMakeLists.txt")
@@ -87,7 +84,13 @@ val configureNativeAudio = tasks.register<Exec>("configureNativeAudio") {
         cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
         "-DCMAKE_BUILD_TYPE=Release",
     )
-    if (OperatingSystem.current().isWindows) {
+    if (msys2UcrtBin != null) {
+        val ninjaPath = (project.findProperty("ninjaPath") as String?)
+            ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
+        val clangPath = (project.findProperty("clangPath") as String?)
+            ?: msys2UcrtBin.resolve("clang.exe").absolutePath
+        val clangCppPath = (project.findProperty("clangCppPath") as String?)
+            ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
         args += listOf(
             "-G", "Ninja",
             "-DCMAKE_MAKE_PROGRAM=$ninjaPath",
@@ -126,4 +129,20 @@ val buildNativeAudio = tasks.register<Exec>("buildNativeAudio") {
 sourceSets["main"].resources.srcDir(nativeResourceDir)
 tasks.named("processResources") {
     dependsOn(buildNativeAudio)
+}
+
+// A jar built anywhere also carries the Linux x86-64 library: a Linux x86-64 host builds it fresh,
+// any other host takes the committed copy in prebuilt/ (refresh it on Linux with
+// `./gradlew -p engine/audio updateLinuxPrebuilt` after changing the C/C++ sources or codec2).
+if (nativeClassifier == "linux-x86-64") {
+    tasks.register<Copy>("updateLinuxPrebuilt") {
+        group = "build"
+        description = "Copies the freshly built Linux x86-64 library into prebuilt/, which is committed."
+        dependsOn(buildNativeAudio)
+        from(nativeResourceDir)
+        include("natives/$nativeClassifier/$nativeLibName")
+        into("prebuilt")
+    }
+} else {
+    sourceSets["main"].resources.srcDir("prebuilt")
 }

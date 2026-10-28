@@ -1,11 +1,6 @@
 package io.github.jwyoon1220.dncity.network.kcp
 
 import io.github.jwyoon1220.dncity.Dncity
-import io.github.jwyoon1220.dncity.client.phone.PhoneCallReceiver
-import io.github.jwyoon1220.dncity.music.MusicClientReceiver
-import io.github.jwyoon1220.dncity.network.MusicAssetChunkPayload
-import io.github.jwyoon1220.dncity.voice.ClientRadioReceiver
-import io.github.jwyoon1220.dncity.voice.ClientVoiceReceiver
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.Unpooled
 import io.netty.channel.Channel
@@ -17,6 +12,7 @@ import io.netty.channel.socket.DatagramPacket
 import io.netty.channel.socket.nio.NioDatagramChannel
 import net.minecraft.client.Minecraft
 import java.net.InetSocketAddress
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -133,16 +129,24 @@ object VoiceKcpClient {
         kcp?.send(VoiceKcpProtocol.encodeLodData(payload))
     }
 
-    /** Set by whichever feature wants to receive [TYPE_LOD_DATA][VoiceKcpProtocol.TYPE_LOD_DATA]
-     * messages sent by the server (e.g. a future Distant Horizons LOD response) -- invoked on the
-     * render/client thread, same as every other message handler here. */
-    var onLodDataReceived: ((ByteArray) -> Unit)? = null
+    private val handlers = ConcurrentHashMap<Byte, (ByteArray) -> Unit>()
+
+    /**
+     * Who handles server messages of [type] (one of [VoiceKcpProtocol]'s `TYPE_` bytes): feature mods register here
+     * from their client setup (`dncity_comms` its relayed audio, `dncity_music` its file chunks), so the transport knows
+     * nothing about them. Runs on the render thread with the whole message, type byte first; audio arrives already
+     * freshness- and staleness-checked. One handler per type, the last registration wins.
+     */
+    fun registerHandler(type: Byte, handler: (ByteArray) -> Unit) {
+        handlers[type] = handler
+    }
 
     /** [VoiceKcpProtocol.FreshnessGate] per stream: the type, plus the speaker for relays (bytes 9..12). */
     private fun isFresh(msg: ByteArray): Boolean {
         val type = msg[0]
         if (!VoiceKcpProtocol.isAudio(type)) return true
         val sentAt = VoiceKcpProtocol.sentAtMs(msg) ?: return false
+        if (System.currentTimeMillis() - sentAt > VoiceKcpProtocol.STALE_MS) return false
         val speaker = if (type != VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY && msg.size >= 13) {
             java.nio.ByteBuffer.wrap(msg, 9, 4).int
         } else 0
@@ -165,39 +169,14 @@ object VoiceKcpClient {
     private fun handleMessage(msg: ByteArray) {
         if (msg.isEmpty()) return
         if (!isFresh(msg)) return
+        val handler = handlers[msg[0]] ?: return
         // Hop onto the render/client thread -- these calls feed VoiceAudioMixer, which
         // VoiceClientLoop also drains from that same thread every client tick; like the
         // IPayloadHandler.enqueueWork bodies this replaced, they're not meant to run on an
         // arbitrary I/O thread (this UDP channel's own Netty event loop, see connect()).
         Minecraft.getInstance().execute {
             try {
-                when (msg[0]) {
-                    VoiceKcpProtocol.TYPE_VOICE_AUDIO_RELAY -> {
-                        val relay = VoiceKcpProtocol.decodeVoiceRelay(msg)
-                        if (!relay.isStale) ClientVoiceReceiver.handleRelayedFrame(relay.senderEntityId, relay.audio)
-                    }
-                    VoiceKcpProtocol.TYPE_RADIO_AUDIO_RELAY -> {
-                        val relay = VoiceKcpProtocol.decodeRadioRelay(msg)
-                        if (!relay.isStale) {
-                            ClientRadioReceiver.handleRelayedFrame(
-                                relay.senderEntityId, relay.audio, relay.frequencyKhz, relay.modeName,
-                                relay.senderPosition, relay.rangeInfo.effectiveMaxRangeBlocks, relay.rangeInfo.obstructed, relay.rangeInfo.stormNoise,
-                            )
-                        }
-                    }
-                    VoiceKcpProtocol.TYPE_PHONE_CALL_AUDIO_RELAY -> {
-                        val audio = VoiceKcpProtocol.decodeAudio(msg)
-                        if (!audio.isStale) PhoneCallReceiver.handleFrame(audio.audio)
-                    }
-                    VoiceKcpProtocol.TYPE_LOD_DATA -> {
-                        onLodDataReceived?.invoke(VoiceKcpProtocol.decodeLodData(msg))
-                    }
-                    VoiceKcpProtocol.TYPE_ASSET_CHUNK -> {
-                        MusicClientReceiver.handleChunk(VoiceKcpProtocol.decodeAssetChunk(msg).let {
-                            MusicAssetChunkPayload(it.kind, it.transferId, it.chunkIndex, it.totalChunks, it.extension, it.data)
-                        })
-                    }
-                }
+                handler(msg)
             } catch (e: Exception) {
                 // A malformed/truncated message (bad length, out-of-range field) must not kill the
                 // render thread -- see VoiceKcpProtocol's requireRemaining/readBoundedPayload.
