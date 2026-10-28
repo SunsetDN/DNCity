@@ -12,12 +12,12 @@
 //
 // Same composite-build shape as engine/audio/engine/fmod/engine/window (own settings.gradle.kts,
 // own build.gradle.kts wired into the root via includeBuild + dependencySubstitution +
-// implementation/jarJar/additionalRuntimeClasspathConfiguration). Windows-only today, like
-// engine/fmod/engine/window: the KCP algorithm itself is plain, portable C++17 with no OS-specific
-// calls at all (unlike engine/window's Win32 windowing or engine/audio's codec2 `_Complex` need),
-// so extending this to Linux/macOS later is just adding another natives/<os>-<arch>/ build --
-// deferred until there's an actual non-Windows dev/deploy target, same reasoning as
-// engine/window's own doc comment.
+// implementation/jarJar/additionalRuntimeClasspathConfiguration). Windows and Linux x86-64: the
+// KCP algorithm itself is plain, portable C++17 with no OS-specific calls at all (unlike
+// engine/window's Win32 windowing or engine/audio's codec2 `_Complex` need); macOS would be one
+// more natives/<os>-<arch>/ build.
+import org.gradle.internal.os.OperatingSystem
+
 plugins {
     `java-library`
 }
@@ -41,41 +41,60 @@ tasks.withType<JavaCompile>().configureEach {
     options.release = 21
 }
 
+
 // No dependencies block: NativeKcpLibrary uses plain java.nio.file/InputStream.transferTo, same
 // as engine/audio's NativeLibrary.java / engine/window's NativeWindowLibrary.java -- no commons-io
 // needed (unlike engine/fmod).
 
-val nativeOs = "windows" // Only Windows is built today -- see CMakeLists.txt's comment.
-val nativeArch = "x86-64" // Hyphenated to match NativeKcpLibrary's resourcePath() lookup.
-val nativeLibName = "dncity_kcp.dll"
+// Built for the host: Windows with the MSYS2 UCRT64 toolchain (paths below), Linux with the system's
+// cmake and C++ compiler. A jar built anywhere also carries the Linux x86-64 library: a Linux x86-64
+// host builds it fresh, any other host takes the committed copy in prebuilt/ (refresh it on Linux
+// with `./gradlew -p engine/kcp updateLinuxPrebuilt` after changing the C++ sources).
+// Linux links libstdc++ dynamically (it is already needed by FMOD's own Linux libraries), which keeps
+// the floor at what the code itself uses instead of the build machine's glibc.
+val hostOs = OperatingSystem.current()
+val nativeOs = when {
+    hostOs.isWindows -> "windows"
+    hostOs.isLinux -> "linux"
+    else -> "unsupported"
+}
+val nativeArch = System.getProperty("os.arch").let { if (it == "amd64" || it == "x86_64") "x86-64" else it }
+val nativeLibName = if (nativeOs == "windows") "dncity_kcp.dll" else "libdncity_kcp.so"
+val nativeResourcePath = "natives/$nativeOs-$nativeArch"
 
 val nativeBuildDir = layout.buildDirectory.dir("native/$nativeOs-$nativeArch")
 val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
-val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+// MSYS2 paths only mean something on Windows (file("C:/...") fails to resolve elsewhere).
+val msys2UcrtBin = if (hostOs.isWindows) file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin") else null
 val cmakePath = (project.findProperty("cmakePath") as String?)
-    ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
+    ?: msys2UcrtBin?.resolve("cmake.exe")?.takeIf { it.isFile }?.absolutePath
     ?: "cmake"
-val ninjaPath = (project.findProperty("ninjaPath") as String?) ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
-val clangPath = (project.findProperty("clangPath") as String?) ?: msys2UcrtBin.resolve("clang.exe").absolutePath
-val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
-val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
 
 val configureNativeKcp = tasks.register<Exec>("configureNativeKcp") {
+    onlyIf { nativeOs != "unsupported" }
     inputs.file("CMakeLists.txt")
     inputs.dir("src/main/cpp")
     outputs.dir(nativeBuildDir)
     workingDir = projectDir
-    commandLine(cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath,
-        "-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninjaPath", "-DCMAKE_BUILD_TYPE=Release",
-        "-DCMAKE_C_COMPILER=$clangPath", "-DCMAKE_CXX_COMPILER=$clangCppPath",
-        "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,--whole-archive,$winpthreadStaticPath,--no-whole-archive")
+    val args = mutableListOf(cmakePath, "-S", ".", "-B", nativeBuildDir.get().asFile.absolutePath, "-DCMAKE_BUILD_TYPE=Release")
+    if (msys2UcrtBin != null) {
+        val ninjaPath = (project.findProperty("ninjaPath") as String?) ?: msys2UcrtBin.resolve("ninja.exe").absolutePath
+        val clangPath = (project.findProperty("clangPath") as String?) ?: msys2UcrtBin.resolve("clang.exe").absolutePath
+        val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2UcrtBin.resolve("clang++.exe").absolutePath
+        val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
+        args += listOf("-G", "Ninja", "-DCMAKE_MAKE_PROGRAM=$ninjaPath",
+            "-DCMAKE_C_COMPILER=$clangPath", "-DCMAKE_CXX_COMPILER=$clangCppPath",
+            "-DCMAKE_SHARED_LINKER_FLAGS=-static-libgcc -static-libstdc++ -Wl,--whole-archive,$winpthreadStaticPath,--no-whole-archive")
+    }
+    commandLine(args)
 }
 
 val buildNativeKcp = tasks.register<Exec>("buildNativeKcp") {
+    onlyIf { nativeOs != "unsupported" }
     dependsOn(configureNativeKcp)
     inputs.dir("src/main/cpp")
-    val destDir = nativeResourceDir.map { it.dir("natives/$nativeOs-$nativeArch") }
+    val destDir = nativeResourceDir.map { it.dir(nativeResourcePath) }
     outputs.dir(destDir)
     workingDir = projectDir
     commandLine(cmakePath, "--build", nativeBuildDir.get().asFile.absolutePath, "--config", "Release")
@@ -96,4 +115,18 @@ val buildNativeKcp = tasks.register<Exec>("buildNativeKcp") {
 sourceSets["main"].resources.srcDir(nativeResourceDir)
 tasks.named("processResources") {
     dependsOn(buildNativeKcp)
+}
+
+val buildsLinuxX64 = nativeOs == "linux" && nativeArch == "x86-64"
+if (buildsLinuxX64) {
+    tasks.register<Copy>("updateLinuxPrebuilt") {
+        group = "build"
+        description = "Copies the freshly built Linux x86-64 library into prebuilt/, which is committed."
+        dependsOn(buildNativeKcp)
+        from(nativeResourceDir)
+        include("$nativeResourcePath/$nativeLibName")
+        into("prebuilt")
+    }
+} else {
+    sourceSets["main"].resources.srcDir("prebuilt")
 }

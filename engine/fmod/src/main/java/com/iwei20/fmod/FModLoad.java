@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 import org.apache.commons.io.IOUtils;
@@ -116,7 +117,7 @@ public class FModLoad {
         File libDir = java.nio.file.Files.createTempDirectory("fmod-natives-").toFile();
         libDir.deleteOnExit();
 
-        try (InputStream fmodIn = FModLoad.class.getResourceAsStream(resourcePath() + mappedFMOD)) {
+        try (InputStream fmodIn = FModLoad.class.getResourceAsStream(realLibraryResource(mappedFMOD))) {
             File fmodFile = new File(libDir, mappedFMOD);
             fmodFile.deleteOnExit();
             try (OutputStream out = new FileOutputStream(fmodFile)) {
@@ -125,7 +126,7 @@ public class FModLoad {
             System.load(fmodFile.getAbsolutePath());
         }
 
-        try (InputStream studioIn = FModLoad.class.getResourceAsStream(resourcePath() + mappedStudio)) {
+        try (InputStream studioIn = FModLoad.class.getResourceAsStream(realLibraryResource(mappedStudio))) {
             File studioFile = new File(libDir, mappedStudio);
             studioFile.deleteOnExit();
             try (OutputStream out = new FileOutputStream(studioFile)) {
@@ -182,6 +183,31 @@ public class FModLoad {
         }
 
         loaded = true;
+    }
+
+    /**
+     * Resource path of the real library file for {@code mappedName}. FMOD's Linux SDK ships
+     * {@code libfmod.so -> libfmod.so.14 -> libfmod.so.14.7} as symlinks, and this repo has them committed as plain
+     * files holding the link target's name (15 bytes of text), so the {@code libfmod.so} that
+     * {@code System.mapLibraryName} names is not a library. Follows such a stub (short text naming a {@code lib*}
+     * file in the same directory) to the ELF it points at; anything else is returned as is. The file is still
+     * extracted under {@code mappedName}: the dynamic loader matches fmodstudio's {@code DT_NEEDED libfmod.so.14}
+     * against the soname inside the already-loaded library, not against its file name.
+     */
+    private static String realLibraryResource(String mappedName) throws IOException {
+        String path = resourcePath() + mappedName;
+        for (int hops = 0; hops < 4; hops++) {
+            byte[] head;
+            try (InputStream in = FModLoad.class.getResourceAsStream(path)) {
+                if (in == null) return path;
+                head = in.readNBytes(256);
+            }
+            if (head.length == 0 || head.length >= 256 || head[0] == 0x7f) return path; // empty, large or ELF
+            String target = new String(head, StandardCharsets.US_ASCII).trim();
+            if (!target.startsWith("lib") || target.contains("/") || target.contains("\\")) return path;
+            path = resourcePath() + target;
+        }
+        return path;
     }
 
     // Exact filenames as FMOD ships them (not run through System.mapLibraryName -- e.g.

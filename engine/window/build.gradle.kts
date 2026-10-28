@@ -47,7 +47,10 @@ val nativeLibName = "dncity_window.dll"
 val nativeBuildDir = layout.buildDirectory.dir("native/$nativeOs-$nativeArch")
 val nativeResourceDir = layout.buildDirectory.dir("generated/nativeResources")
 
-val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: "C:/msys64/ucrt64/bin")
+// The Win32 code has no Linux/macOS counterpart (every export is under _WIN32), so the native tasks
+// only run on Windows; the MSYS2 path is only resolved there (file("C:/...") fails elsewhere).
+val isWindowsHost = org.gradle.internal.os.OperatingSystem.current().isWindows
+val msys2UcrtBin = file((project.findProperty("msys2UcrtBin") as String?) ?: if (isWindowsHost) "C:/msys64/ucrt64/bin" else "msys2-not-used")
 val cmakePath = (project.findProperty("cmakePath") as String?)
     ?: msys2UcrtBin.resolve("cmake.exe").takeIf { it.isFile }?.absolutePath
     ?: "cmake"
@@ -57,6 +60,7 @@ val clangCppPath = (project.findProperty("clangCppPath") as String?) ?: msys2Ucr
 val winpthreadStaticPath = msys2UcrtBin.resolve("../lib/libwinpthread.a").canonicalPath
 
 val configureNativeWindow = tasks.register<Exec>("configureNativeWindow") {
+    onlyIf { isWindowsHost }
     inputs.file("CMakeLists.txt")
     inputs.dir("src/main/cpp")
     outputs.dir(nativeBuildDir)
@@ -68,6 +72,7 @@ val configureNativeWindow = tasks.register<Exec>("configureNativeWindow") {
 }
 
 val buildNativeWindow = tasks.register<Exec>("buildNativeWindow") {
+    onlyIf { isWindowsHost }
     dependsOn(configureNativeWindow)
     inputs.dir("src/main/cpp")
     val destDir = nativeResourceDir.map { it.dir("natives/$nativeOs-$nativeArch") }

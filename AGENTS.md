@@ -107,9 +107,38 @@ six feature mods, each its own NeoForge mod and jar, built from one Gradle build
   `runGameTestServer` discovers all seven mods with valid metadata and mixin configs. That run then stops at FML's
   dependency check on `fabric_api_base` (pulled in through Iris) requiring NeoForge 21.1.262 while this build uses
   21.1.248 -- not a DNCity mod -- so the mods' constructors and registrations have **not** been run in a game yet.
-  (The container also needed: the engine/* native tasks disabled (Windows MSYS2 toolchain), and ModernUI-MC compiled
+  (The container also needed, at the time: the engine/* native tasks disabled (they were Windows-only until
+  `linux-natives` below), and ModernUI-MC compiled
   with a JDK 25 javac at `--release 21`, because modernui-core 3.13.0's `Resources$Theme` constructor has fewer
   parameter annotations than parameters, which JDK 21's javac rejects -- JDK-8334870, fixed in JDK 24.)
+
+## Linux natives (marker `linux-natives`)
+
+User request 2026-10-28 ("add the Linux binaries too"). `engine/audio`, `engine/kcp` and `engine/fmod`'s JNI glue now build
+for Linux x86-64 as well as Windows; `engine/window` stays Windows-only (its source is Win32 code only; its native tasks
+are skipped on other hosts).
+- **Host builds**: each module's `build.gradle.kts` builds the native library for the host OS -- Windows with the MSYS2
+  UCRT64 toolchain as before, Linux with the system's `cmake` and C/C++ compiler. The MSYS2 `C:/...` path is only resolved
+  on Windows (`file("C:/...")` used to fail Gradle configuration on Linux).
+- **Prebuilt Linux libraries are committed** (`engine/<m>/prebuilt/`, in the jar's resource layout:
+  `natives/linux-x86-64/libdncity_{audio,kcp}.so`, `linux/x86_64/libdncity_fmod.so`). A Linux x86-64 host builds them
+  fresh; any other host packages the committed copy, so a jar built on Windows works on Linux too. **After changing a
+  module's C/C++ sources (or codec2), rebuild them on Linux**: `./gradlew -p engine/<audio|kcp|fmod> updateLinuxPrebuilt`.
+  (The Windows DLLs still only come from a Windows build.)
+- **Linking**: Linux links libstdc++ dynamically (FMOD's own Linux libraries need `libstdc++.so.6` anyway); static
+  libstdc++ from this build machine would have raised the glibc floor to 2.38. Floors of the committed files: audio glibc
+  2.34 (no libstdc++), kcp glibc 2.14 + `GLIBCXX_3.4.29` (GCC 11), fmod glibc 2.4 + `GLIBCXX_3.4` -- i.e. Ubuntu 22.04,
+  Debian 12, Fedora 35 or newer. No RPATH/RUNPATH (fmod sets `SKIP_BUILD_RPATH`).
+- **FMOD on Linux was broken before this**: the vendored `linux/<arch>/libfmod.so` and `libfmod.so.14` (same for
+  fmodstudio and the L variants) are symlinks committed as plain files holding the target's name, so `FModLoad` handed a
+  15-byte text file to `System.load`. `FModLoad.realLibraryResource` follows such a stub to the real ELF; the CMake link
+  uses the versioned `.so.14.7` files. `libdncity_fmod.so`'s `DT_NEEDED libfmod.so.14` is satisfied by soname from the
+  already-loaded copy.
+- `NativeKcpLibrary` loads `libdncity_kcp.so` on Linux (it threw on anything but Windows).
+- **Verified (2026-10-28, Ubuntu 24.04 container)**: built through Gradle; a Java smoke test through the real APIs passed --
+  kcp round trip between two sessions, codec2 encode/decode of one 2400 bps frame, FMOD natives loaded, Studio system
+  initialized (`AllowMissingPlugins`) and the real Master banks loaded (13 events). Not tested: NativeAudio's
+  capture/playback (the container has no audio device) and anything in a game client.
 
 ## Toolchain
 
