@@ -14,5 +14,11 @@
   "radio.dncity.station_action_bar": "라디오 스테이션 (%s, %sMHz)",
   "key.categories.dncity": "DNCity",
   "key.dncity.radio_ptt": "Radio Push-to-Talk",
-  "key.dncity.phone_toggle": "Toggle Phone"
+  "key.dncity.phone_toggle": "Toggle Phone",
+  "radio.dncity.tune.sent": "슬롯 %s: %s %s %s",
+  "radio.dncity.tune.no_frequency": "주파수를 입력하세요",
+  "radio.dncity.tune.bad_slot": "없는 슬롯입니다",
+  "radio.dncity.tune.out_of_band": "이 무전기의 주파수 범위 밖입니다 (%s–%s %s)",
+  "radio.dncity.tune.out_of_band_short": "범위 밖",
+  "radio.dncity.tune.mode_unsupported": "이 무전기는 %s 모드를 지원하지 않습니다"
 }

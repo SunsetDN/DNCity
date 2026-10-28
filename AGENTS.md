@@ -344,7 +344,13 @@ Package root: `io.github.jwyoon1220.dncity`.
   registration for radio state changes.
 - **`command/RadioCommand.kt`** — `/radio`-style command registration.
 - **`client/RadioScreen.kt`** — the client-side GUI opened when using a radio item
-  (`RadioItem.screenOpener`, wired in `Dncity.onClientSetup`).
+  (`RadioItem.screenOpener`, wired in `ClientModEvents.onClientSetup`). Frequencies are typed in MHz (kHz on a
+  mediumwave set) and sent as kHz; `radio/RadioTuning.kt` holds the checks the server applies (slot, band of this
+  radio, mode), which the screen runs first so it shows why a value is refused (marker `radio-tuning-ui`, user
+  2026-10-28: "can't set the frequency" -- the box used to take raw kHz, so "145.5" on a VHF set was 145.5 kHz and the
+  server dropped it silently; the server also only looked at the main hand, so a radio opened from the offhand never
+  changed). The radio_* payloads carry `offHand` (registrar `"2"`); Enter applies; `RadioItem.dataOf` pads a saved slot
+  list shorter than the tier (writing past it threw on the server). The radio station screen still takes kHz.
 - **Voice** (`voice/` package) — two tiers sharing one client-side mixer/playback pump
   (`VoiceClientLoop.kt`, `VoiceAudioMixer.kt`), both riding on `engine/audio`'s `NativeAudio` for
   local mic capture/speaker playback:

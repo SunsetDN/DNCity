@@ -2,6 +2,7 @@ package io.github.jwyoon1220.dncity.item
 
 import io.github.jwyoon1220.dncity.radio.RadioBandGroup
 import io.github.jwyoon1220.dncity.radio.RadioData
+import io.github.jwyoon1220.dncity.radio.RadioTuning
 import net.minecraft.ChatFormatting
 import net.minecraft.network.chat.Component
 import net.minecraft.world.InteractionHand
@@ -43,7 +44,8 @@ class RadioItem(
     properties: Properties,
 ) : Item(properties) {
 
-    fun dataOf(stack: ItemStack): RadioData = stack.getOrDefault(RadioComponents.RADIO_DATA, RadioData.default(tier))
+    fun dataOf(stack: ItemStack): RadioData =
+        RadioTuning.normalized(stack.getOrDefault(RadioComponents.RADIO_DATA, RadioData.default(tier)), tier)
 
     override fun use(level: Level, player: Player, hand: InteractionHand): InteractionResultHolder<ItemStack> {
         val stack = player.getItemInHand(hand)

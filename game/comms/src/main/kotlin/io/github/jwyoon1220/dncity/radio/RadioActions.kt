@@ -3,19 +3,21 @@ package io.github.jwyoon1220.dncity.radio
 import io.github.jwyoon1220.dncity.item.RadioItem
 import io.github.jwyoon1220.dncity.item.RadioComponents
 import net.minecraft.server.level.ServerPlayer
+import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 
 /**
- * Server-side mutations for whatever radio the player is holding in their main hand -- shared
- * between the "/radio" command and the [io.github.jwyoon1220.dncity.network] payload handlers
- * that back the tuning screen, so both paths behave identically.
+ * Server-side mutations for the radio the player is holding -- shared between the "/radio" command
+ * (main hand) and the payload handlers behind the tuning screen (the hand the screen was opened
+ * with, which may be the offhand), so both paths behave identically.
  */
 object RadioActions {
 
     private const val HOTBAR_SIZE = 9
 
-    fun heldRadio(player: ServerPlayer): RadioItem? = player.mainHandItem.item as? RadioItem
+    fun heldRadio(player: ServerPlayer, hand: InteractionHand = InteractionHand.MAIN_HAND): RadioItem? =
+        player.getItemInHand(hand).item as? RadioItem
 
     /**
      * Every radio stack in [player]'s hotbar (slots 0-8) -- receiving/transmitting only requires
@@ -38,14 +40,17 @@ object RadioActions {
             radio.canTransmit && data.powered && data.slots.getOrNull(data.activeSlot)?.enabled == true
         }
 
-    fun tune(player: ServerPlayer, slot: Int, frequencyKhz: Double, mode: RadioMode): Boolean {
-        val radio = heldRadio(player) ?: return false
-        if (slot !in 0 until radio.tier) return false
-        val band = RadioBand.fromFrequencyKhz(frequencyKhz) ?: return false
-        if (!radio.bandGroup.supports(band)) return false
-        if (!radio.bandGroup.supportsMode(mode)) return false
+    fun tune(
+        player: ServerPlayer,
+        slot: Int,
+        frequencyKhz: Double,
+        mode: RadioMode,
+        hand: InteractionHand = InteractionHand.MAIN_HAND,
+    ): Boolean {
+        val radio = heldRadio(player, hand) ?: return false
+        if (RadioTuning.problem(radio, slot, frequencyKhz, mode) != null) return false
 
-        val stack = player.mainHandItem
+        val stack = player.getItemInHand(hand)
         val data = radio.dataOf(stack)
         val slots = data.slots.toMutableList()
         slots[slot] = RadioSlot(frequencyKhz, mode, enabled = true)
@@ -53,18 +58,18 @@ object RadioActions {
         return true
     }
 
-    fun setActive(player: ServerPlayer, slot: Int): Boolean {
-        val radio = heldRadio(player) ?: return false
+    fun setActive(player: ServerPlayer, slot: Int, hand: InteractionHand = InteractionHand.MAIN_HAND): Boolean {
+        val radio = heldRadio(player, hand) ?: return false
         if (slot !in 0 until radio.tier) return false
-        val stack = player.mainHandItem
+        val stack = player.getItemInHand(hand)
         val data = radio.dataOf(stack)
         stack.set(RadioComponents.RADIO_DATA, data.copy(activeSlot = slot))
         return true
     }
 
-    fun setPowered(player: ServerPlayer, powered: Boolean): Boolean {
-        val radio = heldRadio(player) ?: return false
-        val stack = player.mainHandItem
+    fun setPowered(player: ServerPlayer, powered: Boolean, hand: InteractionHand = InteractionHand.MAIN_HAND): Boolean {
+        val radio = heldRadio(player, hand) ?: return false
+        val stack = player.getItemInHand(hand)
         val data = radio.dataOf(stack)
         stack.set(RadioComponents.RADIO_DATA, data.copy(powered = powered))
         return true
