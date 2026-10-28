@@ -2,6 +2,7 @@ package io.github.jwyoon1220.dncity.client
 
 import io.github.jwyoon1220.dncity.Dncity
 import io.github.jwyoon1220.dncity.client.farentity.FarEntityClient
+import io.github.jwyoon1220.dncity.client.network.DhNetworkTuning
 import io.github.jwyoon1220.dncity.client.phone.PhoneCallManager
 import io.github.jwyoon1220.dncity.client.phone.PhoneController
 import io.github.jwyoon1220.dncity.client.phone.nanovg.PhoneNanoVgSurface
@@ -89,6 +90,9 @@ object ClientModEvents {
         // Players out in Distant Horizons' LOD terrain, drawn as real models (see client.farentity.FarEntityClient)
         NeoForge.EVENT_BUS.addListener(FarEntityClient::onClientTick)
         NeoForge.EVENT_BUS.addListener(FarEntityClient::onLoggingOut)
+
+        // DH's LOD stream follows the link instead of filling the game's TCP connection (see client.network.DhNetworkTuning)
+        if (ModList.get().isLoaded("distanthorizons")) DhNetworkTuning.apply()
 
         // Body armor wear tooltip (see compat.TaczSmallArmsBridge)
         NeoForge.EVENT_BUS.addListener(BallisticArmorBar::onTooltip)

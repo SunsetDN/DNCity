@@ -1,7 +1,9 @@
 package io.github.jwyoon1220.dncity.music
 
 import io.github.jwyoon1220.dncity.Dncity
+import io.github.jwyoon1220.dncity.network.MusicAssetAckPayload
 import io.github.jwyoon1220.dncity.network.MusicAssetChunkPayload
+import net.neoforged.neoforge.network.PacketDistributor
 import org.apache.logging.log4j.Level
 import java.io.File
 import java.nio.file.Files
@@ -16,6 +18,9 @@ object MusicClientReceiver {
     private val transfers = HashMap<Int, Array<ByteArray?>>()
 
     fun handleChunk(payload: MusicAssetChunkPayload) {
+        // ack first: the server only sends the next chunk once this one is confirmed (MusicAssetSender)
+        PacketDistributor.sendToServer(MusicAssetAckPayload(payload.transferId, payload.chunkIndex))
+        if (payload.totalChunks <= 0 || payload.chunkIndex !in 0 until payload.totalChunks) return
         val chunks = transfers.getOrPut(payload.transferId) { arrayOfNulls(payload.totalChunks) }
         chunks[payload.chunkIndex] = payload.data
         if (chunks.any { it == null }) return

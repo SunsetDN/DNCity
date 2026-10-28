@@ -1092,6 +1092,36 @@ drawn as far as the terrain under them).
   64 blocks. Compiled against the real 1.21.1/NeoForge 21.1.248 classes and DH's API; `FarEntityMathTest` (10) passes; the payload
   codec round trip and everything visual are **not yet tried in a client**.
 
+## Network lanes: no head-of-line blocking (marker `network-lanes`)
+
+User request 2026-10-28 ("remove the TCP blocking"). Both of DNCity's transports deliver in order, so one big or lost thing
+held everything behind it. Three changes, plus one bug found on the way:
+- **Audio off the reliable stream** (`network/kcp/VoiceKcpProtocol`, `VoiceKcpServer`, `VoiceKcpClient`): voice, radio and
+  phone audio used to go through the per-player KCP session, which is reliable *and ordered*: one lost segment held every later
+  frame until its retransmit (`DncityKcp` RTO >= 30 ms, 200 ms before the first RTT sample). Audio now goes as single datagrams
+  `[conv LE][90][message]` (`RAW_DATAGRAM_CMD`; KCP segments carry 81/82 in that byte), never acked or resent; a message over
+  1195 bytes falls back to KCP. The server takes a raw datagram only from an authenticated session's current address (and never a
+  HELLO). `FreshnessGate` drops a frame that arrives behind a newer one of the same stream (type + speaker, compared on the
+  sender's own clock); the old 250 ms staleness check stays. Voice payload registrar is now `"2"` (a `"1"` peer would feed raw
+  datagrams into KCP).
+- **Music files paced** (`music/MusicAssetSender`): `send` used to queue every 250 KB chunk of a file onto the player's Minecraft
+  connection in one loop (soundfont on login, `/music play` for everyone), so game packets waited behind the whole file. Now:
+  per-player FIFO of 32 KiB chunks, at most 4 unacknowledged (`MusicAssetAckPayload`, sent by `MusicClientReceiver.handleChunk`
+  for every chunk, whichever lane it came on), over the player's UDP session (`TYPE_ASSET_CHUNK`, off the TCP connection) when
+  it has one, the Minecraft connection otherwise. A transfer with no ack for 30 s is dropped. Music registrar is `"2"`.
+- **Distant Horizons' LOD stream** (`client/network/DhNetworkTuning`): DH sends LODs over the same TCP connection at a fixed
+  500 KB/s per player by default. DNCity turns on DH's own `Config.Server.enableAdaptiveTransferSpeed` (off upstream) as an API
+  override (`setApiValue`, the user's config file is untouched; `-Ddncity.dhAdaptiveTransfer=false` keeps DH's setting): the client
+  measures the LOD bytes it gets each second and asks for that rate (`ClientCongestionControl`, AIMD +50 / -25 KB/s), so the stream
+  follows the link. This uses DH's internal `core` package (not relocated in its jar), not its public API.
+- **Bug fixed**: `DncityKcp` reassembles a message only when all its fragments fit its 128-segment receive queue (128 x 1176 =
+  150,528 bytes); a bigger one never arrives and blocks the session. Verified with a C++ loopback harness on `DncityKcp.h`: 128
+  segments delivered, 129 never. `TYPE_LOD_DATA` allowed 1 MiB; reliable messages are now capped at 128 KiB
+  (`MAX_RELIABLE_MESSAGE_BYTES`, `encodeLodData` refuses more).
+- Not changed: `FarPlayersPayload` and the rest of DNCity's small game payloads stay on the Minecraft connection; DH's own
+  network code (it still uses TCP, only paced). Unit tests: `VoiceKcpProtocolTest`. Compiled against 1.21.1/NeoForge with the
+  voice/phone/MIDI receivers stubbed; **not yet run in a client or against a real server**.
+
 ## Editing the mod metadata template
 
 `mod_authors`, `mod_description`, and version/range values live in `gradle.properties`, not in

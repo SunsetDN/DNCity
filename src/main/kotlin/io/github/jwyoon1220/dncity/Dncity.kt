@@ -29,6 +29,7 @@ import io.github.jwyoon1220.dncity.command.RadioCommand
 import io.github.jwyoon1220.dncity.item.ModItems
 import io.github.jwyoon1220.dncity.item.component.ModDataComponents
 import io.github.jwyoon1220.dncity.command.MusicCommand
+import io.github.jwyoon1220.dncity.music.MusicAssetSender
 import io.github.jwyoon1220.dncity.music.MusicServerEvents
 import io.github.jwyoon1220.dncity.network.FarEntityNetworking
 import io.github.jwyoon1220.dncity.network.MusicNetworking
@@ -95,6 +96,8 @@ object Dncity {
         NeoForge.EVENT_BUS.addListener(PhoneNumberCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(PgpCommand::onRegisterCommands)
         NeoForge.EVENT_BUS.addListener(MusicServerEvents::onPlayerLoggedIn)
+        NeoForge.EVENT_BUS.addListener(MusicAssetSender::onServerTick)
+        NeoForge.EVENT_BUS.addListener(MusicAssetSender::onPlayerLoggedOut)
         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedIn)
         NeoForge.EVENT_BUS.addListener(PhoneServerEvents::onPlayerLoggedOut)
         NeoForge.EVENT_BUS.addListener(RadioStationServerEvents::onPlayerLoggedOut)
